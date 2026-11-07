@@ -189,7 +189,7 @@ function wageCheck(r) {
     if (r.pos + RIDER >= r.wg) { r.wages = (r.wages + 10 * (Math.floor(r.gcount / 4) + 1)) % 1000000; r.wg += 76; r.gcount++; }
 }
 function skipGrounds(r) { while (r.pos + RIDER >= r.wg) { r.wg += 76; r.gcount++; } }
-// the status line (decisions 13, 33): row 1, a block of 20 byte columns a player in its colour,
+// the status line (decisions 13, 33, 41): row 2, a block of 20 byte columns a player in its colour,
 // wages at columns 2-13 and takes left at 16-17 in 3 x 7 digits, 4 pixels wide
 const DIGITS = [[7, 5, 5, 5, 5, 5, 7], [2, 6, 2, 2, 2, 2, 7], [7, 1, 1, 7, 4, 4, 7], [7, 1, 1, 7, 1, 1, 7], [5, 5, 5, 7, 1, 1, 1],
                 [7, 4, 4, 7, 1, 1, 7], [7, 4, 4, 7, 5, 5, 7], [7, 1, 1, 1, 1, 1, 1], [7, 5, 5, 7, 5, 5, 7], [7, 5, 5, 7, 1, 1, 7]];
@@ -461,10 +461,10 @@ h.onWrite(0x3000, 0x7fff, (addr, val, ctx) => {
     if (!started) return false;
     writes++;
     const row = Math.floor((addr - 0x3000) / ROW);
-    // the CRTC shows memory row 1 first (decision 37: rows 1-30), so the row being shown is vc + 1
-    const shown = ctx.vc + 1;
-    if (row === 1) {                                   // the status line: not while it is shown
-        if (!ctx.adj && shown === 1) { tears++; if (!firstTear) firstTear = { field: fields, addr: "&" + addr.toString(16), status: true, vc: ctx.vc, at: h.symAt(ctx.pc) }; }
+    // the CRTC shows memory row 2 first (decisions 37, 41: rows 2-30), so the row shown is vc + 2
+    const shown = ctx.vc + 2;                          // (decision 41: rows 2-30)
+    if (row === 2) {                                   // the status line: not while it is shown
+        if (!ctx.adj && shown === 2) { tears++; if (!firstTear) firstTear = { field: fields, addr: "&" + addr.toString(16), status: true, vc: ctx.vc, at: h.symAt(ctx.pc) }; }
         return false;
     }
     const k = Math.floor((row - 4) / 7);
@@ -504,7 +504,7 @@ h.onExec(LOOP, () => {
         const m = { pos: r.pos, vel: r.vel, js: r.js, phase: r.phase, take: r.take };
         if (JSON.stringify(g) !== JSON.stringify(m)) { stateWrong++; if (!firstState) firstState = { field: fields, pass: passes, strip: k, game: g, model: m }; }
     }
-    const sGot = h.rd(0x3000 + ROW, ROW, "main"), sWant = statusRow(statusSnap);
+    const sGot = h.rd(0x3000 + 2 * ROW, ROW, "main"), sWant = statusRow(statusSnap);
     for (let i = 0; i < ROW; i++) if (sGot[i] !== sWant[i]) { statusWrong++; if (!firstStatus) firstStatus = { field: fields, col: i >> 3, line: i & 7, got: sGot[i], want: sWant[i], snap: statusSnap }; }
     statusSnap = snapshot();                           // what the next pass's head draws
     checked++;

@@ -13,7 +13,7 @@
 \ head of a pass, before strip 0: the raster is then past row 1 (strip 0 starts after line 120)
 \ and its update ends before the next field's row 1 (decision 12).
 
-STATUS = SCREEN + 1 * ROW       \ character row 1
+STATUS = SCREEN + 2 * ROW       \ character row 2 (decision 41)
 WAGES_AT = 2                    \ byte columns in a player's block
 TAKES_AT = 16
 

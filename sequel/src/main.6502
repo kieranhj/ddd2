@@ -1567,7 +1567,7 @@ SECTION page1, org = &0100, guard = &01C0
 .p1_end
 ENDSECTION
 .r0_image                       \ row 0, &3000-&327F: off the display (decision 37)
-SECTION row0, org = SCREEN, guard = SCREEN + ROW
+SECTION row0, org = SCREEN, guard = SCREEN + 2 * ROW
     INCLUDE "status.6502"
     INCLUDE "screen.6502"
 .r0_end
@@ -1611,7 +1611,7 @@ LOAD_OF_R0 = r0_image - ORG_AT + LOAD_AT
     LDA #HI(LOAD_OF_R0) : STA d0 + 1    \ &3000 (decision 37)
     LDA #LO(SCREEN)     : STA d1
     LDA #HI(SCREEN)     : STA d1 + 1
-    LDX #3
+    LDX #HI(2 * ROW + 255)
     JSR reloc_pages - ORG_AT + LOAD_AT
     CLI
     JMP start

@@ -1,16 +1,20 @@
-\ screen.6502 - the screen's set-up (flow.6502's), assembled for row 0 (decision 37).
+\ screen.6502 - the screen's set-up (flow.6502's), assembled for rows 0-1 (decisions 37, 41).
 
-\ screen_init: rows 1-30 cleared (MODE 2 is set once, by !BOOT: rows 0 and 31 hold code and
-\ state, decisions 31 and 37), and the CRTC's display: rows 1-30 (start &3280, R6 30), the
-\ vertical sync a row earlier (R7 33), so that every row is on the scanline it would be in MODE 2.
+FIRST_ROW = 2                   \ the first row shown (decision 41)
+SHOWN = 29                      \ rows 2-30
+
+\ screen_init: rows 2-30 cleared (MODE 2 is set once, by !BOOT: rows 0, 1 and 31 hold code and
+\ state, decisions 31, 37, 41), and the CRTC's display: rows 2-30 (start &3500, R6 29), the
+\ vertical sync two rows earlier than MODE 2's (R7 32), so that every row is on the scanline it
+\ would be in MODE 2. 29 rows are 72 pages and 128 bytes.
 .screen_init
-    LDA #LO(SCREEN + ROW)
+    LDA #LO(SCREEN + FIRST_ROW * ROW)
     STA pk
-    LDA #HI(SCREEN + ROW)
+    LDA #HI(SCREEN + FIRST_ROW * ROW)
     STA pk + 1
     LDA #0
     TAY
-    LDX #30 * ROW / 256         \ 75 pages, to &7D80
+    LDX #SHOWN * ROW / 256      \ 72 whole pages
 .sci_clear
     STA (pk),Y
     INY
@@ -18,21 +22,25 @@
     INC pk + 1
     DEX
     BNE sci_clear
-    LDA #6                      \ R6: 30 rows shown
+    LDY #SHOWN * ROW MOD 256 - 1    \ and 128 bytes, to &7D80
+.sci_rest
+    STA (pk),Y
+    DEY
+    BPL sci_rest
+    LDA #6                      \ R6: 29 rows shown
     STA &FE00
-    LDA #30
+    LDA #SHOWN
     STA &FE01
-    LDA #7                      \ R7: the vertical sync after 33 rows (MODE 2: 34)
+    LDA #7                      \ R7: the vertical sync after 32 rows (MODE 2: 34)
     STA &FE00
-    LDA #33
+    LDA #34 - FIRST_ROW
     STA &FE01
-    LDA #12                     \ R12/R13: the display starts at row 1
+    LDA #12                     \ R12/R13: the display starts at row 2
     STA &FE00
-    LDA #HI((SCREEN + ROW) / 8)
+    LDA #HI((SCREEN + FIRST_ROW * ROW) / 8)
     STA &FE01
     LDA #13
     STA &FE00
-    LDA #LO((SCREEN + ROW) / 8)
+    LDA #LO((SCREEN + FIRST_ROW * ROW) / 8)
     STA &FE01
     RTS
-
