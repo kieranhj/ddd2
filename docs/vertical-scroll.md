@@ -1,5 +1,8 @@
 # The smooth vertical scroll example, measured
 
+*Not part of the sequel: the kit template's example (`examples/vscroll/`), kept from the start. The
+sequel scrolls in software, not with a rupture (decision 9).*
+
 *`examples/vscroll/`, built and measured 2026-09-08, jsbeeb 1.25.0, `B-DFS1.2` (a BBC Model B).
 It is a worked example of Rich Talbot-Watkins's frame shape for scrolling one scanline at a time,
 under key control, and of what that shape does and does not cost. The kit's facts about the

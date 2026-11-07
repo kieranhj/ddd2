@@ -30,4 +30,26 @@ Boot `build/ddd.ssd` on a Model B with DFS (SHIFT+BREAK).
 - `tools/disasm2baron.py` - the one-shot converter that made the sources
 - `tools/compare.py` - checks a build against the reference
 
+## Dare Devil Denis 2 (`sequel/`)
+
+A four-player sequel for the BBC Model B: each player rides one of the original's four strips as
+an endless runner over the original's 35 levels laid end to end, scrolled in software at 50 Hz.
+Built so far: riding, jumping, crashing and takes, the enemies, the spider, the helicopter and its
+gold, wages and the status line, the title, game mode 1 (the most wages wins), and sound (the
+original's effects and its loading-screen tune). Next: game modes 2 and 3 (`PLAN.md`).
+
+```powershell
+.\build.ps1 -NoCompare      # the original first: the sequel takes its sprites and tables from it
+.\sequel\build.ps1         # sequel/build/ddd2.ssd (needs beeb-port-kit beside this repo)
+```
+
+Boot `sequel/build/ddd2.ssd` on a Model B (SHIFT+BREAK). On the title each player joins with its
+accelerate key, then A-F picks the skill (the starting level) and starts. Keys, accelerate then
+jump: player 1 Z X, player 2 V B, player 3 M comma, player 4 full stop slash.
+
+The latest work-in-progress disc, in the browser:
+https://bbc.xania.org/?disc=https://bitshifters.github.io/content/wip/ddd2-wip.ssd&autoboot&model=B
+
+`PLAN.md` is what is left, `docs/done.md` what landed, `docs/decisions.md` every decision.
+
 Method: [beeb-port-kit](https://github.com/kieranhj/beeb-port-kit).

@@ -125,8 +125,10 @@ up to 3 lines a pass.
   - **Unchanged:** the original's sprites and tables, taken from the rebuild's symbols.
   - **Transliterated from `game.6502`, each with a reference to the original routine:** its
     rules — the velocity, the jump arc, what collides, and the wages.
-- The byte-identical rebuild stays as the reference: tag `step1-byte-identical-rebuild`, and
-  `.\build.ps1` builds both.
+- The byte-identical rebuild stays as the reference: tag `step1-byte-identical-rebuild`;
+  `.\build.ps1` builds it, and `.\sequel\build.ps1` the sequel from it.
+- **Built** (steps 4-6, `docs/done.md`): the code map, the memory layout and the traps are in
+  `CLAUDE.md`, "The sequel".
 
 **The course is captured, not re-derived** (done, step 3). A jsbeeb harness plays the original
 from level 1, moving the rider to the end of each level so the game's own end-of-level code sets
