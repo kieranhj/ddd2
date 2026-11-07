@@ -52,7 +52,9 @@ from there (`python tools/listing.py symbols build/ddd.symbols.json NAME`).
 | `os.6502` | MOS entry points |
 | `lib/` | the kit's shared includes (IRQ owner, keyboard, loader, ZX02), not yet used |
 
-The sequel's design is `docs/sequel.md`. `spikes/swscroll/` is the software-scroll spike (its own
+The sequel's design is `docs/sequel.md`; its source is `sequel/` (`sequeluild.ps1` after the
+main build -> `sequel/build/ddd2.ssd`; `node tools/verify_strip.mjs` is its oracle, 0 bytes wrong).
+`spikes/swscroll/` is the software-scroll spike (its own
 `build.ps1`, after the main build: it takes the sprites from `build/ddd.ssd`).
 
 The original measured in headless jsbeeb (after the build; `node tools/X.mjs`): `tools/ddd.mjs`

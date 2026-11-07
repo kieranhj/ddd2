@@ -1,7 +1,7 @@
 # Plan
 
 What is left. What has landed is in `docs/done.md`. The sequel's design is `docs/sequel.md`; the
-decisions are `docs/decisions.md` (1-22).
+decisions are `docs/decisions.md` (1-23).
 
 ## Step 1 - the original, buildable and verified: DONE (tag `step1-byte-identical-rebuild`, public at github.com/kieranhj/ddd2)
 
@@ -11,17 +11,16 @@ decisions are `docs/decisions.md` (1-22).
 
 ## Step 4 - the sequel, one layer at a time (each visible in jsbeeb before the next)
 
-1. [ ] One strip on the real course (`data/course.json`'s `course`, decisions 18-22): the scroll
-       from the spike, optimised (unrolled column copy;
-       redraw the rider only when something passes under it; target: the four strips well under
-       the spike's 22-23.5K cycles at the real top speed). The accelerate key drives the
-       original's velocity rules. Measure the worst case.
+1. [x] One strip on the real course: DONE (`docs/done.md` layer 4.1; decision 23 proposed).
 2. [ ] Four strips and eight keys, at 50 Hz (decision 11). Measure the key numbers and check
        for ghosting (`beeb-key-numbers`). The cycle budget. No tearing (decision 12): each strip
        is written only while the raster is outside its band. Choose, by measuring, between
        polling the raster and a timer on IRQ1V. Show it with an oracle that records each write's
        raster line, and get a second opinion in b2 (`beeb-cross-emulator`). Choose the four rider
-       colours (decision 17).
+       colours (decision 17). Room first: 1,488 bytes are left below the screen; the code could
+       load at &1100 or lower once the filing system is no longer needed (ledger it with
+       `beeb-ram-hunt`). If four strips do not fit, a compiled rider draw saves about 300 cycles
+       each time an obstacle passes under it.
 3. [ ] Jump, collisions, crash and respawn, takes. Holes crash (decision 6).
 4. [ ] Enemies, horizontal and vertical, in course coordinates. Each strip changes its level type
        (land, sea, snow; sprites and ground colour) as its rider crosses a level boundary.

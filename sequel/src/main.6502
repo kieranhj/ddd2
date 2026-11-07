@@ -1,0 +1,436 @@
+\ main.6502 - Dare Devil Denis 2: four strips of the original, each an endless runner.
+\
+\ LAYER 4.1 (PLAN.md): one strip on the real course. The four strips are drawn, strip 0's rider
+\ is driven by SHIFT with the original's velocity rules, strips 1-3 stand still (decision 14). No
+\ jumping, no collisions, no enemies: obstacles pass through the rider. The MOS stays in for now
+\ (VDU 22 for the mode, OSBYTE 19 for v-sync, OSBYTE &81 for SHIFT); keys straight from the VIA
+\ and the raster timing come with layer 4.2.
+\
+\ THE SCREEN is the original's MODE 2 (docs/sequel.md): strip k's obstacles on character rows
+\ 7+7k and 8+7k, its ground on 9+7k. The ground character's top four lines are lit and the same
+\ at every column, so the ground is drawn once and only holes change it.
+\
+\ THE SCROLL. Each strip has a course position `pos` (the course column at screen column 0), in
+\ 16.8 fixed point. Per field: pos += vel / 256, then vel += 1 with SHIFT held, up to 250. That
+\ is the original's motion exactly (update_player: x += vel x 3 / 256 and vel += 3, once every 3
+\ fields) at 3 times the rate and a third of the step (decision 16). vel < 256, so a strip moves
+\ 0 or 1 column a field, and a move of one column means, for each object on screen:
+\   obstacle   draw it whole at its new column, clear the column it left (col + 4)
+\   hole       open its new left column, close the column it left (col + w)
+\ and the rider redrawn if anything was written over its four columns. Objects come off
+\ `first`, the first not yet gone off the left, in course order.
+\
+\   frame_start .. frame_end    the field's work, for a cycle-count breakpoint pair
+
+OSWRCH = &FFEE
+OSBYTE = &FFF4
+
+SCREEN  = &3000
+ROW     = 640                   \ bytes in a MODE 2 character row
+GROUND  = &0C                   \ logical colour 2 (green) in both pixels: the land ground
+RIDER   = 12                    \ the riders' fixed screen column (decision 23, PROPOSED)
+VMAX    = 250                   \ the original's velocity cap (update_player)
+PLAYER  = 9                     \ sprite: the land rider (level types come with layer 4.4)
+
+\ zero page: &70-&8F is the user's under the MOS
+d0       = &70                  \ 2: the top character row at a column
+d1       = &72                  \ 2: the character row below it
+bas      = &74                  \ 2: this strip's obstacle row
+gb       = &76                  \ 2: this strip's ground row
+strip    = &78
+obj      = &79
+col      = &7A                  \ the object's screen column, signed (-32..79)
+wid      = &7B
+kind     = &7C
+hit      = &7D                  \ non-zero: the rider's columns were written over
+cc       = &7E                  \ a sprite column, 0-3
+tmp      = &7F
+keys     = &80                  \ 4: SHIFT held, per strip
+vec      = &84                  \ 2: a shift routine
+
+SECTION ddd2, org = &1900, load = &1900, exec = start, filename = "!BOOT"
+
+.start
+    LDA #22 : JSR OSWRCH
+    LDA #2  : JSR OSWRCH
+    LDA #23 : JSR OSWRCH        \ VDU 23,1,0;0;0;0; - cursor off
+    LDA #1  : JSR OSWRCH
+    LDX #8
+.cursor_off
+    LDA #0 : JSR OSWRCH
+    DEX
+    BNE cursor_off
+    LDA #0
+    STA keys + 1                \ strips 1-3 have no one playing (decision 14)
+    STA keys + 2
+    STA keys + 3
+    LDX #3
+.init_strip
+    STX strip
+    JSR draw_strip
+    LDX strip
+    DEX
+    BPL init_strip
+
+.loop
+    LDA #19 : JSR OSBYTE        \ wait for vertical sync
+.frame_start
+    LDA #&81 : LDX #&FF : LDY #&FF
+    JSR OSBYTE                  \ INKEY(-1): SHIFT
+    STX keys                    \ &FF held, 0 not
+    LDX #0
+.strip_loop
+    STX strip
+    JSR update_strip
+    LDX strip
+    INX
+    CPX #4
+    BNE strip_loop
+.frame_end
+    INC frames
+    BNE loop
+    INC frames + 1
+    JMP loop
+
+\ ---------------------------------------------------------------------------------------------
+\ update_strip: X = strip. Move it by its velocity; redraw what moved.
+\ ---------------------------------------------------------------------------------------------
+.us_stay
+    RTS
+.update_strip
+    LDA done,X
+    BNE us_stay
+    CLC                         \ pos += vel / 256 (the original moves, then accelerates)
+    LDA pos_frac,X
+    ADC vel,X
+    STA pos_frac,X
+    PHP
+    LDA keys,X
+    BEQ us_coast
+    LDA vel,X
+    CMP #VMAX
+    BCS us_coast
+    INC vel,X
+.us_coast
+    PLP
+    BCC us_stay                 \ under a column: nothing on the screen moves
+    INC pos_lo,X
+    BNE us_moved
+    INC pos_hi,X
+.us_moved
+    LDA pos_lo,X                \ the rider at the finish: stop there (decision 22)
+    CMP #LO(FINISH - RIDER)
+    LDA pos_hi,X
+    SBC #HI(FINISH - RIDER)
+    BCC us_go
+    LDA #1
+    STA done,X
+    LDA #0
+    STA vel,X
+.us_go
+    JSR set_bases
+    LDA #0
+    STA hit
+    LDA first,X
+    STA obj
+.us_obj
+    JSR object_column           \ col; C set: past the right edge, stop
+    BCC us_here
+    JMP us_end
+.us_here
+    BMI us_gone                 \ (N from object_column) gone off the left
+    LDA kind
+    BMI us_hole
+
+    \ an obstacle. Across the edges: draw the columns on the screen. Anywhere else: its shift
+    \ routine, which writes only the bytes that differ from the obstacle one column to the right.
+    \ That is right everywhere but the rider's own four columns, where the screen held the rider
+    \ and not the obstacle; the rider is redrawn whole after any write there (col RIDER-4 ..
+    \ RIDER+3: the routine writes columns col .. col+4), and covers them completely.
+    LDA col
+    CMP #76
+    BCS us_ob_clip              \ 76-79, or negative: part of it is off the screen
+    TAX
+    JSR set_dst
+    LDY kind
+    LDA shift_lo,Y : STA vec
+    LDA shift_hi,Y : STA vec + 1
+    JSR jump_vec
+    LDA col
+    SEC
+    SBC #RIDER - 4
+    CMP #8
+    BCS us_ob_done
+    STA hit                     \ (0-7) the rider is redrawn after
+    INC hit
+.us_ob_done
+    JMP us_next
+.us_ob_clip
+    JSR draw_clipped
+    LDA col
+    CLC
+    ADC #4
+    CMP #80
+    BCS us_next
+    TAX
+    JSR clear_column
+    JMP us_next
+
+    \ a hole: open col, close col + wid
+.us_hole
+    LDA col
+    CMP #80
+    BCS us_hole_close
+    TAX
+    LDA #0
+    JSR ground_column
+.us_hole_close
+    LDA col
+    CLC
+    ADC wid
+    CMP #80
+    BCS us_next
+    TAX
+    LDA #GROUND
+    JSR ground_column
+.us_next
+    INC obj
+    JMP us_obj
+.us_gone
+    LDX strip
+    LDA obj
+    CMP first,X
+    BNE us_next
+    INC first,X
+    JMP us_next
+.us_end
+    LDA hit
+    BEQ us_rts
+    JSR draw_rider
+.us_rts
+    RTS
+
+\ object_column: obj's screen column for strip `strip`. Sets col, kind, wid.
+\ Returns C set if it starts past the right edge (and so does every object after it); else C
+\ clear, with N set if it has gone off the left (its last column, col + wid, is below 0).
+.object_column
+    LDX strip
+    LDY obj
+    LDA obj_kind,Y
+    STA kind
+    BMI oc_hole
+    LDA #4
+    BNE oc_wid
+.oc_hole
+    AND #&7F
+.oc_wid
+    STA wid
+    SEC
+    LDA obj_x_lo,Y
+    SBC pos_lo,X
+    STA col
+    LDA obj_x_hi,Y
+    SBC pos_hi,X
+    BEQ oc_right                \ 0..255 columns on
+    CMP #&FF
+    BNE oc_far
+    LDA col
+    CMP #&E0
+    BCC oc_left                 \ more than 32 back: gone
+    CLC
+    ADC wid                     \ col + wid < 0: gone
+    BMI oc_left
+    LDA #0                      \ C clear, N clear: its last column is on the screen
+    CLC
+    RTS
+.oc_far
+    BMI oc_left
+.oc_past
+    SEC
+    RTS
+.oc_right
+    LDA col
+    CMP #80
+    BCS oc_past
+    LDA #0                      \ C clear, N clear: on the screen
+    RTS
+.oc_left
+    LDA #&FF                    \ N set
+    CLC
+    RTS
+
+.jump_vec
+    JMP (vec)
+
+\ set_bases: X = strip. bas, gb.
+.set_bases
+    LDA obase_lo,X : STA bas
+    LDA obase_hi,X : STA bas + 1
+    LDA gbase_lo,X : STA gb
+    LDA gbase_hi,X : STA gb + 1
+    RTS
+
+\ set_dst: X = screen column. d0 = bas + column x 8; d1 = d0 + ROW.
+.set_dst
+    CLC
+    LDA col8_lo,X : ADC bas     : STA d0
+    LDA col8_hi,X : ADC bas + 1 : STA d0 + 1
+    CLC
+    LDA d0     : ADC #LO(ROW) : STA d1
+    LDA d0 + 1 : ADC #HI(ROW) : STA d1 + 1
+    RTS
+
+\ draw_sprite: A = sprite, X = screen column (0-76). The whole sprite, both character rows.
+.draw_sprite
+    TAY
+    LDA spr_top_lo,Y : STA ds_top + 1
+    LDA spr_top_hi,Y : STA ds_top + 2
+    LDA spr_bot_lo,Y : STA ds_bot + 1
+    LDA spr_bot_hi,Y : STA ds_bot + 2
+    JSR set_dst
+    LDY #31
+.ds_loop
+.ds_top
+    LDA &FFFF,Y
+    STA (d0),Y
+.ds_bot
+    LDA &FFFF,Y
+    STA (d1),Y
+    DEY
+    BPL ds_loop
+    RTS
+
+\ draw_clipped: the obstacle `kind` at `col`, only its columns on the screen.
+.draw_clipped
+    LDA #0
+    STA cc
+.dc_loop
+    LDA col
+    CLC
+    ADC cc
+    CMP #80                     \ negative or past the edge: skip
+    BCS dc_next
+    TAX
+    JSR set_dst
+    LDA cc                      \ the column's 8 bytes start at cc x 8 in each block
+    ASL A : ASL A : ASL A
+    STA tmp
+    LDY kind
+    CLC
+    LDA spr_top_lo,Y : ADC tmp : STA dc_top + 1
+    LDA spr_top_hi,Y : ADC #0  : STA dc_top + 2
+    CLC
+    LDA spr_bot_lo,Y : ADC tmp : STA dc_bot + 1
+    LDA spr_bot_hi,Y : ADC #0  : STA dc_bot + 2
+    LDY #7
+.dc_copy
+.dc_top
+    LDA &FFFF,Y
+    STA (d0),Y
+.dc_bot
+    LDA &FFFF,Y
+    STA (d1),Y
+    DEY
+    BPL dc_copy
+.dc_next
+    INC cc
+    LDA cc
+    CMP #4
+    BNE dc_loop
+    RTS
+
+\ clear_column: X = screen column; its 16 lines, both character rows, to black.
+.clear_column
+    JSR set_dst
+    LDA #0
+    LDY #7
+.cc_loop
+    STA (d0),Y
+    STA (d1),Y
+    DEY
+    BPL cc_loop
+    RTS
+
+\ ground_column: X = screen column, A = the byte for the ground's four lit lines (0: a hole).
+.ground_column
+    TAY
+    CLC
+    LDA col8_lo,X : ADC gb     : STA d0
+    LDA col8_hi,X : ADC gb + 1 : STA d0 + 1
+    TYA
+    LDY #3
+.gc_loop
+    STA (d0),Y
+    DEY
+    BPL gc_loop
+    RTS
+
+\ draw_rider: the strip's rider at RIDER (bas set).
+.draw_rider
+    LDX #RIDER
+    LDA #PLAYER
+    JMP draw_sprite
+
+\ draw_strip: X = strip. The whole strip from scratch at its pos: the ground, every object on
+\ the screen, the rider.
+.draw_strip
+    JSR set_bases
+    LDX #79
+.dw_ground
+    LDA #GROUND
+    JSR ground_column
+    DEX
+    BPL dw_ground
+    LDX strip
+    LDA first,X
+    STA obj
+.dw_obj
+    JSR object_column
+    BCS dw_end
+    BMI dw_next
+    LDA kind
+    BMI dw_hole
+    JSR draw_clipped
+    JMP dw_next
+.dw_hole
+    LDA #0
+    STA cc
+.dw_hole_col
+    LDA col
+    CLC
+    ADC cc
+    CMP #80
+    BCS dw_hole_next
+    TAX
+    LDA #0
+    JSR ground_column
+.dw_hole_next
+    INC cc
+    LDA cc
+    CMP wid
+    BNE dw_hole_col
+.dw_next
+    INC obj
+    JMP dw_obj
+.dw_end
+    JMP draw_rider
+
+\ ---------------------------------------------------------------------------------------------
+\ per-strip state and constants
+\ ---------------------------------------------------------------------------------------------
+.obase_lo   EQUB LO(SCREEN +  7 * ROW), LO(SCREEN + 14 * ROW), LO(SCREEN + 21 * ROW), LO(SCREEN + 28 * ROW)
+.obase_hi   EQUB HI(SCREEN +  7 * ROW), HI(SCREEN + 14 * ROW), HI(SCREEN + 21 * ROW), HI(SCREEN + 28 * ROW)
+.gbase_lo   EQUB LO(SCREEN +  9 * ROW), LO(SCREEN + 16 * ROW), LO(SCREEN + 23 * ROW), LO(SCREEN + 30 * ROW)
+.gbase_hi   EQUB HI(SCREEN +  9 * ROW), HI(SCREEN + 16 * ROW), HI(SCREEN + 23 * ROW), HI(SCREEN + 30 * ROW)
+.pos_frac   EQUB 0, 0, 0, 0
+.pos_lo     EQUB 0, 0, 0, 0
+.pos_hi     EQUB 0, 0, 0, 0
+.vel        EQUB 0, 0, 0, 0
+.first      EQUB 0, 0, 0, 0
+.done       EQUB 0, 0, 0, 0
+.frames     EQUW 0
+
+    INCLUDE "../build/data.6502"
+.end
+    ASSERT end <= SCREEN
+ENDSECTION

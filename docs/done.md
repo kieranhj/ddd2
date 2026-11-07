@@ -4,6 +4,41 @@ What has landed, with the number that says it landed. `PLAN.md` is what is left.
 
 ---
 
+## Layer 4.1: one strip on the real course (2026-11-07)
+
+`sequel/` (its own `build.ps1`, after the main build) builds `sequel/build/ddd2.ssd`, 4,400 bytes of
+code and data at &1900-&2A2F. The original's MODE 2 screen. Four strips are drawn; strip 0's rider
+is driven by SHIFT with the original's velocity rules at 50 Hz (decision 16: pos += vel / 256 and
+vel += 1 a field, cap 250); strips 1-3 stand still (decision 14). The riders are at column 12
+(decision 23, proposed). Not yet: jumps, collisions, enemies, level types (the land rider and
+green ground throughout; the obstacles are the right level type's), the VIA keys, raster timing.
+
+How a strip scrolls (vel < 256, so 0 or 1 column a field): per object on the screen, an obstacle
+is moved by a routine generated per sprite (`make_data.py`) that writes only the bytes that
+differ from the obstacle one column to the right - 440 bytes over the 9 obstacle sprites, against
+9 x 80 for a full draw and clear. Edges use a clipped column draw. A hole opens one column and
+closes one. The rider is redrawn whole after any write in its four columns.
+
+**MEASURED** (`tools/verify_strip.mjs`, headless jsbeeb 2.10.2, `B-DFS1.2`; SHIFT held from the
+boot to the finish):
+- **The picture:** strip 0's three character rows compared every field with a redraw from
+  `data/course.json` and the original's sprites read from `build/ddd.ssd`; strips 1-3 compared
+  with their first field. **11,050 fields, 0 bytes wrong**; the rider stopped at course column
+  10,640, the end of level 35. Shown able to fail: one byte planted in strip 0 and one in strip 2
+  at field 500 gave 1,023 bytes wrong over the next 1,000 fields, exit 1.
+- **The cost, strip 0's own update** (MOS interrupts landing in it included), over the 10,628
+  fields it moved: median 1,141 cycles, 99th percentile 3,682, worst 5,243 (6 objects on the
+  screen, course column 9,892). By objects on the screen, mean / worst: 0: 230 / 351; 1: 846 /
+  1,945; 2: 1,233 / 3,241; 3: 1,713 / 3,922; 4: 2,342 / 4,289; 5: 2,803 / 4,775; 6: 3,483 / 5,243;
+  7: 4,010 / 4,888. A field that does not move costs at most 503 for all four strips and the key read.
+- **Four strips, estimated from that:** typically about 4,600 cycles; about 21,000 if all four
+  riders are at the densest place at once (they can be: one course). The spike was 22,000-23,500
+  every field.
+- **The steps to it:** a full draw and clear of every obstacle, worst field 7,981; shift routines
+  except beside the rider, 6,211; shift routines everywhere with the rider redrawn over them, 5,669
+  (all four strips' fields).
+- **Room:** &2A30-&2FFF, 1,488 bytes, is all that is left below the screen.
+
 ## Step 3: the course, captured from the original (2026-11-07)
 
 **MEASURED** (`tools/capture_course.mjs` on headless jsbeeb 2.10.2, `B-DFS1.2`, `build/ddd.ssd`;
