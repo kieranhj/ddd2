@@ -72,14 +72,17 @@ editor) arrives quickly.
 object positions back and writes the course table. It is checked by drawing each captured level
 and comparing it byte for byte with the original's screen.
 
+## Settled 2026-11-07
+
+- **Model B with software scrolling (decision 9).** Each strip's writes are timed so the raster
+  never sees them (decision 12).
+- **50 Hz (decision 11).**
+- **One status line at the top (decision 13).**
+- **Always four strips (decision 14).** A strip no one is playing stays static; computer riders
+  come later.
+- **Skill A-F is chosen once, for everyone (decision 15).**
+
 ## Questions still open
 
-- **The panel.** Where do four players' wages and takes go? Possibly one line in the sky of each
-  strip, or a shared box like the original's rows 0-2.
-- **Fewer than four players.** Leave the empty strips blank, or give them computer riders?
 - **Telling riders apart.** Four identical sprites. Recolour each rider, which is cheap in MODE 2
   by remapping the sprite bytes per player?
-- **Skill A-F.** In the original it picks the starting level. Should it be one choice for
-  everyone, or a handicap per player?
-- **The rupture.** Decision 9 does without it for scrolling. Is it still wanted for anything,
-  such as a per-strip palette or the panel?

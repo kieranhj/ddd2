@@ -22,7 +22,7 @@ this kind of job; Stryker's Run at `..\strykers` is the worked example); its ski
 
 | | |
 |---|---|
-| Machine | BBC Model B, DFS (the original's). The sequel: Model B too, strips scrolled in software (decision 9, PROPOSED; `docs/spike-swscroll.md`) |
+| Machine | BBC Model B, DFS (the original's). The sequel: Model B too, strips scrolled in software at 50 Hz, writes timed to the raster (decisions 9, 11, 12; `docs/spike-swscroll.md`) |
 | Reference | Stairway to Hell disc, `reference/sth/DareDevilDenis.ssd` (decision 1; gitignored - not ours to publish; `compare.py` skips when it is absent) |
 | Specification | `reference/dare-devil-denis-disassembly.txt` (Level7; of the TAPE release - `tools/check_disasm.py`) |
 | Disc | `!BOOT` (*EXEC) -> `LOAD` (STH banner, PAGE=&1900) -> `DENIS` (envelopes, VDU 23,250) -> `DENIS2` (BASIC at &4000: loading screen, v-sync tune, `*L.DENIS3 1100`, copy down, `CALL &3475`) -> `DENIS3` (the game, &0E00-&348F) |

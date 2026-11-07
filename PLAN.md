@@ -1,13 +1,13 @@
 # Plan
 
 What is left. What has landed is in `docs/done.md`. The sequel's design is `docs/sequel.md`; the
-decisions are `docs/decisions.md` (4-10).
+decisions are `docs/decisions.md` (4-15).
 
 ## Step 1 - the original, buildable and verified: DONE (tag `step1-byte-identical-rebuild`, public at github.com/kieranhj/ddd2)
 
 ## Step 2 - measure the original (what the sequel must match)
 
-- [ ] Owner agrees decisions 1-3 and 9.
+- [ ] Owner agrees decisions 1-3.
 - [ ] Its update rate: game loop passes per 100 fields, at rest and at top speed (`beeb-frame-drops`).
       Fixes what "top speed" means in columns a second.
 - [ ] The jump: the arc, how long it lasts, and what it clears, read from `game.6502` and confirmed
@@ -30,14 +30,17 @@ decisions are `docs/decisions.md` (4-10).
 1. [ ] One strip on the real course: the scroll from the spike, optimised (unrolled column copy;
        redraw the rider only when something passes under it). The accelerate key drives the
        original's velocity rules. Measure the worst case.
-2. [ ] Four strips and eight keys. Measure the key numbers and check for ghosting
-       (`beeb-key-numbers`). The cycle budget. Tearing: order the strip redraws behind the raster;
-       decide whether to take IRQ1V for a timer. Second opinion in b2 (`beeb-cross-emulator`).
+2. [ ] Four strips and eight keys, at 50 Hz (decision 11). Measure the key numbers and check
+       for ghosting (`beeb-key-numbers`). The cycle budget. No tearing (decision 12): each strip
+       is written only while the raster is outside its band. Choose, by measuring, between
+       polling the raster and a timer on IRQ1V. Show it with an oracle that records each write's
+       raster line, and get a second opinion in b2 (`beeb-cross-emulator`).
 3. [ ] Jump, collisions, crash and respawn, takes. Holes crash (decision 6).
 4. [ ] Enemies, horizontal and vertical, in course coordinates. Each strip changes its level type
        (land, sea, snow; sprites and ground colour) as its rider crosses a level boundary.
-5. [ ] The panel, four players' wages and takes. Game mode 1 (decision 8). Title, player count,
-       skill.
+5. [ ] The status line at the top: four players' wages and takes (decision 13). Game mode 1
+       (decision 8). The title screen, and skill chosen once for everyone (decision 15). A strip
+       with no one playing it stays static (decision 14).
 6. [ ] Sound (our own driver if IRQ1V is ours).
 7. [ ] Game modes 2 and 3. Then the endless part: loop the last sets, then a level editor or a
        procedural generator.
