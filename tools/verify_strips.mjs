@@ -62,6 +62,8 @@ const EARLY = args.includes("--early");
 // through) - the crashes must then disagree with the model's
 const NOHOLES = args.includes("--no-holes");
 const ACCEL = [97, 99, 101, 103], JUMP = [66, 100, 102, 104];
+const SKILL = "ABCDEF".indexOf(opt("--skill", "A")), JOINED = opt("--players", "1111").split("").map((c) => c === "1");
+if (SKILL < 0 || JOINED.length !== 4 || !JOINED.some(Boolean)) { console.error("--skill A-F, --players four of 0/1"); process.exit(2); }
 const VIDEO = opt("--video", null), VFROM = parseInt(opt("--video-from", "1150"), 10), VN = parseInt(opt("--video-fields", "750"), 10);
 if (!["play", "level"].includes(SCENARIO)) { console.error(`no scenario ${SCENARIO}`); process.exit(2); }
 
@@ -138,6 +140,7 @@ const PCOL = [2, 3, 6, 5].map(both);
 function statusRow(snap) {
     const w = new Uint8Array(ROW);
     snap.forEach(({ wages, takes }, p) => {
+        if (!JOINED[p]) return;                        // no block for a player not playing
         const L = PCOL[p] & 0xaa, R = PCOL[p] & 0x55;
         const digit = (d, col) => DIGITS[d].forEach((g, y) => { w[col * 8 + y] = (g & 4 ? L : 0) | (g & 2 ? R : 0); w[col * 8 + 8 + y] = g & 1 ? L : 0; });
         String(wages).padStart(6, "0").split("").forEach((ch, i) => digit(+ch, 20 * p + 2 + 2 * i));
@@ -205,14 +208,18 @@ function collide(read, t, air) {
     if (air) return read(RIDER, t + 16) ? 4 : 0;       // under its left column
     return read(RIDER, SKY + 16) ? 0 : 5;              // the ground under it: a hole
 }
-const newRider = (p) => ({ p, pos: 0, frac: 0, vel: 0, js: 0, t: SKY, phase: 0, ct: 0, take: 1, sea: LEVEL, finished: false,
-                           crashT: 0, dead: null, w: null, cause: 0, clk: new Map([[0, 0]]), wages: 0, wg: 76, gcount: 0 });
+// the start (flow.6502; decision 15): skill A-F's level, the original's starting_levels_table; the
+// rider's left column at its start (at level 1 the strip's left edge, the rider at column 12)
+const START_LEVEL = [1, 7, 13, 19, 25, 31][SKILL], S0 = (START_LEVEL - 1) * LEVEL;
+const newRider = (p) => ({ p, pos: START_LEVEL === 1 ? 0 : S0 - RIDER, frac: 0, vel: 0, js: 0, t: SKY, phase: JOINED[p] ? 0 : 4, ct: 0, take: 1, sea: S0 + LEVEL, finished: false,
+                           crashT: 0, dead: null, w: null, cause: 0, clk: new Map(), wages: 0, wg: S0 + 76, gcount: (START_LEVEL - 1) * 4 });
 function seaCheck(r) {
     while (r.pos + RIDER >= r.sea) { if (r.take >= 2) r.take--; r.sea += 3 * LEVEL; }
 }
 // one field of rider r; draw: keep its picture (r.w). Returns the crash's reading, or 0.
 function step(r, accel, jump, draw) {
     r.cause = 0;
+    if (r.phase === 4) return 0;                       // no one playing it: it stands still (decision 14)
     if (r.phase === 0) {
         if (!r.finished) {
             r.frac += r.vel;
@@ -311,10 +318,23 @@ if (NOHOLES) {
     if (h.byte(a) !== 0xf0) h.die("cl_ground + 10 is not BEQ");
     h.wr(a + 1, [0]);
 }
+// THE TITLE (flow.6502): the players join with their accelerate keys, then the skill's letter
+const SKILL_KEY = [65, 100, 82, 50, 34, 67][SKILL];
+const heldT = [[false, false], [false, false], [false, false], [false, false]];
+if (await h.runTo(N("title_loop"), 40_000_000) === null) h.die("never reached the title", h.gaveUp);
+const mask = JOINED.reduce((m, j, p) => m | (j ? 1 << p : 0), 0);
+JOINED.forEach((j, p) => { if (j) { h.keyDownRaw(ACCEL[p]); heldT[p][0] = true; } });
+for (let f = 0; h.byte(0xa4) !== mask; f++) { if (f > 100) h.die("the players did not join", { joined: h.byte(0xa4), mask }); await h.s.runFrames(1); }
+if (SKILL === 1) heldT[1][1] = true;                   // B is player 2's jump key too
+h.keyDownRaw(SKILL_KEY);
+if (await h.runTo(N("game_start"), 40_000_000) === null) h.die("the game never started", h.gaveUp);
+h.keyUpRaw(SKILL_KEY);
+heldT[1][1] = false;
 const riders = [0, 1, 2, 3].map(newRider);
+riders.forEach(startVisible);                          // every level on the screen at the start: its clock
 riders.forEach((r) => { r.w = riding(r); });
 
-const LOOP = N("loop");
+const LOOP = N("pass_end");             // the end of every pass, the last one too
 let statusSnap = snapshot(), statusWrong = 0, firstStatus = null;
 // the palette (layer 4.4): every write to the ULA's palette register once the loop runs must be
 // the rotating colour's next step, 3 fields after the last
@@ -328,7 +348,7 @@ let writes = 0, minGap = 99, t0 = 0, kt0 = 0, cur = null, stateWrong = 0, firstS
 const crashes = { game: [], model: [] }, causes = [0, 0, 0, 0, 0, 0];
 let respawns = 0, outs = 0, takesBack = 0;
 const fieldCost = [], stripCost = [[], [], [], []], keyCost = [];
-const held = [[false, false], [false, false], [false, false], [false, false]];
+const held = heldT;
 h.onExec(N("new_field"), () => {
     // the game's loop has made pass_count passes since start-up (this one not yet counted: the
     // hook is at new_field's head); the riders stood still all that time (no keys), but the
@@ -389,7 +409,7 @@ h.onWrite(0x3000, 0x7fff, (addr, val, ctx) => {
 // at the end of each pass: the model's field, then the pictures and the state
 const windowAt = (k) => 0x3000 + (4 + 7 * k) * ROW;
 let lastPass = 0;
-h.onExec(N("loop"), () => {
+h.onExec(LOOP, () => {
     if (!started || passes === lastPass) return;
     lastPass = passes;
     for (let k = 0; k < 4; k++) {
@@ -424,9 +444,10 @@ const accelFor = {
 }[SCENARIO];
 const f0 = h.word(SYM.frames, "main");
 let video = null;
-const done = () => riders.every((r) => r.finished || r.phase === 3);
+const done = () => riders.every((r) => r.finished || r.phase >= 3);
 while (!done() && fields < MAXF) {
     for (let p = 0; p < 4; p++) {
+        if (!JOINED[p]) continue;
         const r = riders[p];
         const a = accelFor(p, fields);
         let j = false;
@@ -447,6 +468,16 @@ while (!done() && fields < MAXF) {
     if (stateWrong > 20 || wrong > 5000) break;
 }
 const elapsed = h.word(SYM.frames, "main") - f0;
+// the game's end (game mode 1, decision 8): the winner the most wages, the first of equals; then,
+// 250 fields on, the title again
+let endOk = null;
+if (done()) {
+    started = false;                                   // the game is over: the end and the title are not watched
+    let best = -1;
+    riders.forEach((r, p) => { if (JOINED[p] && (best < 0 || r.wages > riders[best].wages)) best = p; });
+    const back = await h.runTo(N("title_loop"), 20_000_000);
+    endOk = { winner_game: h.byte(0xa5), winner_model: best, back_at_title: back !== null };
+}
 
 const stats = (a) => { const s = [...a].sort((x, y) => x - y); return { n: s.length, median: s[s.length >> 1], p99: s[Math.floor(0.99 * (s.length - 1))], max: s.at(-1) }; };
 const totals = fieldCost.map((c) => c.keys + c.strips.reduce((a, b) => a + b, 0));
@@ -465,10 +496,11 @@ for (let s0 = 0; s0 < C8.length; s0++) {
     });
     if (n < paletteWrong) { paletteWrong = n; firstPalette = first; }
 }
-const coverage = SCENARIO === "play" ? causes[1] > 0 && causes[4] > 0 && causes[5] > 0 && respawns > 0 && outs > 0 : outs === 4;
-const ok = done() && checked > 0 && wrong === 0 && statusWrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 && paletteWrong === 0 && palette.length > fields / 3 - 2 &&
+const full = SKILL === 0 && JOINED.every(Boolean);     // the runs that must see every kind of crash
+const coverage = !full ? outs + riders.filter((r, p) => JOINED[p] && r.finished).length === JOINED.filter(Boolean).length : SCENARIO === "play" ? causes[1] > 0 && causes[4] > 0 && causes[5] > 0 && respawns > 0 && outs > 0 : outs === JOINED.filter(Boolean).length;
+const ok = done() && endOk && endOk.back_at_title && endOk.winner_game === endOk.winner_model && checked > 0 && wrong === 0 && statusWrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 && paletteWrong === 0 && palette.length > fields / 3 - 2 &&
            Math.abs(passes - elapsed) <= 1 && coverage;
-h.finish({ scenario: SCENARIO, status_wrong: statusWrong, first_status_wrong: firstStatus, wages: riders.map((r) => r.wages), fields, passes, elapsed_fields: elapsed, coverage, checked, bytes_wrong: wrong, first_wrong: firstWrong, state_wrong: stateWrong, first_state: firstState,
+h.finish({ scenario: SCENARIO, skill: "ABCDEF"[SKILL], players: JOINED.map(Number).join(""), game_end: endOk, status_wrong: statusWrong, first_status_wrong: firstStatus, wages: riders.map((r) => r.wages), fields, passes, elapsed_fields: elapsed, coverage, checked, bytes_wrong: wrong, first_wrong: firstWrong, state_wrong: stateWrong, first_state: firstState,
            crashes: crashes.game.length, crashes_disagreeing: crashDiff.slice(0, 5), by_cause: { right_edge: causes[1], middle_right: causes[2], top_right: causes[3], landed_on: causes[4], hole: causes[5] },
            respawns, outs, takes_back: takesBack, model_crashes: process.env.CRASHLOG ? crashes.model : undefined,
            finals: riders.map((r) => ({ pos: r.pos, finished: r.finished, phase: r.phase, take: r.take })),

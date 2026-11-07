@@ -125,6 +125,9 @@ dg_i     = &9F
 dg_n     = &A0
 dg_g     = &A1
 dg_y     = &A2
+skill    = &A3                  \ flow.6502: 0-5, A-F
+joined   = &A4                  \ bit p: player p plays
+winner   = &A5
 en_n     = &1E                  \ enemies on the list this field
 d2       = &50                  \ 2: draw16's third character row
 ts       = &52                  \ draw16: the tall sprite
@@ -169,33 +172,19 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     INCLUDE "../build/sprites.6502"     \ first: ORG_AT is a page start (make_data.py)
 
 .start
-    LDA #22 : JSR OSWRCH
-    LDA #2  : JSR OSWRCH
-    LDA #23 : JSR OSWRCH        \ VDU 23,1,0;0;0;0; - cursor off
-    LDA #1  : JSR OSWRCH
-    LDX #8
-.cursor_off
-    LDA #0 : JSR OSWRCH
-    DEX
-    BNE cursor_off
-    LDA #6                      \ the CRTC shows 31 character rows, not 32: row 31 (&7D80), black
-    STA &FE00                   \ and never drawn, leaves the display and holds the enemies' state
-    LDA #31                     \ (enemies.6502; decision 31). The picture is the same: border
-    STA &FE01                   \ black for a row of black
-    JSR enemy_init
-    JSR status_init
-    LDX #3
-.init_strip
-    STX strip
-    JSR draw_strip
-    LDX strip
-    DEX
-    BPL init_strip
-    JSR install_irq
-    LDA frames                  \ start on a whole field
-.first_field
-    CMP frames
-    BEQ first_field
+    JSR install_irq             \ IRQ1V ours from here on (the MOS's text output still serves)
+    LDX #0                      \ page 8's code and the stack page's, from the file's tail (at
+.start_copy                     \ its load address, above anything the move down wrote; MODE 2
+    LDA p8_image - ORG_AT + LOAD_AT,X   \ has not yet cleared it)
+    STA &0800,X
+    CPX #p1_end - &0100
+    BCS start_p1
+    LDA p1_image - ORG_AT + LOAD_AT,X
+    STA &0100,X
+.start_p1
+    INX
+    BNE start_copy
+    JMP title                   \ flow.6502
 
 .loop
     LDA frames                  \ one pass a field: wait for one that has not had its pass
@@ -244,6 +233,8 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     INX
     CPX #4
     BNE strip_loop
+.pass_end                       \ (every pass ends here: the oracle's check)
+    JSR game_done               \ everyone out or finished: the game's end (flow.6502)
     JMP loop
 
 \ read_keys: the eight keys into keys and jumps (bit 7 set: held).
@@ -1480,6 +1471,7 @@ WS = 7 * ROW                    \ one strip to the next
 
     INCLUDE "enemies.6502"
     INCLUDE "status.6502"
+    INCLUDE "flow.6502"
     INCLUDE "../build/data.6502"
 .end                            \ the end of what runs at &0E00 up: below the screen
     ASSERT end <= SCREEN
@@ -1487,6 +1479,19 @@ WS = 7 * ROW                    \ one strip to the next
 \ What follows is only in the file. The tables for low RAM (&0400-&07FF, &0900-&0CFF; the RAM
 \ hunt, docs/done.md): their bytes, with their labels set to where reloc puts them.
     INCLUDE "../build/low.6502"
+
+\ Code and tables for page 8 and the stack page, assembled at their own addresses and written
+\ here in the file; `start` copies them down (after install_irq: decision 32).
+.p8_image
+SECTION page8, org = &0800, guard = &0900
+    INCLUDE "flow8.6502"
+.p8_end
+ENDSECTION
+.p1_image
+SECTION page1, org = &0100, guard = &01C0
+    INCLUDE "flow1.6502"
+.p1_end
+ENDSECTION
 
 \ reloc: runs at its LOAD address (exec), so only relative branches until the JMP, and its
 \ addresses are load addresses (x - ORG_AT + LOAD_AT). First the low RAM images to their places

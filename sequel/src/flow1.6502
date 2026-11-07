@@ -1,0 +1,83 @@
+\ flow1.6502 - flow.6502's game end and its texts, assembled for the stack page below &01C0
+\ (the stack never went below &01D8, tools/memwatch.mjs; decision 32): copied there by start.
+
+\ game_done: after a pass. Every player out of takes or finished: the game's end.
+.game_done
+    LDX #3
+.gd_strip
+    LDA phase,X
+    CMP #PHASE_IDLE
+    BEQ gd_next
+    CMP #3                      \ out of takes
+    BEQ gd_next
+    LDA finished,X
+    BNE gd_next
+    RTS                         \ someone is still riding
+.gd_next
+    DEX
+    BPL gd_strip
+    \ the end: the winner, the most wages (the first of equals)
+    LDA #&FF
+    STA winner
+    LDX #0
+.gd_best
+    LDA phase,X
+    CMP #PHASE_IDLE
+    BEQ gd_bnext
+    LDY winner
+    BMI gd_take                 \ the first player
+    STX tmp                     \ more than the best so far? compare digit by digit
+    LDA strip6,X
+    STA tmp2
+    LDA strip6,Y
+    TAY
+    LDX tmp2
+    LDA #6
+    STA en_cnt
+.gd_cmp
+    LDA wages,X
+    CMP wages,Y
+    BNE gd_differ
+    INX
+    INY
+    DEC en_cnt
+    BNE gd_cmp
+    LDX tmp                     \ equal: the first stays
+    JMP gd_bnext
+.gd_differ
+    LDX tmp
+    BCC gd_bnext                \ less
+.gd_take
+    STX winner
+.gd_bnext
+    INX
+    CPX #4
+    BNE gd_best
+    LDA winner
+    CLC
+    ADC #'1'
+    STA t_winner_n
+    LDX #T_WINS
+    JSR print
+    LDA #250
+    STA tmp2
+.gd_wait
+    JSR next_field
+    DEC tmp2
+    BNE gd_wait
+    PLA                         \ (game_done was called from the loop: it does not return)
+    PLA
+    JMP title
+
+.texts
+.t_title
+    EQUB 31, 1, 2, 17, 7
+    EQUS "PRESS A-F TO START"
+    EQUB &FF
+.t_wins
+    EQUB 31, 1, 2, 17, 7
+    EQUS "  PLAYER "
+.t_winner_n
+    EQUS "1 WINS     "
+    EQUB &FF
+

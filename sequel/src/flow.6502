@@ -1,0 +1,84 @@
+\ flow.6502 - the title, joining, the skill, the game, the game's end (layer 4.5b).
+\
+\ THE TITLE: every strip at level 1, its rider standing; row 2 "PRESS A-F TO START". A player
+\ joins by pressing its accelerate key: its status block appears (wages 0, takes 3). A-F, once
+\ someone has joined, starts the game for those who have, at that skill's level - the original's
+\ starting_levels_table: 1 7 13 19 25 31 (decision 15: one choice for everyone). A strip with no
+\ player stands still all game (decision 14).
+\ GAME MODE 1 (decision 8): takes, and the highest wages win. When every player is out of takes
+\ or at the finish, row 2 says "PLAYER n WINS" - the most wages, the first of equals - for 250
+\ fields (5 s), then the title.
+\
+\ A rider starts at its level's start (the original's player_x 0 on its first ground): its left
+\ column there, but at level 1 the strip cannot start left of column 0, so the rider is at
+\ column 12 of it. Labels for the oracle: `game_start` (all set up, before the first field).
+
+SKILL_KEYS = 6
+PHASE_IDLE = 4                  \ no one playing this strip
+
+\ title: the title screen, until a player has joined and A-F is pressed; then the game.
+.title
+    LDA #0
+    STA joined
+    STA skill
+    JSR set_up
+    LDX #T_TITLE
+    JSR print
+.title_loop
+    JSR next_field
+    JSR read_keys
+    LDX #3
+.tl_join
+    LDA keys,X                  \ accelerate held: joined (its status block drawn)
+    BPL tl_next
+    LDA joined
+    AND bit_of,X
+    BNE tl_next
+    LDA joined
+    ORA bit_of,X
+    STA joined
+    LDA #1
+    STA sdirty,X
+.tl_next
+    DEX
+    BPL tl_join
+    JSR status_update
+    LDA joined
+    BEQ title_loop
+    LDA #SKILL_KEYS - 1
+    STA skill
+.tl_skill
+    LDY skill
+    LDX skill_keys,Y
+    JSR keydown_int             \ A = &80 held
+    BMI game
+    DEC skill
+    BPL tl_skill
+    JMP title_loop
+
+\ game: everyone joined at skill `skill`'s level; the loop.
+.game
+    JSR set_up
+    LDA #0
+    STA pass_count
+    STA pass_count + 1
+.game_start
+    JSR next_field              \ start on a whole field
+    JMP loop
+
+T_TITLE = t_title - texts
+T_WINS = t_wins - texts
+\ the skills' levels (starting_levels_table: 1 7 13 19 25 31), their first course column, and
+\ the strip's pos with the rider's left column there (at level 1: 0, the rider at column 12)
+.start_lidx EQUB 0, 6, 12, 18, 24, 30
+.edge_lidx  EQUB 0, 5, 11, 17, 23, 29
+.edge_ltype EQUB 0, 2, 2, 2, 2, 2       \ (29 MOD 3 = 2: snow)
+.edge_nb_lo EQUB LO(LEVEL_COLS), LO(6 * LEVEL_COLS), LO(12 * LEVEL_COLS), LO(18 * LEVEL_COLS), LO(24 * LEVEL_COLS), LO(30 * LEVEL_COLS)
+.edge_nb_hi EQUB HI(LEVEL_COLS), HI(6 * LEVEL_COLS), HI(12 * LEVEL_COLS), HI(18 * LEVEL_COLS), HI(24 * LEVEL_COLS), HI(30 * LEVEL_COLS)
+.level_lo   EQUB LO(0), LO(6 * LEVEL_COLS), LO(12 * LEVEL_COLS), LO(18 * LEVEL_COLS), LO(24 * LEVEL_COLS), LO(30 * LEVEL_COLS)
+.level_hi   EQUB HI(0), HI(6 * LEVEL_COLS), HI(12 * LEVEL_COLS), HI(18 * LEVEL_COLS), HI(24 * LEVEL_COLS), HI(30 * LEVEL_COLS)
+.start_lo   EQUB LO(0), LO(6 * LEVEL_COLS - RIDER), LO(12 * LEVEL_COLS - RIDER), LO(18 * LEVEL_COLS - RIDER), LO(24 * LEVEL_COLS - RIDER), LO(30 * LEVEL_COLS - RIDER)
+.start_hi   EQUB HI(0), HI(6 * LEVEL_COLS - RIDER), HI(12 * LEVEL_COLS - RIDER), HI(18 * LEVEL_COLS - RIDER), HI(24 * LEVEL_COLS - RIDER), HI(30 * LEVEL_COLS - RIDER)
+.skill_keys EQUB 65, 100, 82, 50, 34, 67  \ A-F, internal numbers (measured: tools/ddd.mjs)
+.bit_of     EQUB 1, 2, 4, 8
+
