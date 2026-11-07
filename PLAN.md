@@ -1,21 +1,18 @@
 # Plan
 
 What is left. What has landed is in `docs/done.md`. The sequel's design is `docs/sequel.md`; the
-decisions are `docs/decisions.md` (4-17).
+decisions are `docs/decisions.md` (1-22).
 
 ## Step 1 - the original, buildable and verified: DONE (tag `step1-byte-identical-rebuild`, public at github.com/kieranhj/ddd2)
 
-## Step 2 - measure the original: DONE but for one item
-
-- [ ] Owner agrees decisions 1-3.
+## Step 2 - measure the original: DONE (decisions 1-3 agreed 2026-11-07)
 
 ## Step 3 - the course, captured from the original: DONE (`data/course.json`, 0 bytes wrong in 71)
 
 ## Step 4 - the sequel, one layer at a time (each visible in jsbeeb before the next)
 
-1. [ ] One strip on the real course (`data/course.json`): first settle how grounds join - at 76
-       columns (the original's distance, but 7 holes run to 80 and would cut the next ground's
-       first 4) or at 80. Then the scroll from the spike, optimised (unrolled column copy;
+1. [ ] One strip on the real course (`data/course.json`'s `course`, decisions 18-22): the scroll
+       from the spike, optimised (unrolled column copy;
        redraw the rider only when something passes under it; target: the four strips well under
        the spike's 22-23.5K cycles at the real top speed). The accelerate key drives the
        original's velocity rules. Measure the worst case.

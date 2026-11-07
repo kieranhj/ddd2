@@ -22,10 +22,12 @@ THE ORACLE. Each picture is redrawn from the COURSE ALONE, not from the plots:
 It is compared with the captured screen over character rows 3-31: the status box above is text
 and is not the course. Exit 0: every picture matches, 0 bytes wrong; 1: a byte differs.
 
-The course is written ground by ground in level order (the order the original plays them). Each
+The course is written ground by ground in level order 1-35 (the order the original plays them;
+the end of 35 is the finish, decision 22), each level as it first comes up (decision 19). Each
 ground also has its course column: ground s (counting from 0 down the whole course) starts at
 s * PITCH. PITCH is 76, the distance the original's rider travels on a ground (player_x 0 to the
-end-of-ground check at &4B; it rides &4B-&4D, then player_x is set to 0).
+end-of-ground check at &4B; it rides &4B-&4D, then player_x is set to 0): decision 18. `course` is
+the whole thing flat, in course columns, with the holes that run past 76 cut there.
 """
 import json
 import os
@@ -156,23 +158,33 @@ def main():
     for (lv, kind, _), (pic, grounds) in per.items():
         if kind == 'retake' and grounds != firsts[lv]:
             moved.append(lv)
-    s = 0
+    s, flat, cut = 0, [], 0
     for L in levels:
-        for g in L['grounds']:
-            g['course_x'] = s * PITCH
+        for gi, g in enumerate(L['grounds']):
+            g['course_x'] = base = s * PITCH
+            for x, n in g['obstacles']:
+                flat.append({'x': base + x, 'type': 'obstacle', 'sprite': n, 'level': L['level'], 'ground': gi})
+            for x, w in g['holes']:
+                if x + w > PITCH:           # decision 18: cut at the join
+                    cut += 1
+                    w = PITCH - x
+                flat.append({'x': base + x, 'type': 'hole', 'width': w, 'level': L['level'], 'ground': gi})
             s += 1
+    flat.sort(key=lambda o: o['x'])
     out = {'tool': 'tools/make_course.py', 'from': os.path.relpath(src, ROOT).replace('\\', '/'),
-           'pitch': PITCH, 'columns': s * PITCH,
+           'pitch': PITCH, 'columns': s * PITCH, 'finish': s * PITCH,
            'note': 'x is the column within the ground (0-79); a ground starts at course_x. '
-                   'obstacles: [x, sprite 1-3 of the level type]; holes: [x, width]',
-           'levels': levels}
+                   'obstacles: [x, sprite 1-3 of the level type]; holes: [x, width]. '
+                   '`course` is the same in course columns, sorted, holes cut at the join (decision 18); '
+                   'the finish is the end of level 35 (decision 22)',
+           'levels': levels, 'course': flat}
     with open(dst, 'w', newline='\n') as f:
         json.dump(out, f, indent=1)
         f.write('\n')
     n_obs = sum(len(g['obstacles']) for L in levels for g in L['grounds'])
     n_holes = sum(len(g['holes']) for L in levels for g in L['grounds'])
     print(json.dumps({'pictures': judged, 'bytes_wrong': wrong_total, 'levels': len(levels),
-                      'grounds': s, 'columns': s * PITCH, 'obstacles': n_obs, 'holes': n_holes,
+                      'grounds': s, 'columns': s * PITCH, 'obstacles': n_obs, 'holes': n_holes, 'holes_cut': cut,
                       'retake_differs': moved, 'out': os.path.relpath(dst, ROOT)}))
     sys.exit(0 if wrong_total == 0 and judged else 1)
 

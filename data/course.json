@@ -3,7 +3,8 @@
  "from": "data/course_capture.json",
  "pitch": 76,
  "columns": 10640,
- "note": "x is the column within the ground (0-79); a ground starts at course_x. obstacles: [x, sprite 1-3 of the level type]; holes: [x, width]",
+ "finish": 10640,
+ "note": "x is the column within the ground (0-79); a ground starts at course_x. obstacles: [x, sprite 1-3 of the level type]; holes: [x, width]. `course` is the same in course columns, sorted, holes cut at the join (decision 18); the finish is the end of level 35 (decision 22)",
  "levels": [
   {
    "level": 1,
@@ -2852,6 +2853,1758 @@
     "x": 74,
     "ground": 1
    }
+  }
+ ],
+ "course": [
+  {
+   "x": 48,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 1,
+   "ground": 0
+  },
+  {
+   "x": 172,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 1,
+   "ground": 2
+  },
+  {
+   "x": 328,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 2,
+   "ground": 0
+  },
+  {
+   "x": 468,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 2,
+   "ground": 2
+  },
+  {
+   "x": 628,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 3,
+   "ground": 0
+  },
+  {
+   "x": 776,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 3,
+   "ground": 2
+  },
+  {
+   "x": 924,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 4,
+   "ground": 0
+  },
+  {
+   "x": 1124,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 4,
+   "ground": 2
+  },
+  {
+   "x": 1156,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 4,
+   "ground": 3
+  },
+  {
+   "x": 1232,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 5,
+   "ground": 0
+  },
+  {
+   "x": 1260,
+   "type": "hole",
+   "width": 8,
+   "level": 5,
+   "ground": 0
+  },
+  {
+   "x": 1384,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 5,
+   "ground": 2
+  },
+  {
+   "x": 1484,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 5,
+   "ground": 3
+  },
+  {
+   "x": 1568,
+   "type": "hole",
+   "width": 8,
+   "level": 6,
+   "ground": 0
+  },
+  {
+   "x": 1580,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 6,
+   "ground": 0
+  },
+  {
+   "x": 1712,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 6,
+   "ground": 2
+  },
+  {
+   "x": 1800,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 6,
+   "ground": 3
+  },
+  {
+   "x": 1832,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 7,
+   "ground": 0
+  },
+  {
+   "x": 1840,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 7,
+   "ground": 0
+  },
+  {
+   "x": 1868,
+   "type": "hole",
+   "width": 8,
+   "level": 7,
+   "ground": 0
+  },
+  {
+   "x": 2028,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 7,
+   "ground": 2
+  },
+  {
+   "x": 2108,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 7,
+   "ground": 3
+  },
+  {
+   "x": 2168,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 8,
+   "ground": 0
+  },
+  {
+   "x": 2172,
+   "type": "hole",
+   "width": 8,
+   "level": 8,
+   "ground": 0
+  },
+  {
+   "x": 2188,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 8,
+   "ground": 0
+  },
+  {
+   "x": 2336,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 8,
+   "ground": 2
+  },
+  {
+   "x": 2364,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 8,
+   "ground": 3
+  },
+  {
+   "x": 2476,
+   "type": "hole",
+   "width": 8,
+   "level": 9,
+   "ground": 0
+  },
+  {
+   "x": 2484,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 9,
+   "ground": 0
+  },
+  {
+   "x": 2488,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 9,
+   "ground": 0
+  },
+  {
+   "x": 2592,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 9,
+   "ground": 2
+  },
+  {
+   "x": 2632,
+   "type": "hole",
+   "width": 8,
+   "level": 9,
+   "ground": 2
+  },
+  {
+   "x": 2720,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 9,
+   "ground": 3
+  },
+  {
+   "x": 2764,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 10,
+   "ground": 0
+  },
+  {
+   "x": 2780,
+   "type": "hole",
+   "width": 8,
+   "level": 10,
+   "ground": 0
+  },
+  {
+   "x": 2792,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 10,
+   "ground": 0
+  },
+  {
+   "x": 2900,
+   "type": "hole",
+   "width": 8,
+   "level": 10,
+   "ground": 2
+  },
+  {
+   "x": 2948,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 10,
+   "ground": 2
+  },
+  {
+   "x": 3020,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 10,
+   "ground": 3
+  },
+  {
+   "x": 3048,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 11,
+   "ground": 0
+  },
+  {
+   "x": 3064,
+   "type": "hole",
+   "width": 8,
+   "level": 11,
+   "ground": 0
+  },
+  {
+   "x": 3212,
+   "type": "hole",
+   "width": 8,
+   "level": 11,
+   "ground": 2
+  },
+  {
+   "x": 3248,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 11,
+   "ground": 2
+  },
+  {
+   "x": 3296,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 11,
+   "ground": 3
+  },
+  {
+   "x": 3368,
+   "type": "hole",
+   "width": 8,
+   "level": 12,
+   "ground": 0
+  },
+  {
+   "x": 3404,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 12,
+   "ground": 0
+  },
+  {
+   "x": 3516,
+   "type": "hole",
+   "width": 8,
+   "level": 12,
+   "ground": 2
+  },
+  {
+   "x": 3524,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 12,
+   "ground": 2
+  },
+  {
+   "x": 3624,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 12,
+   "ground": 3
+  },
+  {
+   "x": 3672,
+   "type": "hole",
+   "width": 8,
+   "level": 13,
+   "ground": 0
+  },
+  {
+   "x": 3692,
+   "type": "hole",
+   "width": 8,
+   "level": 13,
+   "ground": 0
+  },
+  {
+   "x": 3700,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 13,
+   "ground": 0
+  },
+  {
+   "x": 3704,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 13,
+   "ground": 0
+  },
+  {
+   "x": 3848,
+   "type": "hole",
+   "width": 8,
+   "level": 13,
+   "ground": 2
+  },
+  {
+   "x": 3900,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 13,
+   "ground": 3
+  },
+  {
+   "x": 3976,
+   "type": "hole",
+   "width": 8,
+   "level": 14,
+   "ground": 0
+  },
+  {
+   "x": 3996,
+   "type": "hole",
+   "width": 8,
+   "level": 14,
+   "ground": 0
+  },
+  {
+   "x": 4112,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 14,
+   "ground": 2
+  },
+  {
+   "x": 4128,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 14,
+   "ground": 2
+  },
+  {
+   "x": 4152,
+   "type": "hole",
+   "width": 8,
+   "level": 14,
+   "ground": 2
+  },
+  {
+   "x": 4232,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 14,
+   "ground": 3
+  },
+  {
+   "x": 4268,
+   "type": "hole",
+   "width": 8,
+   "level": 15,
+   "ground": 0
+  },
+  {
+   "x": 4300,
+   "type": "hole",
+   "width": 8,
+   "level": 15,
+   "ground": 0
+  },
+  {
+   "x": 4308,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 15,
+   "ground": 0
+  },
+  {
+   "x": 4420,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 15,
+   "ground": 2
+  },
+  {
+   "x": 4456,
+   "type": "hole",
+   "width": 8,
+   "level": 15,
+   "ground": 2
+  },
+  {
+   "x": 4528,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 15,
+   "ground": 3
+  },
+  {
+   "x": 4568,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 16,
+   "ground": 0
+  },
+  {
+   "x": 4572,
+   "type": "hole",
+   "width": 8,
+   "level": 16,
+   "ground": 0
+  },
+  {
+   "x": 4584,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 16,
+   "ground": 0
+  },
+  {
+   "x": 4604,
+   "type": "hole",
+   "width": 8,
+   "level": 16,
+   "ground": 0
+  },
+  {
+   "x": 4756,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 16,
+   "ground": 2
+  },
+  {
+   "x": 4760,
+   "type": "hole",
+   "width": 8,
+   "level": 16,
+   "ground": 2
+  },
+  {
+   "x": 4784,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 16,
+   "ground": 2
+  },
+  {
+   "x": 4812,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 16,
+   "ground": 3
+  },
+  {
+   "x": 4840,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 16,
+   "ground": 3
+  },
+  {
+   "x": 4876,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 17,
+   "ground": 0
+  },
+  {
+   "x": 4880,
+   "type": "hole",
+   "width": 8,
+   "level": 17,
+   "ground": 0
+  },
+  {
+   "x": 4908,
+   "type": "hole",
+   "width": 8,
+   "level": 17,
+   "ground": 0
+  },
+  {
+   "x": 4916,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 17,
+   "ground": 0
+  },
+  {
+   "x": 5040,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 17,
+   "ground": 2
+  },
+  {
+   "x": 5064,
+   "type": "hole",
+   "width": 8,
+   "level": 17,
+   "ground": 2
+  },
+  {
+   "x": 5076,
+   "type": "hole",
+   "width": 8,
+   "level": 17,
+   "ground": 2
+  },
+  {
+   "x": 5100,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 17,
+   "ground": 3
+  },
+  {
+   "x": 5164,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 17,
+   "ground": 3
+  },
+  {
+   "x": 5184,
+   "type": "hole",
+   "width": 8,
+   "level": 18,
+   "ground": 0
+  },
+  {
+   "x": 5212,
+   "type": "hole",
+   "width": 8,
+   "level": 18,
+   "ground": 0
+  },
+  {
+   "x": 5240,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 18,
+   "ground": 0
+  },
+  {
+   "x": 5328,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 18,
+   "ground": 2
+  },
+  {
+   "x": 5368,
+   "type": "hole",
+   "width": 8,
+   "level": 18,
+   "ground": 2
+  },
+  {
+   "x": 5380,
+   "type": "hole",
+   "width": 8,
+   "level": 18,
+   "ground": 2
+  },
+  {
+   "x": 5392,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 18,
+   "ground": 2
+  },
+  {
+   "x": 5408,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 18,
+   "ground": 3
+  },
+  {
+   "x": 5424,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 18,
+   "ground": 3
+  },
+  {
+   "x": 5484,
+   "type": "hole",
+   "width": 8,
+   "level": 19,
+   "ground": 0
+  },
+  {
+   "x": 5516,
+   "type": "hole",
+   "width": 8,
+   "level": 19,
+   "ground": 0
+  },
+  {
+   "x": 5524,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 19,
+   "ground": 0
+  },
+  {
+   "x": 5636,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 19,
+   "ground": 2
+  },
+  {
+   "x": 5640,
+   "type": "hole",
+   "width": 8,
+   "level": 19,
+   "ground": 2
+  },
+  {
+   "x": 5672,
+   "type": "hole",
+   "width": 8,
+   "level": 19,
+   "ground": 2
+  },
+  {
+   "x": 5772,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 19,
+   "ground": 3
+  },
+  {
+   "x": 5784,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 20,
+   "ground": 0
+  },
+  {
+   "x": 5792,
+   "type": "hole",
+   "width": 8,
+   "level": 20,
+   "ground": 0
+  },
+  {
+   "x": 5820,
+   "type": "hole",
+   "width": 8,
+   "level": 20,
+   "ground": 0
+  },
+  {
+   "x": 5976,
+   "type": "hole",
+   "width": 8,
+   "level": 20,
+   "ground": 2
+  },
+  {
+   "x": 5988,
+   "type": "hole",
+   "width": 8,
+   "level": 20,
+   "ground": 2
+  },
+  {
+   "x": 6000,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 20,
+   "ground": 2
+  },
+  {
+   "x": 6028,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 20,
+   "ground": 3
+  },
+  {
+   "x": 6092,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 21,
+   "ground": 0
+  },
+  {
+   "x": 6096,
+   "type": "hole",
+   "width": 8,
+   "level": 21,
+   "ground": 0
+  },
+  {
+   "x": 6124,
+   "type": "hole",
+   "width": 8,
+   "level": 21,
+   "ground": 0
+  },
+  {
+   "x": 6256,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 21,
+   "ground": 2
+  },
+  {
+   "x": 6280,
+   "type": "hole",
+   "width": 8,
+   "level": 21,
+   "ground": 2
+  },
+  {
+   "x": 6292,
+   "type": "hole",
+   "width": 8,
+   "level": 21,
+   "ground": 2
+  },
+  {
+   "x": 6380,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 21,
+   "ground": 3
+  },
+  {
+   "x": 6400,
+   "type": "hole",
+   "width": 8,
+   "level": 22,
+   "ground": 0
+  },
+  {
+   "x": 6428,
+   "type": "hole",
+   "width": 8,
+   "level": 22,
+   "ground": 0
+  },
+  {
+   "x": 6456,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 22,
+   "ground": 0
+  },
+  {
+   "x": 6584,
+   "type": "hole",
+   "width": 8,
+   "level": 22,
+   "ground": 2
+  },
+  {
+   "x": 6596,
+   "type": "hole",
+   "width": 8,
+   "level": 22,
+   "ground": 2
+  },
+  {
+   "x": 6608,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 22,
+   "ground": 2
+  },
+  {
+   "x": 6640,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 22,
+   "ground": 3
+  },
+  {
+   "x": 6708,
+   "type": "hole",
+   "width": 8,
+   "level": 23,
+   "ground": 0
+  },
+  {
+   "x": 6732,
+   "type": "hole",
+   "width": 8,
+   "level": 23,
+   "ground": 0
+  },
+  {
+   "x": 6748,
+   "type": "hole",
+   "width": 8,
+   "level": 23,
+   "ground": 0
+  },
+  {
+   "x": 6856,
+   "type": "hole",
+   "width": 8,
+   "level": 23,
+   "ground": 2
+  },
+  {
+   "x": 6868,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 23,
+   "ground": 2
+  },
+  {
+   "x": 6888,
+   "type": "hole",
+   "width": 8,
+   "level": 23,
+   "ground": 2
+  },
+  {
+   "x": 6940,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 23,
+   "ground": 3
+  },
+  {
+   "x": 7008,
+   "type": "hole",
+   "width": 12,
+   "level": 24,
+   "ground": 0
+  },
+  {
+   "x": 7036,
+   "type": "hole",
+   "width": 8,
+   "level": 24,
+   "ground": 0
+  },
+  {
+   "x": 7064,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 24,
+   "ground": 0
+  },
+  {
+   "x": 7156,
+   "type": "hole",
+   "width": 8,
+   "level": 24,
+   "ground": 2
+  },
+  {
+   "x": 7168,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 24,
+   "ground": 2
+  },
+  {
+   "x": 7192,
+   "type": "hole",
+   "width": 8,
+   "level": 24,
+   "ground": 2
+  },
+  {
+   "x": 7232,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 24,
+   "ground": 3
+  },
+  {
+   "x": 7304,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 25,
+   "ground": 0
+  },
+  {
+   "x": 7312,
+   "type": "hole",
+   "width": 16,
+   "level": 25,
+   "ground": 0
+  },
+  {
+   "x": 7340,
+   "type": "hole",
+   "width": 8,
+   "level": 25,
+   "ground": 0
+  },
+  {
+   "x": 7460,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 25,
+   "ground": 2
+  },
+  {
+   "x": 7468,
+   "type": "hole",
+   "width": 8,
+   "level": 25,
+   "ground": 2
+  },
+  {
+   "x": 7492,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 25,
+   "ground": 2
+  },
+  {
+   "x": 7496,
+   "type": "hole",
+   "width": 8,
+   "level": 25,
+   "ground": 2
+  },
+  {
+   "x": 7508,
+   "type": "hole",
+   "width": 8,
+   "level": 25,
+   "ground": 2
+  },
+  {
+   "x": 7520,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 25,
+   "ground": 2
+  },
+  {
+   "x": 7552,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 25,
+   "ground": 3
+  },
+  {
+   "x": 7564,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 25,
+   "ground": 3
+  },
+  {
+   "x": 7612,
+   "type": "hole",
+   "width": 8,
+   "level": 26,
+   "ground": 0
+  },
+  {
+   "x": 7624,
+   "type": "hole",
+   "width": 8,
+   "level": 26,
+   "ground": 0
+  },
+  {
+   "x": 7644,
+   "type": "hole",
+   "width": 8,
+   "level": 26,
+   "ground": 0
+  },
+  {
+   "x": 7660,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 26,
+   "ground": 0
+  },
+  {
+   "x": 7668,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 26,
+   "ground": 0
+  },
+  {
+   "x": 7764,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 26,
+   "ground": 2
+  },
+  {
+   "x": 7768,
+   "type": "hole",
+   "width": 12,
+   "level": 26,
+   "ground": 2
+  },
+  {
+   "x": 7780,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 26,
+   "ground": 2
+  },
+  {
+   "x": 7792,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 26,
+   "ground": 2
+  },
+  {
+   "x": 7800,
+   "type": "hole",
+   "width": 8,
+   "level": 26,
+   "ground": 2
+  },
+  {
+   "x": 7836,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 26,
+   "ground": 3
+  },
+  {
+   "x": 7848,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 26,
+   "ground": 3
+  },
+  {
+   "x": 7916,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 27,
+   "ground": 0
+  },
+  {
+   "x": 7920,
+   "type": "hole",
+   "width": 12,
+   "level": 27,
+   "ground": 0
+  },
+  {
+   "x": 7948,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 27,
+   "ground": 0
+  },
+  {
+   "x": 7952,
+   "type": "hole",
+   "width": 8,
+   "level": 27,
+   "ground": 0
+  },
+  {
+   "x": 7976,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 27,
+   "ground": 0
+  },
+  {
+   "x": 8064,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 27,
+   "ground": 2
+  },
+  {
+   "x": 8068,
+   "type": "hole",
+   "width": 8,
+   "level": 27,
+   "ground": 2
+  },
+  {
+   "x": 8076,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 27,
+   "ground": 2
+  },
+  {
+   "x": 8080,
+   "type": "hole",
+   "width": 8,
+   "level": 27,
+   "ground": 2
+  },
+  {
+   "x": 8112,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 27,
+   "ground": 2
+  },
+  {
+   "x": 8116,
+   "type": "hole",
+   "width": 8,
+   "level": 27,
+   "ground": 2
+  },
+  {
+   "x": 8192,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 27,
+   "ground": 3
+  },
+  {
+   "x": 8200,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 27,
+   "ground": 3
+  },
+  {
+   "x": 8236,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 28,
+   "ground": 0
+  },
+  {
+   "x": 8248,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 28,
+   "ground": 0
+  },
+  {
+   "x": 8264,
+   "type": "hole",
+   "width": 12,
+   "level": 28,
+   "ground": 0
+  },
+  {
+   "x": 8388,
+   "type": "hole",
+   "width": 8,
+   "level": 28,
+   "ground": 2
+  },
+  {
+   "x": 8412,
+   "type": "hole",
+   "width": 16,
+   "level": 28,
+   "ground": 2
+  },
+  {
+   "x": 8428,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 28,
+   "ground": 2
+  },
+  {
+   "x": 8472,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 28,
+   "ground": 3
+  },
+  {
+   "x": 8480,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 28,
+   "ground": 3
+  },
+  {
+   "x": 8508,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 28,
+   "ground": 3
+  },
+  {
+   "x": 8520,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 29,
+   "ground": 0
+  },
+  {
+   "x": 8532,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 29,
+   "ground": 0
+  },
+  {
+   "x": 8540,
+   "type": "hole",
+   "width": 8,
+   "level": 29,
+   "ground": 0
+  },
+  {
+   "x": 8552,
+   "type": "hole",
+   "width": 8,
+   "level": 29,
+   "ground": 0
+  },
+  {
+   "x": 8564,
+   "type": "hole",
+   "width": 8,
+   "level": 29,
+   "ground": 0
+  },
+  {
+   "x": 8584,
+   "type": "hole",
+   "width": 4,
+   "level": 29,
+   "ground": 0
+  },
+  {
+   "x": 8700,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 29,
+   "ground": 2
+  },
+  {
+   "x": 8708,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 29,
+   "ground": 2
+  },
+  {
+   "x": 8716,
+   "type": "hole",
+   "width": 8,
+   "level": 29,
+   "ground": 2
+  },
+  {
+   "x": 8736,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 29,
+   "ground": 2
+  },
+  {
+   "x": 8780,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 29,
+   "ground": 3
+  },
+  {
+   "x": 8784,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 29,
+   "ground": 3
+  },
+  {
+   "x": 8844,
+   "type": "hole",
+   "width": 8,
+   "level": 30,
+   "ground": 0
+  },
+  {
+   "x": 8856,
+   "type": "hole",
+   "width": 20,
+   "level": 30,
+   "ground": 0
+  },
+  {
+   "x": 8884,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 30,
+   "ground": 0
+  },
+  {
+   "x": 9008,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 30,
+   "ground": 2
+  },
+  {
+   "x": 9012,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 30,
+   "ground": 2
+  },
+  {
+   "x": 9016,
+   "type": "hole",
+   "width": 12,
+   "level": 30,
+   "ground": 2
+  },
+  {
+   "x": 9064,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 30,
+   "ground": 3
+  },
+  {
+   "x": 9092,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 30,
+   "ground": 3
+  },
+  {
+   "x": 9100,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 30,
+   "ground": 3
+  },
+  {
+   "x": 9144,
+   "type": "hole",
+   "width": 12,
+   "level": 31,
+   "ground": 0
+  },
+  {
+   "x": 9156,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 31,
+   "ground": 0
+  },
+  {
+   "x": 9164,
+   "type": "hole",
+   "width": 8,
+   "level": 31,
+   "ground": 0
+  },
+  {
+   "x": 9192,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 31,
+   "ground": 0
+  },
+  {
+   "x": 9292,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 31,
+   "ground": 2
+  },
+  {
+   "x": 9296,
+   "type": "hole",
+   "width": 8,
+   "level": 31,
+   "ground": 2
+  },
+  {
+   "x": 9320,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 31,
+   "ground": 2
+  },
+  {
+   "x": 9328,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 31,
+   "ground": 2
+  },
+  {
+   "x": 9344,
+   "type": "hole",
+   "width": 4,
+   "level": 31,
+   "ground": 2
+  },
+  {
+   "x": 9372,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 31,
+   "ground": 3
+  },
+  {
+   "x": 9404,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 31,
+   "ground": 3
+  },
+  {
+   "x": 9444,
+   "type": "hole",
+   "width": 12,
+   "level": 32,
+   "ground": 0
+  },
+  {
+   "x": 9468,
+   "type": "hole",
+   "width": 8,
+   "level": 32,
+   "ground": 0
+  },
+  {
+   "x": 9496,
+   "type": "hole",
+   "width": 4,
+   "level": 32,
+   "ground": 0
+  },
+  {
+   "x": 9600,
+   "type": "hole",
+   "width": 12,
+   "level": 32,
+   "ground": 2
+  },
+  {
+   "x": 9620,
+   "type": "hole",
+   "width": 8,
+   "level": 32,
+   "ground": 2
+  },
+  {
+   "x": 9672,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 32,
+   "ground": 3
+  },
+  {
+   "x": 9688,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 32,
+   "ground": 3
+  },
+  {
+   "x": 9724,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 32,
+   "ground": 3
+  },
+  {
+   "x": 9748,
+   "type": "hole",
+   "width": 12,
+   "level": 33,
+   "ground": 0
+  },
+  {
+   "x": 9772,
+   "type": "hole",
+   "width": 8,
+   "level": 33,
+   "ground": 0
+  },
+  {
+   "x": 9784,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 33,
+   "ground": 0
+  },
+  {
+   "x": 9800,
+   "type": "hole",
+   "width": 4,
+   "level": 33,
+   "ground": 0
+  },
+  {
+   "x": 9900,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 33,
+   "ground": 2
+  },
+  {
+   "x": 9904,
+   "type": "hole",
+   "width": 12,
+   "level": 33,
+   "ground": 2
+  },
+  {
+   "x": 9916,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 33,
+   "ground": 2
+  },
+  {
+   "x": 9924,
+   "type": "hole",
+   "width": 8,
+   "level": 33,
+   "ground": 2
+  },
+  {
+   "x": 9952,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 33,
+   "ground": 2
+  },
+  {
+   "x": 9968,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 33,
+   "ground": 3
+  },
+  {
+   "x": 10000,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 33,
+   "ground": 3
+  },
+  {
+   "x": 10052,
+   "type": "hole",
+   "width": 12,
+   "level": 34,
+   "ground": 0
+  },
+  {
+   "x": 10076,
+   "type": "hole",
+   "width": 8,
+   "level": 34,
+   "ground": 0
+  },
+  {
+   "x": 10104,
+   "type": "hole",
+   "width": 4,
+   "level": 34,
+   "ground": 0
+  },
+  {
+   "x": 10196,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 34,
+   "ground": 2
+  },
+  {
+   "x": 10208,
+   "type": "hole",
+   "width": 12,
+   "level": 34,
+   "ground": 2
+  },
+  {
+   "x": 10228,
+   "type": "hole",
+   "width": 8,
+   "level": 34,
+   "ground": 2
+  },
+  {
+   "x": 10276,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 34,
+   "ground": 3
+  },
+  {
+   "x": 10308,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 34,
+   "ground": 3
+  },
+  {
+   "x": 10356,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 35,
+   "ground": 0
+  },
+  {
+   "x": 10372,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 35,
+   "ground": 0
+  },
+  {
+   "x": 10380,
+   "type": "hole",
+   "width": 8,
+   "level": 35,
+   "ground": 0
+  },
+  {
+   "x": 10408,
+   "type": "hole",
+   "width": 4,
+   "level": 35,
+   "ground": 0
+  },
+  {
+   "x": 10504,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 35,
+   "ground": 2
+  },
+  {
+   "x": 10508,
+   "type": "hole",
+   "width": 8,
+   "level": 35,
+   "ground": 2
+  },
+  {
+   "x": 10536,
+   "type": "obstacle",
+   "sprite": 1,
+   "level": 35,
+   "ground": 2
+  },
+  {
+   "x": 10556,
+   "type": "hole",
+   "width": 8,
+   "level": 35,
+   "ground": 2
+  },
+  {
+   "x": 10588,
+   "type": "obstacle",
+   "sprite": 2,
+   "level": 35,
+   "ground": 3
+  },
+  {
+   "x": 10624,
+   "type": "obstacle",
+   "sprite": 3,
+   "level": 35,
+   "ground": 3
   }
  ]
 }

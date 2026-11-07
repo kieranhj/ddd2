@@ -108,9 +108,9 @@ up to 3 lines a pass.
 - **Length.** The rider travels about 76 columns a ground (`player_x` 0 to &4B-&4D). 140 grounds at
   76 is 10,640 columns: about 218 seconds at the top speed of 48.8 columns a second, so the
   endless part (looping the last sets, then a generator or an editor) arrives quickly.
-- **Open for step 4:** the course file places ground s at column 76s, but 7 holes run past column
-  76 of their ground (to 80). Joined at 76 they would cut the first 4 columns of the next ground;
-  joined at 80 the rider would ride 4 columns more a ground than the original's.
+- **Joined at 76 columns a ground (decision 18):** 7 holes run past column 76 (to 80) and are cut
+  there in the flat `course`. The finish is the end of level 35 (decision 22); speed carries over
+  level boundaries (decision 21).
 
 ## How the sequel is built
 
@@ -145,3 +145,5 @@ course alone and compares it with the original's screen.
 - **Skill A-F is chosen once, for everyone (decision 15).**
 - **Each rider has its own colour (decision 17).**
 - **The original's speeds, in smoother steps (decision 16).**
+- **The course (decisions 18-22):** grounds joined at 76 columns; each level as it first comes up,
+  the column-8 obstacle kept; no speed reset at a level; levels 1-35, the end of 35 the finish.
