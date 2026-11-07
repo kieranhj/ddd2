@@ -23,6 +23,12 @@ decisions are `docs/decisions.md` (1-27).
 5. [ ] The status line at the top: four players' wages and takes (decision 13). Game mode 1
        (decision 8). The title screen, and skill chosen once for everyone (decision 15). A strip
        with no one playing it stays static (decision 14).
-6. [ ] Sound (our own driver if IRQ1V is ours).
+6. [ ] Sound, and no MOS interrupt handling at all (the owner, 2026-11-07: "remove any MOS IRQ
+       handling and do it all ourselves"). Today the MOS's IRQ entry still dispatches to our
+       IRQ1V, and the MOS's sound code still touches page 8 (&083B written in play, the RAM
+       hunt). Take that over: our handler does everything, no MOS sound, keyboard or timers. Use
+       Stryker's Run's replacement sound driver (`../strykers/src/lib/sfx50.6502`, its effects
+       made by `../strykers/tools/sfx50.py`). Page 8 then becomes ours too (re-measure with
+       `tools/memwatch.mjs` before claiming it).
 7. [ ] Game modes 2 and 3. Then the endless part: loop the last sets, then a level editor or a
        procedural generator.
