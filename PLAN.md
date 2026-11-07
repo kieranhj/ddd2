@@ -1,7 +1,7 @@
 # Plan
 
 What is left. What has landed is in `docs/done.md`. The sequel's design is `docs/sequel.md`; the
-decisions are `docs/decisions.md` (1-37).
+decisions are `docs/decisions.md` (1-38).
 
 ## Step 1 - the original, buildable and verified: DONE (tag `step1-byte-identical-rebuild`, public at github.com/kieranhj/ddd2)
 
@@ -20,10 +20,11 @@ decisions are `docs/decisions.md` (1-37).
        RAM hunt done (`docs/done.md`): 2,240 bytes free below the screen, 478 in low RAM.
 4. [x] Level types, and the enemies in course coordinates: DONE in jsbeeb (`docs/done.md` layer
        4.4; decisions 28-32). Left: b2 and real hardware, as 4.2.
-5. [ ] The status line at the top: four players' wages and takes (decision 13). The spider, the
-       helicopter and its gold (decision 29). Game mode 1
-       (decision 8). The title screen, and skill chosen once for everyone (decision 15). A strip
-       with no one playing it stays static (decision 14).
+5. [x] The status line, wages, game mode 1, the title and skill, the spider, helicopter and gold:
+       DONE in jsbeeb but for the field budget (`docs/done.md` layer 4.5; decisions 33-38): 7
+       fields in 3,397 dropped in the full four-player run, all with the four scripted riders in
+       lockstep at heavy moments (a level crossing recolouring four riders, four airborne among
+       enemies). Left: those, b2 and real hardware.
 6. [ ] Sound, and no MOS interrupt handling at all (the owner, 2026-11-07: "remove any MOS IRQ
        handling and do it all ourselves"). Today the MOS's IRQ entry still dispatches to our
        IRQ1V, and the MOS's sound code still touches page 8 (&083B written in play, the RAM

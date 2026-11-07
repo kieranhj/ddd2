@@ -4,6 +4,63 @@ What has landed, with the number that says it landed. `PLAN.md` is what is left.
 
 ---
 
+## Layer 4.5: wages, the status line, the title, game mode 1, the spider, the helicopter and gold (2026-11-07)
+
+- **4.5a, wages and the status line** (`status.6502`):
+  - Wages are 10 × the level at each ground's end, as the original's. A respawn pays nothing for
+    the grounds it skips (decision 34).
+  - Row 1 shows each player's wages and takes in its colour, in the sequel's own 4-pixel digits
+    (decision 33). Only the digits that change are drawn, at the head of a pass.
+- **4.5b, the flow** (`flow.6502`, decision 35):
+  - The title: players join with their accelerate keys; A-F starts at the skill's level.
+    Unjoined strips stand still.
+  - The end: "PLAYER n WINS" for 5 s, then the title.
+- **4.5c, the specials** (`specials.6502`, decisions 36, 38): the spider (levels 1-3), the
+  helicopter flying back through its level (4 on), its gold dropped by the original's rules and
+  collected on `right_edge` = &1F for 80, and the 80 shown.
+- **RAM levers on the way:**
+  - **Row 0 off the display** (decision 37): `!BOOT` sets MODE 2 once; the CRTC shows rows 1-30
+    with R7 33. Measured: every row starts on its old scanline after VSync. jsbeeb draws its frame
+    8 lines lower.
+  - **Code in the stack page and page 8** (nested Baron sections).
+  - **The dead rider's frame computed,** not tabled.
+  - **One look buffer a player:** the five original riders and dead riders, recoloured into it
+    when the look changes (`set_look`), in place of 20 recoloured sprites: about 700 bytes.
+  - The program ends &2EA4.
+- **The respawn is spread over three fields:** erased; placed with its ground and look; the rest
+  drawn. All four strips respawning at once had cost 58,541 cycles in one field.
+
+**MEASURED** (`tools/verify_strips.mjs`, jsbeeb 2.10.2, B-DFS1.2). The oracle drives the title and
+models the wages, the status line (checked a pass behind), the specials and the game's end.
+
+| Run | Passes / fields | Bytes wrong | Status wrong | Crashes | Writes in a window | The end |
+|---|---|---|---|---|---|---|
+| A, four players, `play` | 3,390 / 3,397 | 0 | 0 | all agreed | 0 | P1 wins (920, a gold among it), back at the title |
+| A, four, `level` | 1,651 / 1,652 | 0 | 0 | all agreed | 0 | as the model |
+| B 0110, D 1010, F 0001 | equal | 0 | 0 | all agreed | 0 | as the model |
+
+- **Still able to fail:**
+  - `--plant`: 129 bytes wrong;
+  - `--early`: 89,313 writes in a window;
+  - `--no-holes`: a crash only the model made.
+- **NOT MET: 7 fields dropped in the four-player `play` run** (decision 11 wants none). Every
+  one comes from the four scripted riders in lockstep at a heavy moment:
+  - crossing into a level together, so four look buffers are recoloured (`set_look`, 3,300
+    cycles each but player 1's) as the new level's enemies come on;
+  - or four airborne among enemies.
+
+  Worst field 38,562 cycles. Tried and kept:
+  - absent specials off the list;
+  - `set_look` skipping black;
+  - enemies redrawn under the rider only where something was put back;
+  - the three-field respawn.
+- **Bugs found on the way:**
+  - The left edge's level at a skill's start was the rider's.
+  - `erase_strip` returned with X lost, so the respawn was placed for the wrong strip.
+  - `!BOOT` as *RUN had to become *EXEC for the single MODE 2.
+
+**The clip:** `build/layer45.mp4`.
+
 ## Layer 4.4: level types and the enemies (2026-11-07)
 
 **Level types (4.4a):**

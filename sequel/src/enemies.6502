@@ -37,11 +37,7 @@
     LDY es
     LDA sl_level,Y
     BMI ec_next
-    TYA                         \ g = strip x 12 + s x 6 = slot index x 6
-    ASL A
-    ADC es                      \ (C clear: slot index < 128)
-    ASL A
-    TAX                         \ X = g, the horizontal enemy
+    LDX slot_base,Y             \ X = g, the horizontal enemy
     LDA sl_sub,Y
     CLC
     ADC #1
@@ -54,6 +50,9 @@
     LDA #0
     STA en_q,X
 .ec_x
+    JSR slot_pass               \ the helicopter or spider, and the gold: their pass
+    LDY es
+    LDX slot_base,Y
     LDA #0
 .ec_sub
     STA sl_sub,Y
@@ -132,10 +131,12 @@
     TAY
     LDA sl_level,Y
     CMP el_level
-    BEQ ew_rts                  \ already there and running
+    BNE ew_new
+    JMP ew_rts                  \ already there and running
+.ew_new
     \ a new level for this slot: rub out what its last level left drawn, then start it
     JSR slot_g
-    LDA #6
+    LDA #PER_SLOT
     STA en_cnt
 .ew_rub
     LDX eg
@@ -176,6 +177,27 @@
     LDX eg
     LDA #0
     STA en_q,X                  \ the horizontal enemy at x 0 (74, and the first pass's step)
+    STA en_q + E_GOLD,X         \ no gold, no 80
+    STA en_q + E_GOLD + 1,X
+    STA en_q + E_80,X
+    LDY es
+    LDA el_level                \ the gold's first drop column: x_positions_table[level]
+    CLC
+    ADC #1
+    STA sl_goff,Y
+    LDA el_level
+    CMP #3
+    BCS ew_heli
+    LDA #1                      \ levels 1-3: the spider, at y 1, going down
+    STA en_q + E_SPEC,X
+    LDA #&80
+    BNE ew_spec
+.ew_heli
+    LDA #76                     \ on: the helicopter, x &4C of the fourth ground
+    STA en_q + E_SPEC,X
+    LDA #3
+.ew_spec
+    STA sl_hg,Y
     LDY el_level
     LDA ven_first + 1,Y
     SEC
@@ -198,12 +220,10 @@
 .ew_rts
     RTS
 
-\ slot_g: eg = slot `es` x 6, its first enemy.
+\ slot_g: eg = slot `es` x PER_SLOT, its first enemy. Y kept.
 .slot_g
-    LDA es
-    ASL A
-    ADC es
-    ASL A
+    LDX es
+    LDA slot_base,X
     STA eg
     RTS
 
@@ -394,6 +414,117 @@
     DEC en_cnt
     BNE esp_vert
 .esp_rts
+    JSR slot_g                  \ the specials: 6 the helicopter or spider, 7-8 gold, 9 the 80
+    LDA eg
+    CLC
+    ADC #E_SPEC
+    STA eg
+    LDY es
+    LDA sl_level,Y
+    CMP #3
+    BCS esp_heli
+    CLC                         \ the spider: column 40 of the fourth ground, its top y - 13
+    LDA sl_start_lo,Y           \ lines into the band, but no higher than the band's top
+    ADC #LO(SPIDER_AT)          \ (decision 38)
+    STA tmp
+    LDA sl_start_hi,Y
+    ADC #HI(SPIDER_AT)
+    STA tmp2
+    LDX eg
+    LDA en_q,X
+    SEC
+    SBC #13
+    BCS esp_sp_t
+    LDA #0
+.esp_sp_t
+    STA esp_t
+    LDA #TALL_SPIDER
+    BNE esp_spec
+.esp_heli
+    LDX sl_hg,Y                 \ the helicopter: 76 x its ground + its x, 17 lines above the
+    CLC                         \ obstacles' top
+    LDA sl_start_lo,Y
+    ADC ground76,X
+    STA tmp
+    LDA sl_start_hi,Y
+    ADC #0
+    STA tmp2
+    LDX eg
+    CLC
+    LDA tmp
+    ADC en_q,X
+    STA tmp
+    LDA tmp2
+    ADC #0
+    STA tmp2
+    LDA #HELI_T
+    STA esp_t
+    LDA #TALL_HELICOPTER
+.esp_spec
+    STA esp_s
+    JSR esp_put
+    LDA #0                      \ the two golds
+    STA esp_v
+.esp_gold
+    INC eg
+    LDX eg
+    LDA en_q,X
+    BEQ esp_g_none
+    STA esp_t                   \ falling, or lying (24)
+    LDA es
+    ASL A
+    ORA esp_v
+    TAX
+    CLC
+    LDY es
+    LDA sl_start_lo,Y
+    ADC sl_glo,X
+    STA tmp
+    LDA sl_start_hi,Y
+    ADC sl_ghi,X
+    STA tmp2
+    LDA #TALL_GOLD
+    STA esp_s
+    JSR esp_put
+    JMP esp_g_next
+.esp_g_none
+    JSR esp_none
+.esp_g_next
+    INC esp_v
+    LDA esp_v
+    CMP #2
+    BNE esp_gold
+    INC eg                      \ the 80
+    LDX eg
+    LDA en_q,X
+    BEQ esp_none
+    LDY es
+    CLC
+    LDA sl_start_lo,Y
+    ADC sl_80lo,Y
+    STA tmp
+    LDA sl_start_hi,Y
+    ADC sl_80hi,Y
+    STA tmp2
+    LDA #0
+    STA esp_t
+    LDA #TALL_EIGHTY
+    STA esp_s
+    JMP esp_put
+
+\ esp_none: enemy eg onto the list, not on the screen (so that it is rubbed out if it was).
+.esp_none
+    LDX eg                      \ (only if drawn: else it has nothing to rub out)
+    LDA en_dc,X
+    CMP #&80
+    BEQ esp_none_rts
+    LDY en_n
+    LDA #&80
+    STA en_nc,Y
+    LDA eg
+    STA en_g,Y
+    INC en_n
+.esp_none_rts
     RTS
 
 \ esp_put: enemy eg at course column tmp/tmp2, top esp_t, sprite esp_s, onto the list: its
@@ -651,12 +782,10 @@
     STX ek
     TXA
     ASL A
-    STA eg
-    ASL A
-    ADC eg
-    ASL A
-    STA eg                      \ strip x 12
-    LDA #12
+    TAY
+    LDA slot_base,Y
+    STA eg                      \ strip x 20
+    LDA #2 * PER_SLOT
     STA en_cnt
 .ee_loop
     LDX eg
@@ -698,6 +827,12 @@
     BCC eor_next
     LDY eo
     LDX en_g,Y
+    LDA en_dt,X                 \ nothing put back over it (all its lines above top_put): as it is
+    CLC
+    ADC #16
+    CMP top_put
+    BCC eor_next
+    BEQ eor_next
     LDA en_dt,X
     STA dt
     LDA en_spr,X
@@ -718,23 +853,34 @@ MAX_SPANS = 16
 \ The state lives in screen row 31 (&7D80), which the CRTC no longer displays (main.6502's
 \ start; decision 31), set up by enemy_init after MODE 2 has cleared it: none of it is in the file.
 ROW31       = &7D80
+PER_SLOT    = 10                \ a slot's enemies: 0 horizontal, 1-5 vertical, 6 the helicopter
+E_SPEC      = 6                 \ or spider, 7-8 gold, 9 the 80
+E_GOLD      = 7
+E_80        = 9
 sl_level    = ROW31             \ per slot (strip x 2 + s): its level (&FF none)
 sl_start_lo = ROW31 + 8
 sl_start_hi = ROW31 + 16
-sl_sub      = ROW31 + 24        \ fields into the pass, for the horizontal enemy
+sl_sub      = ROW31 + 24        \ fields into the pass
 sl_nv       = ROW31 + 32        \ its vertical enemies
 sl_type     = ROW31 + 40        \ its level type
-en_q        = ROW31 + 48        \ per enemy (slot x 6 + e): its phase
-en_dc       = ROW31 + 96        \ where drawn (&80 not)
-en_dt       = ROW31 + 144
-en_spr      = ROW31 + 192       \ and as which tall sprite
-en_g        = ROW31 + 240       \ the list: this field's enemies, in order (enemy_draw)
-en_nc       = ROW31 + 252       \ its column (&80 off the screen)
-en_nt       = ROW31 + 264
-en_ns       = ROW31 + 276
-sp_lo       = ROW31 + 288       \ the spans
-sp_hi       = ROW31 + 288 + MAX_SPANS
-ASSERT sp_hi + MAX_SPANS <= ROW31 + 640
+sl_hg       = ROW31 + 48        \ the helicopter's ground (0-3); the spider: bit 7, going down
+sl_goff     = ROW31 + 56        \ the next gold's drop column: x_positions_table's index
+sl_old      = ROW31 + 64        \ which gold (0, 1) lies longer
+sl_80lo     = ROW31 + 72        \ the 80's column, from the level's start
+sl_80hi     = ROW31 + 80
+sl_glo      = ROW31 + 88        \ 16: per slot x 2 + gold, its column from the level's start
+sl_ghi      = ROW31 + 104
+en_q        = ROW31 + 120       \ per enemy (slot x 10 + e): its phase (the horizontal's x, a
+en_dc       = ROW31 + 200       \ vertical's 0-92, the helicopter's x or spider's y, a gold's
+en_dt       = ROW31 + 280       \ line, the 80's passes left); where drawn (&80 not); line
+en_spr      = ROW31 + 360       \ and tall sprite
+en_g        = ROW31 + 440       \ the list (20): this field's enemies, in order (enemy_draw)
+en_nc       = ROW31 + 460       \ its column (&80 off the screen)
+en_nt       = ROW31 + 480
+en_ns       = ROW31 + 500
+sp_lo       = ROW31 + 520       \ the spans
+sp_hi       = ROW31 + 520 + MAX_SPANS
+ASSERT sp_hi + MAX_SPANS <= ROW31 + 552    \ (status.6502's from + 552)
 
 \ enemy_init: no slot holds a level; no enemy is drawn.
 .enemy_init
@@ -745,7 +891,7 @@ ASSERT sp_hi + MAX_SPANS <= ROW31 + 640
     DEX
     BPL ei_slots
     LDA #&80
-    LDX #47
+    LDX #8 * PER_SLOT - 1
 .ei_enemies
     STA en_dc,X
     DEX

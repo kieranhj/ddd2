@@ -1,0 +1,338 @@
+\ specials.6502 - the spider, the helicopter and its gold (layer 4.5c; update_spider,
+\ update_helicopter, update_gold, collect_gold). Each level slot (enemies.6502) has them as its
+\ enemies 6-9, stepped once a pass (3 fields) with its horizontal enemy:
+\   THE SPIDER (levels 1-3): y 1-26 and back, a line a pass, starting down from 1; at column 40
+\     of the fourth ground, its top y - 13 lines into the band, no higher than the band's top
+\     (decision 38: the original's spider hangs from the ground above, which a strip does not
+\     have; its lowest point is the original's).
+\   THE HELICOPTER (level 4 on; decision 36): from x &4C of the fourth ground, a column a pass;
+\     at x 0, x &4C of the ground before; from the first ground back to the fourth, and the next
+\     gold's drop column back to x_positions_table[level]. 17 lines above the obstacles' top.
+\   THE GOLD: when the helicopter's x is x_positions_table[next], none is falling, it is not over
+\     the second ground (the horizontal enemy's), and the course 6 columns on has no obstacle on
+\     its bottom line and no hole (the original reads the screen there; here the course's
+\     objects from the strip's `first` on), a gold drops 4 columns on from the helicopter, from
+\     its line: a line a pass, 17 of them, to the ground, and next moves on (40 back to 1). At
+\     most two lie on a level (decision 38): a third replaces the one lying longer.
+\   COLLECTING (collect_gold): the column right of the rider, its bottom line, &1F (the gold's
+\     colour): the gold there goes, 80 wages, and "80" shows at the band's top above the rider
+\     for 17 passes (decision 38), moving with the course.
+
+SPIDER_AT   = 3 * 76 + 40       \ the spider's column from its level's start
+HELI_T      = SKY - 17          \ the helicopter's top (helicopter_y &CF: 17 above &E0)
+GOLD_FROM   = HELI_T            \ a gold drops from the helicopter's line
+EIGHTY_PASSES = 17
+
+\ slot_pass: slot `es`, a pass. es kept; X, Y, tmp, tmp2 not.
+.slot_pass
+    JSR slot_g
+    LDY es
+    LDX eg
+    LDA sl_level,Y
+    CMP #3
+    BCS spp_heli
+    LDA sl_hg,Y                 \ the spider
+    BPL spp_up
+    INC en_q + E_SPEC,X
+    LDA en_q + E_SPEC,X
+    CMP #26
+    BNE spp_80
+    LDA #0
+    STA sl_hg,Y
+    BEQ spp_80
+.spp_up
+    DEC en_q + E_SPEC,X
+    LDA en_q + E_SPEC,X
+    CMP #1
+    BNE spp_80
+    LDA #&80
+    STA sl_hg,Y
+    BNE spp_80
+.spp_heli
+    DEC en_q + E_SPEC,X         \ the helicopter
+    BNE spp_fall
+    LDA #76
+    STA en_q + E_SPEC,X
+    LDA sl_hg,Y
+    SEC
+    SBC #1
+    BCS spp_g
+    LDA sl_level,Y              \ back to the fourth ground: next = level
+    CLC
+    ADC #1
+    STA sl_goff,Y
+    LDA #3
+.spp_g
+    STA sl_hg,Y
+.spp_fall                       \ a falling gold: a line on; at the ground, the next column
+    LDA #0
+    STA tmp2                    \ one is falling
+    LDA en_q + E_GOLD,X
+    JSR spp_one
+    INX
+    LDA en_q + E_GOLD,X
+    JSR spp_one
+    LDA tmp2
+    BNE spp_80
+    JSR consider_drop
+.spp_80
+    LDX eg                      \ the 80's passes
+    LDA en_q + E_80,X
+    BEQ spp_rts
+    DEC en_q + E_80,X
+.spp_rts
+    RTS
+
+\ spp_one: A = gold X's line (en_q + E_GOLD,X), Y = slot. Falling (1-23): one on.
+.spp_one
+    BEQ so_rts
+    CMP #SKY
+    BEQ so_rts
+    INC tmp2
+    INC en_q + E_GOLD,X
+    LDA en_q + E_GOLD,X
+    CMP #SKY
+    BNE so_rts
+    LDA sl_goff,Y               \ on the ground: the next drop column (40 back to 1)
+    CLC
+    ADC #1
+    CMP #40
+    BNE so_off
+    LDA #1
+.so_off
+    STA sl_goff,Y
+.so_rts
+    RTS
+
+\ consider_drop: slot es (Y), eg: none falling. The helicopter over the next drop column?
+.consider_drop
+    LDX eg
+    LDA en_q + E_SPEC,X
+    LDX sl_goff,Y
+    CMP x_positions,X
+    BNE cd_rts
+    LDA sl_hg,Y
+    CMP #1
+    BEQ cd_rts                  \ the second ground: the horizontal enemy's
+    TAX                         \ its column from the level's start: 76 x ground + x
+    LDA ground76,X
+    LDX eg
+    CLC
+    ADC en_q + E_SPEC,X
+    STA hc
+    LDA #0
+    ADC #0
+    STA hc + 1
+    CLC                         \ the course 6 columns on
+    LDA sl_start_lo,Y
+    ADC hc
+    STA tmp
+    LDA sl_start_hi,Y
+    ADC hc + 1
+    STA tmp2
+    CLC
+    LDA tmp
+    ADC #6
+    STA tmp
+    BCC cd_c6
+    INC tmp2
+.cd_c6
+    JSR course_clear            \ C set: an obstacle's bottom line or a hole there
+    BCS cd_rts
+    LDY es                      \ drop: a free gold, else the one lying longer
+    LDX eg
+    LDA #0
+    LDY en_q + E_GOLD,X
+    BEQ cd_k
+    LDA #1
+    LDY en_q + E_GOLD + 1,X
+    BEQ cd_k
+    LDY es
+    LDA sl_old,Y
+.cd_k
+    STA tmp                     \ k
+    LDY es
+    EOR #1
+    STA sl_old,Y                \ the other now lies longer
+    LDA eg
+    CLC
+    ADC tmp
+    TAX
+    LDA #GOLD_FROM
+    STA en_q + E_GOLD,X
+    TYA
+    ASL A
+    ORA tmp
+    TAX
+    CLC
+    LDA hc
+    ADC #4
+    STA sl_glo,X
+    LDA hc + 1
+    ADC #0
+    STA sl_ghi,X
+.cd_rts
+    LDY es
+    RTS
+
+\ course_clear: course column tmp/tmp2, strip `ek`. C set if an obstacle's bottom line is lit
+\ there, or a hole is there, among the objects from the strip's `first` on.
+.course_clear
+    LDX ek
+    LDY first,X
+.cc_obj
+    SEC                         \ the column - the object's start
+    LDA tmp
+    SBC obj_x_lo,Y
+    STA hc + 2
+    LDA tmp2
+    SBC obj_x_hi,Y
+    BCC cc_clear                \ the object starts past the column: so does every one after
+    BNE cc_next                 \ 256 or more columns on from its start: not over it
+    LDA obj_kind,Y
+    BMI cc_hole
+    LDA hc + 2
+    CMP #4
+    BCS cc_next
+    ASL A : ASL A : ASL A       \ its bottom line there: the bottom block's column, line 7
+    ADC #7
+    STY hc + 3
+    PHA
+    LDA obj_kind,Y
+    TAX
+    PLA
+    CLC
+    ADC spr_bot_lo,X
+    STA pk
+    LDA spr_bot_hi,X
+    ADC #0
+    STA pk + 1
+    LDY #0
+    LDA (pk),Y
+    LDY hc + 3
+    CMP #0
+    BNE cc_full
+    BEQ cc_next
+.cc_hole
+    AND #&1F
+    STA hc + 3
+    LDA hc + 2
+    CMP hc + 3
+    BCC cc_full
+.cc_next
+    INY
+    JMP cc_obj
+.cc_full
+    SEC
+    RTS
+.cc_clear
+    CLC
+    RTS
+
+\ collect_gold: strip `strip`, the byte right of its rider's bottom line &1F. The lying gold
+\ there (its left column 1 or 2 left of that one): gone, 80 wages, the 80. C set if collected.
+.collect_gold
+    LDX strip
+    CLC                         \ the column right of the rider
+    LDA pos_lo,X
+    ADC #RIDER + 4
+    STA tmp
+    LDA pos_hi,X
+    ADC #0
+    STA tmp2
+    TXA
+    ASL A
+    STA es
+    LDA #2
+    STA hc + 2                  \ two slots
+.cg_slot
+    LDY es
+    LDA sl_level,Y
+    BMI cg_next_slot
+    JSR slot_g
+    LDA #0
+    STA hc + 3                  \ gold k
+.cg_gold
+    LDA eg
+    CLC
+    ADC hc + 3
+    TAX
+    LDA en_q + E_GOLD,X
+    CMP #SKY
+    BNE cg_next
+    LDA es                      \ lying: the column right of the rider - its column, 1 or 2
+    ASL A
+    ORA hc + 3
+    TAX
+    LDY es
+    CLC
+    LDA sl_start_lo,Y
+    ADC sl_glo,X
+    STA hc
+    LDA sl_start_hi,Y
+    ADC sl_ghi,X
+    STA hc + 1
+    SEC
+    LDA tmp
+    SBC hc
+    STA hc
+    LDA tmp2
+    SBC hc + 1
+    BNE cg_next
+    LDA hc
+    SEC
+    SBC #1
+    CMP #2
+    BCC cg_found
+.cg_next
+    INC hc + 3
+    LDA hc + 3
+    CMP #2
+    BNE cg_gold
+.cg_next_slot
+    INC es
+    DEC hc + 2
+    BNE cg_slot
+    CLC
+    RTS
+.cg_found
+    LDA eg                      \ the gold goes
+    CLC
+    ADC hc + 3
+    TAX
+    LDA #0
+    STA en_q + E_GOLD,X
+    LDX eg                      \ the 80, over the rider's left column
+    LDA #EIGHTY_PASSES
+    STA en_q + E_80,X
+    LDY es
+    LDX strip
+    SEC
+    LDA pos_lo,X
+    ADC #RIDER - 1              \ (C set: + RIDER)
+    STA hc
+    LDA pos_hi,X
+    ADC #0
+    STA hc + 1
+    SEC
+    LDA hc
+    SBC sl_start_lo,Y
+    STA sl_80lo,Y
+    LDA hc + 1
+    SBC sl_start_hi,Y
+    STA sl_80hi,Y
+    LDA #8                      \ 80: the tens, 8 times (collect_gold's add_to_wages loop)
+    STA hc + 2
+.cg_pay
+    LDX strip
+    JSR add_ten
+    DEC hc + 2
+    BNE cg_pay
+    LDX strip
+    LDA #1
+    STA sdirty,X
+    SEC
+    RTS
+
+.slot_base  EQUB 0, 10, 20, 30, 40, 50, 60, 70     \ a slot's first enemy
+.ground76   EQUB 0, 76, 152, 228

@@ -66,10 +66,7 @@ ROW     = 640                   \ bytes in a MODE 2 character row
 RIDER   = 12                    \ the riders' fixed screen column (decision 23, PROPOSED)
 VMAX    = 250                   \ the original's velocity cap (update_player)
 SKY     = 24                    \ window lines 0-23 are sky; a rider on the ground has its top here
-TALL_BLANK = 0                  \ tall sprites (make_data.py)
-TALL_EXPLOSION = 1
-TALL_PLAYER = 2                 \ player p's riders at 2 + 5p + type, dead rider at 2 + 5p + 3/4
-TALL_STRIDE = 5
+\ the tall sprites' numbers (TALL_*) are make_data.py's, in data.6502
 TAKES   = 3                     \ the original's: out when `take` reaches 4
 DEAD_COL = 18                   \ where the dead rider ends up, columns right of the rider
 LEVEL_COLS = 4 * 76             \ a level: four grounds (decision 18)
@@ -77,8 +74,6 @@ CLEAR   = 16                    \ respawn: columns clear from the rider's left c
 T1_FIRST = 120 * SL - 4 * SL - 2    \ VSync edge -> band 0 left; the handler runs ~4 lines late
 T1_NEXT  = 56 * SL - 2              \ one band to the next (T1 continuous: the latch reloads)
 
-TALL_HZ = 22                    \ the horizontal enemy for level type t: 22 + t
-TALL_VT = 25                    \ the vertical enemy: 25 + t
 
 \ zero page: &70-&8F is the user's; &00-&6F is BASIC's, and BASIC never runs
 \ enemies.6502's:
@@ -128,6 +123,9 @@ dg_y     = &A2
 skill    = &A3                  \ flow.6502: 0-5, A-F
 joined   = &A4                  \ bit p: player p plays
 winner   = &A5
+cspr     = &A6                  \ cu_crash: the dead rider frame (3, 4)
+hc       = &A7                  \ specials.6502: 4
+top_put  = &AB                  \ compose_rider: the highest line put back
 en_n     = &1E                  \ enemies on the list this field
 d2       = &50                  \ 2: draw16's third character row
 ts       = &52                  \ draw16: the tall sprite
@@ -632,6 +630,12 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     CLC
     ADC #16
     STA vto
+    LDA vfrom                   \ the highest line put back: the vacated lines', or 24 (the
+    CMP #SKY                    \ obstacles' rows, restore_under's)
+    BCC cr_top
+    LDA #SKY
+.cr_top
+    STA top_put
 .cr_sky
     LDA vfrom
     CMP vto
@@ -652,9 +656,10 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     STA dt
     LDA #RIDER
     STA dcol
-    LDA rider_tall,X
+    LDA rtype,X                 \ its level type's rider, in its colours (set_look)
     CLC
-    ADC rtype,X                 \ its level type's sprite
+    ADC #TALL_RIDER
+    JSR set_look
     STA ts
     JMP draw16
 .cr_rts
@@ -787,7 +792,14 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     ADC #15
     LDY #RIDER + 4
     JSR peek                    \ right_edge: the column right of it, its bottom line
+    BEQ cl_mid
+    CMP #&1F                    \ the gold's colour: collected, no crash (main_game_loop)
     BNE cl_hit
+    JSR collect_gold
+    BCC cl_hit                  \ (no gold there after all: lit, a crash)
+    CLC
+    RTS
+.cl_mid
     INC cause
     LDA newt
     CLC
@@ -981,22 +993,23 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
 .cu_crash
     LDY ct,X
     CPY #CRASH_FIELDS
-    BEQ cu_take
-    LDA crash_spr,Y
-    BEQ cu_tick                 \ nothing new to draw this field
+    BCC cu_on
+    JMP cu_take
+.cu_on
+    LDA #TALL_DEAD              \ the dead rider's frame one
+    STA cspr
     LDA #RIDER + DEAD_COL       \ after it flies: there, on the ground
     STA dcol
     LDA #SKY
     STA dt
     CPY #CRASH_FLY
-    BCS cu_where
-    LDA crash_col,Y
+    BCS cu_dead
+    LDA crash_col,Y             \ flying
     CLC
     ADC #RIDER
     STA dcol
     LDA crash_t,Y
     STA dt
-.cu_where
     CPY #0
     BEQ cu_draw                 \ the first: nothing of it to rub out
     LDA dcol                    \ moved: rub out where it was (the original's sprite_blank)
@@ -1004,7 +1017,26 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     BNE cu_blank
     LDA dt
     CMP dead_t,X
+    BNE cu_blank
+    JMP cu_tick                 \ not moved: nothing new to draw
+.cu_dead                        \ lying: frame one, two, one ... DEAD_FRAME fields each, a new
+    TYA                         \ one drawn at each change (where the last flying one lay)
+    SEC
+    SBC #CRASH_FLY
+.cu_mod
+    CMP #DEAD_FRAME
+    BCC cu_frame
+    SBC #DEAD_FRAME
+    PHA
+    LDA cspr
+    EOR #(TALL_DEAD EOR (TALL_DEAD + 1))   \ frame one <-> two
+    STA cspr
+    PLA
+    JMP cu_mod
+.cu_frame
+    CMP #0
     BEQ cu_draw
+    JMP cu_tick
 .cu_blank
     LDA dcol : PHA
     LDA dt   : PHA
@@ -1022,17 +1054,18 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA dt
     STA dead_t,X
     LDY ct,X
-    LDA rider_tall,X
-    CLC
-    ADC crash_spr,Y
+    LDA cspr                    \ the dead rider's frame, in its colours
+    JSR set_look
     STA ts
     JSR draw16
     LDX strip
 .cu_tick
     INC ct,X
     RTS
-.cu_take                        \ the crash is over: the next take, or out
-    INC take,X
+.cu_take                        \ the crash is over: the next take, or out; the respawn
+    CPY #CRASH_FIELDS           \ over three fields - erased; placed, its ground and look;
+    BNE cu_place                \ the rest drawn (phase 2) - each light enough to share a
+    INC take,X                  \ field with the other strips' worst
     LDA #1
     STA sdirty,X
     LDA take,X
@@ -1042,9 +1075,18 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     STA phase,X
     RTS
 .cu_erase
+    INC ct,X
+    JMP erase_strip
+.cu_place
     LDA #2
     STA phase,X
-    \ fall through
+    JSR place
+    JSR draw_ground
+    LDX strip
+    LDA rtype,X
+    CLC
+    ADC #TALL_RIDER
+    JMP set_look
 
 \ erase_strip: X = strip, still at the crash. Everything drawn above its ground to black: the
 \ obstacles on the screen, the explosion, the dead rider. (The ground is drawn whole again, in
@@ -1094,9 +1136,16 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     STA dcol
     JMP draw16                  \ the dead rider
 
-\ respawn: X = strip, its picture erased. Standing, at the first column past the crash with
-\ CLEAR columns clear (decision 26, PROPOSED); the strip drawn there.
+\ respawn: X = strip, phase 2: placed, its ground drawn (cu_erase). The rest of it drawn.
 .respawn
+    LDA #0
+    STA phase,X
+    JSR set_bases
+    JMP draw_objects
+
+\ place: X = strip, its picture erased. Standing, at the first column past the crash with
+\ CLEAR columns clear (decision 26); the levels and grounds it has reached. X kept.
+.place
     CLC                         \ rq = the rider's course column
     LDA pos_lo,X
     ADC #RIDER
@@ -1158,7 +1207,6 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     STA pos_frac,X
     STA vel,X
     STA js,X
-    STA phase,X
     LDA #SKY
     STA drawn_t,X
     LDA pos_lo,X                \ at or past the finish: finished (decision 22)
@@ -1190,13 +1238,21 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     CMP nb_lo,X
     LDA pos_hi,X
     SBC nb_hi,X
-    BCC draw_strip              \ the strip at its new place
+    BCC rs_placed
     JSR next_level
     JMP rs_levels
+.rs_placed
+    RTS
 
 \ draw_strip: X = strip. The whole strip from scratch at its pos: the ground in each level's
 \ colour, every object on the screen, the rider. Over black (MODE 2, or erase_strip).
 .draw_strip
+    JSR draw_ground
+    LDX strip
+    JMP draw_objects
+
+\ draw_ground: X = strip. Its ground row, in each level's colour, whole (bas, gb set).
+.draw_ground
     JSR set_bases
     SEC                         \ tmp2 = the next level's screen column, or 80
     LDA nb_lo,X
@@ -1230,7 +1286,11 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA #80
     STA fg_to
     LDA tmp
-    JSR fill_ground
+    JMP fill_ground
+
+\ draw_objects: X = strip, its ground whole (bas set). Its holes, its obstacles, its enemies,
+\ its rider.
+.draw_objects
     LDX strip
     LDA first,X
     STA obj
@@ -1273,9 +1333,10 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     STA dt
     LDA #RIDER
     STA dcol
-    LDA rider_tall,X
+    LDA rtype,X
     CLC
-    ADC rtype,X
+    ADC #TALL_RIDER
+    JSR set_look
     STA ts
     JMP draw16
 
@@ -1454,7 +1515,7 @@ W0 = SCREEN + 4 * ROW           \ strip 0's window
 WS = 7 * ROW                    \ one strip to the next
 \ The per-strip constants (wrow, wix, obase, gbase, rider_tall) and the key tables are in
 \ page &0D (make_data.py, low.6502), from these same numbers:
-    ASSERT SCREEN = &3000 AND ROW = 640 AND TALL_PLAYER = 2 AND TALL_STRIDE = 5
+    ASSERT SCREEN = &3000 AND ROW = 640
 .pos_frac   EQUB 0, 0, 0, 0
 .pos_lo     EQUB 0, 0, 0, 0
 .pos_hi     EQUB 0, 0, 0, 0
@@ -1483,10 +1544,11 @@ WS = 7 * ROW                    \ one strip to the next
 .pass_count EQUW 0
 
     INCLUDE "enemies.6502"
+    INCLUDE "specials.6502"
     INCLUDE "flow.6502"
     INCLUDE "../build/data.6502"
 .end                            \ the end of what runs at &0E00 up: below the screen
-    ASSERT end <= SCREEN
+    ASSERT end <= SCREEN + 2048
 
 \ What follows is only in the file. The tables for low RAM (&0400-&07FF, &0900-&0CFF; the RAM
 \ hunt, docs/done.md): their bytes, with their labels set to where reloc puts them.

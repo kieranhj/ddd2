@@ -220,6 +220,60 @@ TAKES_AT = 16
     STA (pk),Y
     RTS
 
+\ set_look: X = strip, A = a rider or dead rider tall sprite. Its player's look buffer made
+\ that sprite in the player's colours - green swapped with its own colour, both ways, pixel by
+\ pixel (decision 17) - unless it already is. Returns A = the buffer's tall sprite. X kept.
+.set_look
+    CMP look,X
+    BEQ sl_done
+    STA look,X
+    TAY
+    LDA tall_lo,Y
+    STA pk
+    LDA tall_hi,Y
+    STA pk + 1
+    LDY rider_tall,X
+    LDA tall_lo,Y
+    STA d2
+    LDA tall_hi,Y
+    STA d2 + 1
+    LDY #63
+.sl_byte
+    LDA (pk),Y
+    BEQ sl_store                \ black: black
+    CPX #0
+    BEQ sl_store                \ player 1: its colours are the original's
+    AND #&AA                    \ the left pixel
+    CMP colour_left             \ green (player 1's): its colour
+    BNE sl_l1
+    LDA colour_left,X
+    JMP sl_left
+.sl_l1
+    CMP colour_left,X           \ its colour: green
+    BNE sl_left
+    LDA colour_left
+.sl_left
+    STA tmp2
+    LDA (pk),Y
+    AND #&55                    \ the right pixel
+    CMP colour_right
+    BNE sl_r1
+    LDA colour_right,X
+    JMP sl_right
+.sl_r1
+    CMP colour_right,X
+    BNE sl_right
+    LDA colour_right
+.sl_right
+    ORA tmp2
+.sl_store
+    STA (d2),Y
+    DEY
+    BPL sl_byte
+.sl_done
+    LDA rider_tall,X
+    RTS
+
 \ status_init: every player's wages 0, the first ground's end at 76, every block to be drawn.
 .status_init
     LDA #0
@@ -264,11 +318,12 @@ TAKES_AT = 16
     EQUB 7, 5, 5, 7, 1, 1, 7                \ 9
 
 \ the state, in row 31 after the enemies' (enemies.6502)
-wages   = ROW31 + 320           \ 24: per player, 6 digits, the most significant first
-wg_lo   = ROW31 + 344           \ per strip: the next ground's end (course column)
-wg_hi   = ROW31 + 348
-gcount  = ROW31 + 352           \ the grounds ended so far
-sdirty  = ROW31 + 356           \ its status block to be drawn again
-shown   = ROW31 + 360           \ 24: the wages digits on the screen; then 4: the takes
-shown_takes = ROW31 + 384
-ASSERT shown_takes + 4 <= ROW31 + 640
+wages   = ROW31 + 552           \ 24: per player, 6 digits, the most significant first
+wg_lo   = ROW31 + 576           \ per strip: the next ground's end (course column)
+wg_hi   = ROW31 + 580
+gcount  = ROW31 + 584           \ the grounds ended so far
+sdirty  = ROW31 + 588           \ its status block to be drawn again
+shown   = ROW31 + 592           \ 24: the wages digits on the screen; then 4: the takes
+shown_takes = ROW31 + 616
+look    = ROW31 + 620           \ per strip: the sprite its look buffer holds (&FF none)
+ASSERT look + 4 <= ROW31 + 640
