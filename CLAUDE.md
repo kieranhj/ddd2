@@ -57,7 +57,8 @@ main build -> `sequel/build/ddd2.ssd`, `-Run` boots it in b2; `node tools/verify
 oracle: four scripted riders, a model of the game re-made from the original, every strip every
 field 0 bytes wrong, every crash agreed, 0 writes in a strip's window; `--scenario level` is the
 cost's worst case; `--plant`, `--early`, `--no-holes` show it failing; `--video` records a clip).
-`tools/measure_crash.mjs` times the original's crash.
+`tools/measure_crash.mjs` times the original's crash; `tools/verify_sound.mjs` checks the
+title's tune and the game's sound requests; `sequel/make_sound.py` builds the sound data.
 `spikes/swscroll/` is the software-scroll spike (its own
 `build.ps1`, after the main build: it takes the sprites from `build/ddd.ssd`).
 

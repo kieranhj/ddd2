@@ -71,11 +71,11 @@
 
 .texts
 .t_title
-    EQUB 31, 1, 3, 17, 7
+    EQUB 31, 1, 10, 17, 7
     EQUS "PRESS A-F TO START"
     EQUB &FF
 .t_wins
-    EQUB 31, 1, 3, 17, 7
+    EQUB 31, 1, 10, 17, 7
     EQUS "  PLAYER "
 .t_winner_n
     EQUS "1 WINS     "

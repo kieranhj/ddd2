@@ -126,6 +126,8 @@ winner   = &A5
 cspr     = &A6                  \ cu_crash: the dead rider frame (3, 4)
 hc       = &A7                  \ specials.6502: 4
 top_put  = &AB                  \ compose_rider: the highest line put back
+tmp_snd  = &AC                  \ sound.6502's, the interrupt's only: 3
+tune_at  = &AF                  \ 2
 en_n     = &1E                  \ enemies on the list this field
 d2       = &50                  \ 2: draw16's third character row
 ts       = &52                  \ draw16: the tall sprite
@@ -193,6 +195,11 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA p1_image - ORG_AT + LOAD_AT,X
     STA &0100,X
 .start_p1
+    CPX #p3_end - &0360
+    BCS start_p3
+    LDA p3_image - ORG_AT + LOAD_AT,X
+    STA &0360,X
+.start_p3
     INX
     BNE start_copy
     JMP title                   \ flow.6502
@@ -235,6 +242,12 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDX strip
     BNE strip_go
     JSR status_update           \ before strip 0: the status line (status.6502)
+    DEC eng_count               \ and once a pass of the original's (3 fields), the engine
+    BNE bl_engine
+    LDA #3
+    STA eng_count
+    JSR engine_pass
+.bl_engine
     JSR read_keys               \ and this field's keys
     LDX #0
 .strip_go
@@ -291,7 +304,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
 .vs_step
     STX c8_step
 .vs_done
-    RTS
+    JMP sound_field             \ the sound (sound.6502)
 .irq_timer_hook
     INC bands
     RTS
@@ -379,6 +392,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
 
 \ crash_at: the rider has hit something (`cause`, from collide). The explosion where it was.
 .crash_at
+    JSR sound_crash
     LDX strip
     LDA #1
     STA phase,X
@@ -519,6 +533,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     DEC take,X
     LDA #1
     STA sdirty,X
+    JSR sound_take
 .lc_next
     CLC
     LDA rl_lo,X
@@ -1545,10 +1560,12 @@ WS = 7 * ROW                    \ one strip to the next
 
     INCLUDE "enemies.6502"
     INCLUDE "specials.6502"
+    INCLUDE "screen.6502"
+    INCLUDE "sound_main.6502"
     INCLUDE "flow.6502"
     INCLUDE "../build/data.6502"
 .end                            \ the end of what runs at &0E00 up: below the screen
-    ASSERT end <= SCREEN + 2048
+    ASSERT end <= SCREEN
 
 \ What follows is only in the file. The tables for low RAM (&0400-&07FF, &0900-&0CFF; the RAM
 \ hunt, docs/done.md): their bytes, with their labels set to where reloc puts them.
@@ -1566,10 +1583,15 @@ SECTION page1, org = &0100, guard = &01C0
     INCLUDE "flow1.6502"
 .p1_end
 ENDSECTION
+.p3_image                       \ page 3 above the VDU's variables, &0360-&03FF: nothing writes it
+SECTION page3, org = &0360, guard = &0400   \ once the game runs, title text and all (measured)
+    INCLUDE "../build/sound_pitch.6502"
+.p3_end
+ENDSECTION
 .r0_image                       \ row 0, &3000-&327F: off the display (decision 37)
-SECTION row0, org = SCREEN, guard = SCREEN + 2 * ROW
+SECTION row0, org = SCREEN, guard = SCREEN + 3 * ROW
     INCLUDE "status.6502"
-    INCLUDE "screen.6502"
+    INCLUDE "sound.6502"
 .r0_end
 ENDSECTION
 
@@ -1611,7 +1633,7 @@ LOAD_OF_R0 = r0_image - ORG_AT + LOAD_AT
     LDA #HI(LOAD_OF_R0) : STA d0 + 1    \ &3000 (decision 37)
     LDA #LO(SCREEN)     : STA d1
     LDA #HI(SCREEN)     : STA d1 + 1
-    LDX #HI(2 * ROW + 255)
+    LDX #HI(3 * ROW + 255)
     JSR reloc_pages - ORG_AT + LOAD_AT
     CLI
     JMP start

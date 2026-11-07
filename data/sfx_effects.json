@@ -1,0 +1,104 @@
+{
+ "envelopes": [
+  [
+   1,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   255,
+   127,
+   0
+  ],
+  [
+   2,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   250,
+   127,
+   0
+  ],
+  [
+   3,
+   10,
+   20,
+   20,
+   16,
+   1,
+   1,
+   1,
+   0,
+   0,
+   0,
+   252,
+   127,
+   0
+  ]
+ ],
+ "effects": [
+  {
+   "name": "crash",
+   "what": "kill_player: low white noise, envelope 1",
+   "sound": [
+    16,
+    1,
+    6,
+    5
+   ]
+  },
+  {
+   "name": "gold",
+   "what": "collect_gold: envelope 2",
+   "sound": [
+    18,
+    2,
+    200,
+    1
+   ]
+  },
+  {
+   "name": "take",
+   "what": "gain_extra_take: envelope 3",
+   "sound": [
+    18,
+    3,
+    48,
+    1
+   ]
+  },
+  {
+   "name": "engine",
+   "what": "update_player: periodic noise, pitch from channel 1",
+   "sound": [
+    16,
+    65521,
+    3,
+    2
+   ]
+  },
+  {
+   "name": "snow",
+   "what": "update_player on snow: high white noise",
+   "sound": [
+    16,
+    65529,
+    4,
+    2
+   ]
+  }
+ ]
+}

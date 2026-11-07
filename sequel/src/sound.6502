@@ -1,0 +1,206 @@
+\ sound.6502 - the sound (step 6): the kit's sfx50 driver (src/lib/sfx50.6502) for the effects,
+\ the engine (decision 39) and the title's tune (decision 40). IRQ1V is ours (irq.6502): the
+\ MOS's SOUND and ENVELOPE driver does not run; everything reaches the chip from the VSync
+\ interrupt (sound_field), so no write is ever split by another.
+\
+\ THE EFFECTS, fitted by the kit's sfx50.py to the MOS's own playing of the original's SOUND and
+\ ENVELOPE calls (data/sfx_capture.json, tools/sfxcapture.mjs; sequel/build/sfx_data.6502),
+\ requested where the original makes them:
+\   crash   kill_player's SOUND &10,1,6,5 (the noise channel, envelope 1)
+\   gold    collect_gold's SOUND &12,2,&C8,1 (tone 1, envelope 2)
+\   take    gain_extra_take's SOUND &12,3,&30,1 (tone 1, envelope 3)
+\   engine  update_player's SOUND &10,-15,3,2: periodic noise at tone 2's pitch, which the
+\           engine sets to vel / 2 (SOUND &11,0,vel/2,1: silent)
+\   snow    update_player's SOUND &10,-7,4,2 on snow, moving and on the ground
+\ THE ENGINE (decision 39) is the fastest riding player's, set once a pass (3 fields) as the
+\ original's update_player does; not while a crash is sounding on the noise channel (the
+\ original's crash has the machine to itself; here the others ride on).
+\ THE TUNE (decision 40): DENIS2's, on the title: each note two pitches, on tones 2 and 1 at
+\ full volume (SOUND 1 and 2, -15, P, 255), for 6 x its duration fields; then round again.
+
+SFX_CRASH = 1                   \ request numbers: the effect + 1 (sfx_data.6502's order)
+SFX_GOLD = 2
+SFX_TAKE = 3
+SFX_ENGINE = 4
+SFX_SNOW = 5
+CRASH_SOUNDS = 72               \ fields the crash sounds (its ramps: 71, and the pad)
+
+\ sound_field: once a field, in the VSync interrupt. The tune, the engine's pitch, the driver.
+.sound_field
+    LDA tune_on
+    BEQ sf_engine
+    DEC tune_wait
+    BNE sf_driver
+    JSR tune_note
+    JMP sf_driver
+.sf_engine
+    LDA crash_sound
+    BEQ sf_pitch
+    DEC crash_sound
+.sf_pitch
+    LDA engine_pitch            \ a new pitch for tone 2 (silent): the engine's noise follows it
+    BMI sf_driver               \ (&FF: none waiting; the engine's are 0-125)
+    JSR pitch_period
+    JSR tone2_period
+    LDA #&FF
+    STA engine_pitch
+.sf_driver
+    JMP sfx_tick
+
+\ tone2_period / tone1_period: A = the period's low byte, X = its high (0-3), to the chip's tone.
+.tone2_period
+    STX tmp_snd
+    TAX
+    AND #&0F
+    ORA #&C0                    \ tone 2's latch byte, the low 4 bits
+    BNE tp_write
+.tone1_period
+    STX tmp_snd
+    TAX
+    AND #&0F
+    ORA #&A0                    \ tone 1's
+.tp_write
+    PHA
+    TXA                         \ the high 6 bits: (high << 4 | low >> 4)
+    LSR A : LSR A : LSR A : LSR A
+    STA tmp_snd + 1
+    LDA tmp_snd
+    ASL A : ASL A : ASL A : ASL A
+    ORA tmp_snd + 1
+    STA tmp_snd + 1
+    PLA
+    LDX #0                      \ (sfx_write keeps X, reads its channel 0's state: harmless)
+    JSR sfx_write
+    LDA tmp_snd + 1
+    JMP sfx_write
+
+\ pitch_period: A = a MOS pitch (0-255). A = the period's low byte, X = its high.
+.pitch_period
+    LDX #0
+.pp_octave
+    CMP #48
+    BCC pp_base
+    SBC #48
+    INX
+    BNE pp_octave
+.pp_base
+    TAY
+    LDA pitch_lo,Y
+    STA tmp_snd
+    LDA pitch_hi,Y
+.pp_shift
+    DEX
+    BMI pp_done
+    LSR A
+    ROR tmp_snd
+    JMP pp_shift
+.pp_done
+    TAX
+    LDA tmp_snd
+    RTS
+
+\ sound_crash, sound_gold, sound_take: the effects, from the game.
+.sound_crash
+    LDA #CRASH_SOUNDS
+    STA crash_sound
+    LDA #SFX_CRASH
+    STA sfx_request + 3
+    RTS
+.sound_gold
+    LDA #SFX_GOLD
+    STA sfx_request + 1
+    RTS
+.sound_take
+    LDA #SFX_TAKE
+    STA sfx_request + 1
+    RTS
+
+\ tune_start, tune_stop: the title's tune on and off (the chip silenced either way).
+.tune_start
+    JSR sfx_silence
+    LDA #LO(tune_notes)
+    STA tune_at
+    LDA #HI(tune_notes)
+    STA tune_at + 1
+    LDA #1
+    STA tune_wait
+    STA tune_on
+    RTS
+.tune_stop
+    LDA #0
+    STA tune_on
+    STA crash_sound
+    LDA #&FF
+    STA engine_pitch
+    JMP sfx_silence
+
+\ tune_note: the next note: its pitches to tones 2 and 1 at full volume, its wait.
+.tune_note
+    LDY #0
+    LDA (tune_at),Y
+    CMP #&7F
+    BNE tn_note
+    LDA #LO(tune_notes)         \ the end: round again
+    STA tune_at
+    LDA #HI(tune_notes)
+    STA tune_at + 1
+    LDA (tune_at),Y
+.tn_note
+    STA tmp_snd + 2
+    AND #&1F                    \ the first pitch
+    TAX
+    LDA tune_pitch,X
+    JSR pitch_period
+    JSR tone2_period
+    LDY #0
+    LDA tmp_snd + 2
+    BMI tn_same                 \ the second the same
+    INY
+    LDA (tune_at),Y
+    TAX
+    LDA tune_pitch,X
+    JSR pitch_period
+    JSR tone1_period
+    LDA #2
+    BNE tn_next
+.tn_same
+    AND #&1F
+    TAX
+    LDA tune_pitch,X
+    JSR pitch_period
+    JSR tone1_period
+    LDA #1
+.tn_next
+    CLC                         \ on past it
+    ADC tune_at
+    STA tune_at
+    BCC tn_vol
+    INC tune_at + 1
+.tn_vol
+    LDA #&D0                    \ both tones at full volume (attenuation 0)
+    LDX #0
+    JSR sfx_write
+    LDA #&B0
+    JSR sfx_write
+    LDA tmp_snd + 2             \ the wait: 6 x the duration, fields
+    LSR A : LSR A : LSR A : LSR A : LSR A
+    AND #3
+    STA tmp_snd
+    INC tmp_snd                 \ duration 1-4
+    LDA tmp_snd
+    ASL A
+    ADC tmp_snd                 \ x 3
+    ASL A                       \ x 6
+    STA tune_wait
+    RTS
+
+    INCLUDE "../build/sound_tune.6502"     \ (the pitch tables are in page 3: main.6502)
+    INCLUDE "../build/sfx_data.6502"
+    INCLUDE "../../src/lib/sfx50.6502"
+.sfx_request EQUB 0, 0, 0, 0
+.engine_pitch EQUB &FF          \ the engine's next pitch for tone 2 (&FF: none)
+.eng_best   EQUW 0              \ engine_pass: the fastest, and its speed
+.eng_count  EQUB 1              \ passes to the next engine_pass (every 3: a pass of the original's)
+.crash_sound EQUB 0             \ fields the crash still sounds
+.tune_on    EQUB 0
+.tune_wait  EQUB 0

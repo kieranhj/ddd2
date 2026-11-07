@@ -24,6 +24,7 @@ PHASE_IDLE = 4                  \ no one playing this strip
     JSR set_up
     LDX #T_TITLE
     JSR print
+    JSR tune_start              \ the title's tune (decision 40)
 .title_loop
     JSR next_field
     JSR read_keys
@@ -58,6 +59,7 @@ PHASE_IDLE = 4                  \ no one playing this strip
 
 \ game: everyone joined at skill `skill`'s level; the loop.
 .game
+    JSR tune_stop
     JSR set_up
     LDA #0
     STA pass_count

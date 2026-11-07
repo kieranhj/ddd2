@@ -1,12 +1,12 @@
-\ screen.6502 - the screen's set-up (flow.6502's), assembled for rows 0-1 (decisions 37, 41).
+\ screen.6502 - the screen's set-up (flow.6502's), assembled for rows 0-2 (decisions 37, 41, 42).
 
-FIRST_ROW = 2                   \ the first row shown (decision 41)
-SHOWN = 29                      \ rows 2-30
+FIRST_ROW = 3                   \ the first row shown (decision 42)
+SHOWN = 28                      \ rows 3-30
 
-\ screen_init: rows 2-30 cleared (MODE 2 is set once, by !BOOT: rows 0, 1 and 31 hold code and
-\ state, decisions 31, 37, 41), and the CRTC's display: rows 2-30 (start &3500, R6 29), the
-\ vertical sync two rows earlier than MODE 2's (R7 32), so that every row is on the scanline it
-\ would be in MODE 2. 29 rows are 72 pages and 128 bytes.
+\ screen_init: rows 3-30 cleared (MODE 2 is set once, by !BOOT: rows 0-2 and 31 hold code and
+\ state, decisions 31, 37, 41, 42), and the CRTC's display: rows 3-30 (start &3780, R6 28), the
+\ vertical sync three rows earlier than MODE 2's (R7 31), so that every row is on the scanline
+\ it would be in MODE 2. 28 rows are 70 pages.
 .screen_init
     LDA #LO(SCREEN + FIRST_ROW * ROW)
     STA pk
@@ -14,7 +14,8 @@ SHOWN = 29                      \ rows 2-30
     STA pk + 1
     LDA #0
     TAY
-    LDX #SHOWN * ROW / 256      \ 72 whole pages
+    LDX #SHOWN * ROW / 256      \ 70 pages, to &7D80
+    ASSERT SHOWN * ROW MOD 256 = 0
 .sci_clear
     STA (pk),Y
     INY
@@ -22,20 +23,15 @@ SHOWN = 29                      \ rows 2-30
     INC pk + 1
     DEX
     BNE sci_clear
-    LDY #SHOWN * ROW MOD 256 - 1    \ and 128 bytes, to &7D80
-.sci_rest
-    STA (pk),Y
-    DEY
-    BPL sci_rest
-    LDA #6                      \ R6: 29 rows shown
+    LDA #6                      \ R6: 28 rows shown
     STA &FE00
     LDA #SHOWN
     STA &FE01
-    LDA #7                      \ R7: the vertical sync after 32 rows (MODE 2: 34)
+    LDA #7                      \ R7: the vertical sync after 31 rows (MODE 2: 34)
     STA &FE00
     LDA #34 - FIRST_ROW
     STA &FE01
-    LDA #12                     \ R12/R13: the display starts at row 2
+    LDA #12                     \ R12/R13: the display starts at row 3
     STA &FE00
     LDA #HI((SCREEN + FIRST_ROW * ROW) / 8)
     STA &FE01

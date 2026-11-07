@@ -1,7 +1,7 @@
 # Plan
 
 What is left. What has landed is in `docs/done.md`. The sequel's design is `docs/sequel.md`; the
-decisions are `docs/decisions.md` (1-41).
+decisions are `docs/decisions.md` (1-42).
 
 ## Step 1 - the original, buildable and verified: DONE (tag `step1-byte-identical-rebuild`, public at github.com/kieranhj/ddd2)
 
@@ -26,12 +26,10 @@ decisions are `docs/decisions.md` (1-41).
        lockstep at heavy moments (a level crossing recolouring four riders, four airborne among
        enemies). Merged as it is to be play tested: `BUGS.md` #1 has the measurements and the
        mitigations. Left: b2 and real hardware.
-6. [ ] Sound, and no MOS interrupt handling at all (the owner, 2026-11-07: "remove any MOS IRQ
-       handling and do it all ourselves"). Today the MOS's IRQ entry still dispatches to our
-       IRQ1V, and the MOS's sound code still touches page 8 (&083B written in play, the RAM
-       hunt). Take that over: our handler does everything, no MOS sound, keyboard or timers. Use
-       Stryker's Run's replacement sound driver (`../strykers/src/lib/sfx50.6502`, its effects
-       made by `../strykers/tools/sfx50.py`). Page 8 then becomes ours too (re-measure with
-       `tools/memwatch.mjs` before claiming it).
+6. [x] Sound: DONE in jsbeeb (`docs/done.md` step 6; decisions 39-42). The kit's sfx50 driver
+       from our VSync interrupt, the original's effects fitted to the MOS's own playing, one
+       engine (the fastest rider's), DENIS2's tune on the title. No MOS interrupt handling runs:
+       IRQ1V is ours from start-up (the MOS's few instructions before IRQ1V are in ROM, on every
+       Model B). Left: listening on real hardware.
 7. [ ] Game modes 2 and 3. Then the endless part: loop the last sets, then a level editor or a
        procedural generator.

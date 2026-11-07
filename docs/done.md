@@ -4,6 +4,42 @@ What has landed, with the number that says it landed. `PLAN.md` is what is left.
 
 ---
 
+## Step 6: sound (2026-11-07)
+
+- **The driver:** the kit's `lib/sfx50.6502` (plain 6502), run from our VSync interrupt with the
+  tune and the engine's pitch, so every chip write is the interrupt's and none is split.
+- **The effects:** crash, gold, take, engine, snow, fitted (`sfx50.py --pad-end`) to
+  `data/sfx_capture.json`, the MOS playing the original's own SOUND and ENVELOPE numbers
+  (DENIS's ENVELOPE 1-3; `tools/sfxcapture.mjs data/sfx_effects.json`, B-DFS1.2). 242 bytes,
+  each within a step of the MOS field by field.
+- **The MOS's pitch to the chip's period,** measured for pitches 1-125 and the tune's 28
+  (`data/mos_pitch_period.json`): `base[P MOD 48] >> (P DIV 48)` exactly, so a 96-byte table.
+  Pitch 0 is never written by the MOS from silence; it is taken by the rule.
+- **The engine** (decision 39): the fastest riding player's, set once a pass (3 fields) as
+  `update_player`'s.
+  - Tone 2 at pitch vel/2, silent, under periodic noise.
+  - On snow, white noise when moving and on the ground.
+  - Not while a crash sounds: the original's crash has the machine; here the others ride on.
+- **The tune** (decision 40): DENIS2's 226 notes, packed to 370 bytes (2 bytes a note, 1 when
+  both pitches agree), on tones 2 and 1 at full volume, for 6 × each duration fields, looping.
+- **RAM:**
+  - Row 2 off the display (decision 42).
+  - Page 3 above the VDU's variables (&0360-&03FF): measured unwritten through a whole game,
+    title text included.
+  - Main ends &2FA7; rows 0-2 hold the sound, the status line and the screen's set-up.
+
+**MEASURED** (jsbeeb 2.10.2, B-DFS1.2):
+- **`tools/verify_sound.mjs`,** every byte sent to the chip:
+  - **The title's tune:** 60 notes, 684 fields, each field's tone 2 and 1 periods and volumes as
+    DENIS2's notes through the MOS's periods: 0 wrong. A planted wrong pitch gave 12 wrong.
+  - **The game:** 3 crashes, each requesting the crash effect that field; 380 engine passes, the
+    right rider and effect; 196 engine pitches reaching tone 2 at the right period. 0 wrong.
+- **`tools/verify_strips.mjs`,** now also checking the requests: 19 crashes, 2 golds and 7 takes
+  back, each requested that pass. The playfield as before: 0 bytes wrong; `BUGS.md` #1's 7
+  fields.
+- **The recording:** `build/sound.mp4`, with `build/sound.wav`. The title's tune is loud for its
+  first 11 s, then the game's engine and effects.
+
 ## Layer 4.5: wages, the status line, the title, game mode 1, the spider, the helicopter and gold (2026-11-07)
 
 - **4.5a, wages and the status line** (`status.6502`):

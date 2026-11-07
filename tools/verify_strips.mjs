@@ -403,6 +403,15 @@ const riders = [0, 1, 2, 3].map(newRider);
 riders.forEach(startVisible);                          // every level on the screen at the start: its clock
 riders.forEach((r) => { r.w = riding(r); });
 
+// the sound's requests (step 6): each crash, gold and take back must request its effect that pass
+const REQ = N("sfx_request"), sndEvents = [], sndReqs = [];
+{
+    const cpu2 = h.cpu, wm3 = cpu2.writemem.bind(cpu2);
+    cpu2.writemem = (a, v) => { if (started && a >= REQ && a < REQ + 4 && v) sndReqs.push([passes, a - REQ, v]); return wm3(a, v); };
+}
+h.onExec(N("sound_crash"), () => sndEvents.push([passes, 3, 1, "crash"]));
+h.onExec(N("sound_gold"), () => sndEvents.push([passes, 1, 2, "gold"]));
+h.onExec(N("sound_take"), () => sndEvents.push([passes, 1, 3, "take"]));
 const LOOP = N("pass_end");             // the end of every pass, the last one too
 let statusSnap = snapshot(), statusWrong = 0, firstStatus = null;
 // the palette (layer 4.4): every write to the ULA's palette register once the loop runs must be
@@ -462,9 +471,9 @@ h.onWrite(0x3000, 0x7fff, (addr, val, ctx) => {
     writes++;
     const row = Math.floor((addr - 0x3000) / ROW);
     // the CRTC shows memory row 2 first (decisions 37, 41: rows 2-30), so the row shown is vc + 2
-    const shown = ctx.vc + 2;                          // (decision 41: rows 2-30)
-    if (row === 2) {                                   // the status line: not while it is shown
-        if (!ctx.adj && shown === 2) { tears++; if (!firstTear) firstTear = { field: fields, addr: "&" + addr.toString(16), status: true, vc: ctx.vc, at: h.symAt(ctx.pc) }; }
+    const shown = ctx.vc + 3;                          // (decision 42: rows 3-30)
+    if (row === 3) {                                   // the status line: not while it is shown
+        if (!ctx.adj && shown === 3) { tears++; if (!firstTear) firstTear = { field: fields, addr: "&" + addr.toString(16), status: true, vc: ctx.vc, at: h.symAt(ctx.pc) }; }
         return false;
     }
     const k = Math.floor((row - 4) / 7);
@@ -504,7 +513,7 @@ h.onExec(LOOP, () => {
         const m = { pos: r.pos, vel: r.vel, js: r.js, phase: r.phase, take: r.take };
         if (JSON.stringify(g) !== JSON.stringify(m)) { stateWrong++; if (!firstState) firstState = { field: fields, pass: passes, strip: k, game: g, model: m }; }
     }
-    const sGot = h.rd(0x3000 + 2 * ROW, ROW, "main"), sWant = statusRow(statusSnap);
+    const sGot = h.rd(0x3000 + 3 * ROW, ROW, "main"), sWant = statusRow(statusSnap);
     for (let i = 0; i < ROW; i++) if (sGot[i] !== sWant[i]) { statusWrong++; if (!firstStatus) firstStatus = { field: fields, col: i >> 3, line: i & 7, got: sGot[i], want: sWant[i], snap: statusSnap }; }
     statusSnap = snapshot();                           // what the next pass's head draws
     checked++;
@@ -570,9 +579,11 @@ for (let s0 = 0; s0 < C8.length; s0++) {
 }
 const full = SKILL === 0 && JOINED.every(Boolean);     // the runs that must see every kind of crash
 const coverage = !full ? outs + riders.filter((r, p) => JOINED[p] && r.finished).length === JOINED.filter(Boolean).length : SCENARIO === "play" ? causes[1] > 0 && causes[4] > 0 && causes[5] > 0 && respawns > 0 && outs > 0 : outs === JOINED.filter(Boolean).length;
-const ok = done() && endOk && endOk.back_at_title && endOk.winner_game === endOk.winner_model && checked > 0 && wrong === 0 && statusWrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 && paletteWrong === 0 && palette.length > fields / 3 - 2 &&
+const sndMissing = sndEvents.filter(([p, c, v]) => !sndReqs.some(([q, d, w]) => q === p && d === c && w === v));
+const sndCounts = Object.fromEntries(["crash", "gold", "take"].map((k) => [k, sndEvents.filter((e) => e[3] === k).length]));
+const ok = sndMissing.length === 0 && done() && endOk && endOk.back_at_title && endOk.winner_game === endOk.winner_model && checked > 0 && wrong === 0 && statusWrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 && paletteWrong === 0 && palette.length > fields / 3 - 2 &&
            Math.abs(passes - elapsed) <= 1 && coverage;
-h.finish({ scenario: SCENARIO, skill: "ABCDEF"[SKILL], players: JOINED.map(Number).join(""), game_end: endOk, status_wrong: statusWrong, first_status_wrong: firstStatus, wages: riders.map((r) => r.wages), fields, passes, elapsed_fields: elapsed, coverage, checked, bytes_wrong: wrong, first_wrong: firstWrong, state_wrong: stateWrong, first_state: firstState,
+h.finish({ scenario: SCENARIO, sound: { events: sndCounts, missing: sndMissing.slice(0, 5) }, skill: "ABCDEF"[SKILL], players: JOINED.map(Number).join(""), game_end: endOk, status_wrong: statusWrong, first_status_wrong: firstStatus, wages: riders.map((r) => r.wages), fields, passes, elapsed_fields: elapsed, coverage, checked, bytes_wrong: wrong, first_wrong: firstWrong, state_wrong: stateWrong, first_state: firstState,
            crashes: crashes.game.length, crashes_disagreeing: crashDiff.slice(0, 5), by_cause: { right_edge: causes[1], middle_right: causes[2], top_right: causes[3], landed_on: causes[4], hole: causes[5] },
            respawns, outs, takes_back: takesBack, model_crashes: process.env.CRASHLOG ? crashes.model : undefined,
            finals: riders.map((r) => ({ pos: r.pos, finished: r.finished, phase: r.phase, take: r.take })),

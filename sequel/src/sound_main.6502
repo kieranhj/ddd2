@@ -1,0 +1,43 @@
+\ sound_main.6502 - sound.6502's engine choice, assembled in main RAM.
+
+\ engine_pass: once a pass, from the loop's head. The fastest riding player's engine.
+.engine_pass
+    LDA crash_sound
+    BNE ep_rts                  \ a crash on the noise channel: let it sound
+    LDA #0
+    STA eng_best + 1
+    LDA #&FF
+    STA eng_best                \ the fastest so far (&FF none)
+    LDX #3
+.ep_rider
+    LDA phase,X
+    BNE ep_next                 \ riding only
+    LDA vel,X
+    CMP eng_best + 1
+    BCC ep_next
+    STA eng_best + 1
+    STX eng_best
+.ep_next
+    DEX
+    BPL ep_rider
+    LDX eng_best
+    BMI ep_rts
+    LDA rtype,X
+    CMP #2
+    BNE ep_engine
+    LDA js,X                    \ snow: moving, on the ground
+    BNE ep_rts
+    LDA vel,X
+    BEQ ep_rts
+    LDA #SFX_SNOW
+    STA sfx_request + 3
+.ep_rts
+    RTS
+.ep_engine
+    LDA vel,X                   \ tone 2 at pitch vel / 2 (the interrupt sends it), then the
+    LSR A                       \ periodic noise
+    STA engine_pitch
+    LDA #SFX_ENGINE
+    STA sfx_request + 3
+    RTS
+

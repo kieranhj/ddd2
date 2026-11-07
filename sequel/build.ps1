@@ -15,6 +15,8 @@ if (-not (Test-Path $baron)) { $baron = (Get-Command baron -ErrorAction Stop).So
 New-Item -ItemType Directory -Force -Path $build | Out-Null
 & python (Join-Path $root 'make_data.py')
 if ($LASTEXITCODE -ne 0) { throw "make_data.py failed" }
+& python (Join-Path $root 'make_sound.py')
+if ($LASTEXITCODE -ne 0) { throw "make_sound.py failed" }
 Push-Location $root
 try {
     & $baron --warn 2 -o build\ddd2.ssd --title DDD2 --opt 3 --symbols build\ddd2.symbols.json -v src\main.6502 |

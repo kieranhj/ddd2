@@ -296,6 +296,7 @@ EIGHTY_PASSES = 17
     CLC
     RTS
 .cg_found
+    JSR sound_gold
     LDA eg                      \ the gold goes
     CLC
     ADC hc + 3
