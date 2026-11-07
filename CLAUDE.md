@@ -55,6 +55,11 @@ from there (`python tools/listing.py symbols build/ddd.symbols.json NAME`).
 The sequel's design is `docs/sequel.md`. `spikes/swscroll/` is the software-scroll spike (its own
 `build.ps1`, after the main build: it takes the sprites from `build/ddd.ssd`).
 
+The original measured in headless jsbeeb (after the build; `node tools/X.mjs`): `tools/ddd.mjs`
+boots it into a game; `capture_course.mjs` captures every level and `make_course.py` turns that
+into `data/course.json` and checks it (0 bytes wrong); `record_original.mjs` plays it with a
+planner rider into `data/original_play.json` and a video in `build/`.
+
 `game.6502`, `denis2.6502` and `zp.6502` were made once by `tools/disasm2baron.py` and are
 hand-maintained now (it refuses to overwrite them without `--force`). Lines starting `\ ` carry
 the disassembly's annotations. Every byte is the original's: an absolute-mode instruction on a

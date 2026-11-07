@@ -1,0 +1,2857 @@
+{
+ "tool": "tools/make_course.py",
+ "from": "data/course_capture.json",
+ "pitch": 76,
+ "columns": 10640,
+ "note": "x is the column within the ground (0-79); a ground starts at course_x. obstacles: [x, sprite 1-3 of the level type]; holes: [x, width]",
+ "levels": [
+  {
+   "level": 1,
+   "type": "land",
+   "holeStart": null,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       48,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 0
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 76
+    },
+    {
+     "obstacles": [
+      [
+       20,
+       3
+      ]
+     ],
+     "holes": [],
+     "course_x": 152
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 228
+    }
+   ],
+   "vertical": [],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 2,
+   "type": "sea",
+   "holeStart": null,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       24,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 304
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 380
+    },
+    {
+     "obstacles": [
+      [
+       12,
+       3
+      ]
+     ],
+     "holes": [],
+     "course_x": 456
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 532
+    }
+   ],
+   "vertical": [],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 3,
+   "type": "snow",
+   "holeStart": null,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       20,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 608
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 684
+    },
+    {
+     "obstacles": [
+      [
+       16,
+       3
+      ]
+     ],
+     "holes": [],
+     "course_x": 760
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 836
+    }
+   ],
+   "vertical": [],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 4,
+   "type": "land",
+   "holeStart": null,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       12,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 912
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 988
+    },
+    {
+     "obstacles": [
+      [
+       60,
+       3
+      ]
+     ],
+     "holes": [],
+     "course_x": 1064
+    },
+    {
+     "obstacles": [
+      [
+       16,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 1140
+    }
+   ],
+   "vertical": [],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 5,
+   "type": "sea",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       16,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 1216
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 1292
+    },
+    {
+     "obstacles": [
+      [
+       16,
+       3
+      ]
+     ],
+     "holes": [],
+     "course_x": 1368
+    },
+    {
+     "obstacles": [
+      [
+       40,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 1444
+    }
+   ],
+   "vertical": [],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 6,
+   "type": "snow",
+   "holeStart": 1,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       60,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       48,
+       8
+      ]
+     ],
+     "course_x": 1520
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 1596
+    },
+    {
+     "obstacles": [
+      [
+       40,
+       3
+      ]
+     ],
+     "holes": [],
+     "course_x": 1672
+    },
+    {
+     "obstacles": [
+      [
+       52,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 1748
+    }
+   ],
+   "vertical": [],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 7,
+   "type": "land",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       8,
+       2
+      ],
+      [
+       16,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 1824
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 1900
+    },
+    {
+     "obstacles": [
+      [
+       52,
+       3
+      ]
+     ],
+     "holes": [],
+     "course_x": 1976
+    },
+    {
+     "obstacles": [
+      [
+       56,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 2052
+    }
+   ],
+   "vertical": [
+    {
+     "x": 60,
+     "ground": 0,
+     "state": 14
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 8,
+   "type": "sea",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       40,
+       1
+      ],
+      [
+       60,
+       2
+      ]
+     ],
+     "holes": [
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 2128
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 2204
+    },
+    {
+     "obstacles": [
+      [
+       56,
+       3
+      ]
+     ],
+     "holes": [],
+     "course_x": 2280
+    },
+    {
+     "obstacles": [
+      [
+       8,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 2356
+    }
+   ],
+   "vertical": [
+    {
+     "x": 56,
+     "ground": 0,
+     "state": 7
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 9,
+   "type": "snow",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       52,
+       1
+      ],
+      [
+       56,
+       2
+      ]
+     ],
+     "holes": [
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 2432
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 2508
+    },
+    {
+     "obstacles": [
+      [
+       8,
+       3
+      ]
+     ],
+     "holes": [
+      [
+       48,
+       8
+      ]
+     ],
+     "course_x": 2584
+    },
+    {
+     "obstacles": [
+      [
+       60,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 2660
+    }
+   ],
+   "vertical": [
+    {
+     "x": 28,
+     "ground": 0,
+     "state": 13
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 10,
+   "type": "land",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       28,
+       2
+      ],
+      [
+       56,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 2736
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 2812
+    },
+    {
+     "obstacles": [
+      [
+       60,
+       3
+      ]
+     ],
+     "holes": [
+      [
+       12,
+       8
+      ]
+     ],
+     "course_x": 2888
+    },
+    {
+     "obstacles": [
+      [
+       56,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 2964
+    }
+   ],
+   "vertical": [
+    {
+     "x": 24,
+     "ground": 0,
+     "state": 13
+    },
+    {
+     "x": 52,
+     "ground": 1,
+     "state": 11
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 11,
+   "type": "sea",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       8,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       24,
+       8
+      ]
+     ],
+     "course_x": 3040
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 3116
+    },
+    {
+     "obstacles": [
+      [
+       56,
+       3
+      ]
+     ],
+     "holes": [
+      [
+       20,
+       8
+      ]
+     ],
+     "course_x": 3192
+    },
+    {
+     "obstacles": [
+      [
+       28,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 3268
+    }
+   ],
+   "vertical": [
+    {
+     "x": 52,
+     "ground": 0,
+     "state": 11
+    },
+    {
+     "x": 44,
+     "ground": 1,
+     "state": 13
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 12,
+   "type": "snow",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       60,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       24,
+       8
+      ]
+     ],
+     "course_x": 3344
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 3420
+    },
+    {
+     "obstacles": [
+      [
+       28,
+       3
+      ]
+     ],
+     "holes": [
+      [
+       20,
+       8
+      ]
+     ],
+     "course_x": 3496
+    },
+    {
+     "obstacles": [
+      [
+       52,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 3572
+    }
+   ],
+   "vertical": [
+    {
+     "x": 44,
+     "ground": 0,
+     "state": 13
+    },
+    {
+     "x": 52,
+     "ground": 1,
+     "state": 2
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 13,
+   "type": "land",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       52,
+       2
+      ],
+      [
+       56,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       24,
+       8
+      ],
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 3648
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 3724
+    },
+    {
+     "obstacles": [],
+     "holes": [
+      [
+       48,
+       8
+      ]
+     ],
+     "course_x": 3800
+    },
+    {
+     "obstacles": [
+      [
+       24,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 3876
+    }
+   ],
+   "vertical": [
+    {
+     "x": 8,
+     "ground": 0,
+     "state": 3
+    },
+    {
+     "x": 12,
+     "ground": 1,
+     "state": 18
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 14,
+   "type": "sea",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [],
+     "holes": [
+      [
+       24,
+       8
+      ],
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 3952
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 4028
+    },
+    {
+     "obstacles": [
+      [
+       8,
+       1
+      ],
+      [
+       24,
+       3
+      ]
+     ],
+     "holes": [
+      [
+       48,
+       8
+      ]
+     ],
+     "course_x": 4104
+    },
+    {
+     "obstacles": [
+      [
+       52,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 4180
+    }
+   ],
+   "vertical": [
+    {
+     "x": 12,
+     "ground": 0,
+     "state": 18
+    },
+    {
+     "x": 72,
+     "ground": 1,
+     "state": 6
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 15,
+   "type": "snow",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       52,
+       2
+      ]
+     ],
+     "holes": [
+      [
+       12,
+       8
+      ],
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 4256
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 4332
+    },
+    {
+     "obstacles": [
+      [
+       12,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       48,
+       8
+      ]
+     ],
+     "course_x": 4408
+    },
+    {
+     "obstacles": [
+      [
+       44,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 4484
+    }
+   ],
+   "vertical": [
+    {
+     "x": 72,
+     "ground": 0,
+     "state": 6
+    },
+    {
+     "x": 24,
+     "ground": 1,
+     "state": 18
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 16,
+   "type": "land",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       8,
+       2
+      ],
+      [
+       24,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       12,
+       8
+      ],
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 4560
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 4636
+    },
+    {
+     "obstacles": [
+      [
+       44,
+       3
+      ],
+      [
+       72,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       48,
+       8
+      ]
+     ],
+     "course_x": 4712
+    },
+    {
+     "obstacles": [
+      [
+       24,
+       2
+      ],
+      [
+       52,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 4788
+    }
+   ],
+   "vertical": [
+    {
+     "x": 72,
+     "ground": 0,
+     "state": 7
+    },
+    {
+     "x": 28,
+     "ground": 1,
+     "state": 6
+    },
+    {
+     "x": 24,
+     "ground": 2,
+     "state": 3
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 17,
+   "type": "sea",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       12,
+       2
+      ],
+      [
+       52,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       16,
+       8
+      ],
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 4864
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 4940
+    },
+    {
+     "obstacles": [
+      [
+       24,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       48,
+       8
+      ],
+      [
+       60,
+       8
+      ]
+     ],
+     "course_x": 5016
+    },
+    {
+     "obstacles": [
+      [
+       8,
+       1
+      ],
+      [
+       72,
+       2
+      ]
+     ],
+     "holes": [],
+     "course_x": 5092
+    }
+   ],
+   "vertical": [
+    {
+     "x": 28,
+     "ground": 0,
+     "state": 6
+    },
+    {
+     "x": 24,
+     "ground": 1,
+     "state": 3
+    },
+    {
+     "x": 12,
+     "ground": 2,
+     "state": 7
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 18,
+   "type": "snow",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       72,
+       2
+      ]
+     ],
+     "holes": [
+      [
+       16,
+       8
+      ],
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 5168
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 5244
+    },
+    {
+     "obstacles": [
+      [
+       8,
+       3
+      ],
+      [
+       72,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       48,
+       8
+      ],
+      [
+       60,
+       8
+      ]
+     ],
+     "course_x": 5320
+    },
+    {
+     "obstacles": [
+      [
+       12,
+       1
+      ],
+      [
+       28,
+       2
+      ]
+     ],
+     "holes": [],
+     "course_x": 5396
+    }
+   ],
+   "vertical": [
+    {
+     "x": 24,
+     "ground": 0,
+     "state": 3
+    },
+    {
+     "x": 12,
+     "ground": 1,
+     "state": 7
+    },
+    {
+     "x": 28,
+     "ground": 2,
+     "state": 2
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 19,
+   "type": "land",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       52,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       12,
+       8
+      ],
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 5472
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 5548
+    },
+    {
+     "obstacles": [
+      [
+       12,
+       3
+      ]
+     ],
+     "holes": [
+      [
+       16,
+       8
+      ],
+      [
+       48,
+       8
+      ]
+     ],
+     "course_x": 5624
+    },
+    {
+     "obstacles": [
+      [
+       72,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 5700
+    }
+   ],
+   "vertical": [
+    {
+     "x": 24,
+     "ground": 0,
+     "state": 18
+    },
+    {
+     "x": 72,
+     "ground": 1,
+     "state": 7
+    },
+    {
+     "x": 28,
+     "ground": 2,
+     "state": 6
+    },
+    {
+     "x": 24,
+     "ground": 3,
+     "state": 3
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 20,
+   "type": "sea",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       8,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       16,
+       8
+      ],
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 5776
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 5852
+    },
+    {
+     "obstacles": [
+      [
+       72,
+       3
+      ]
+     ],
+     "holes": [
+      [
+       48,
+       8
+      ],
+      [
+       60,
+       8
+      ]
+     ],
+     "course_x": 5928
+    },
+    {
+     "obstacles": [
+      [
+       24,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 6004
+    }
+   ],
+   "vertical": [
+    {
+     "x": 72,
+     "ground": 0,
+     "state": 7
+    },
+    {
+     "x": 28,
+     "ground": 1,
+     "state": 6
+    },
+    {
+     "x": 24,
+     "ground": 2,
+     "state": 3
+    },
+    {
+     "x": 12,
+     "ground": 3,
+     "state": 7
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 21,
+   "type": "snow",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       12,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       16,
+       8
+      ],
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 6080
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 6156
+    },
+    {
+     "obstacles": [
+      [
+       24,
+       3
+      ]
+     ],
+     "holes": [
+      [
+       48,
+       8
+      ],
+      [
+       60,
+       8
+      ]
+     ],
+     "course_x": 6232
+    },
+    {
+     "obstacles": [
+      [
+       72,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 6308
+    }
+   ],
+   "vertical": [
+    {
+     "x": 28,
+     "ground": 0,
+     "state": 6
+    },
+    {
+     "x": 24,
+     "ground": 1,
+     "state": 3
+    },
+    {
+     "x": 12,
+     "ground": 2,
+     "state": 7
+    },
+    {
+     "x": 28,
+     "ground": 3,
+     "state": 2
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 22,
+   "type": "land",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       72,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       16,
+       8
+      ],
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 6384
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 6460
+    },
+    {
+     "obstacles": [
+      [
+       72,
+       3
+      ]
+     ],
+     "holes": [
+      [
+       48,
+       8
+      ],
+      [
+       60,
+       8
+      ]
+     ],
+     "course_x": 6536
+    },
+    {
+     "obstacles": [
+      [
+       28,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 6612
+    }
+   ],
+   "vertical": [
+    {
+     "x": 24,
+     "ground": 0,
+     "state": 3
+    },
+    {
+     "x": 12,
+     "ground": 1,
+     "state": 7
+    },
+    {
+     "x": 28,
+     "ground": 2,
+     "state": 2
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 23,
+   "type": "sea",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [],
+     "holes": [
+      [
+       20,
+       8
+      ],
+      [
+       44,
+       8
+      ],
+      [
+       60,
+       8
+      ]
+     ],
+     "course_x": 6688
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 6764
+    },
+    {
+     "obstacles": [
+      [
+       28,
+       3
+      ]
+     ],
+     "holes": [
+      [
+       16,
+       8
+      ],
+      [
+       48,
+       8
+      ]
+     ],
+     "course_x": 6840
+    },
+    {
+     "obstacles": [
+      [
+       24,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 6916
+    }
+   ],
+   "vertical": [
+    {
+     "x": 12,
+     "ground": 0,
+     "state": 7
+    },
+    {
+     "x": 28,
+     "ground": 1,
+     "state": 2
+    },
+    {
+     "x": 8,
+     "ground": 2,
+     "state": 17
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 24,
+   "type": "snow",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       72,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       16,
+       12
+      ],
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 6992
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 7068
+    },
+    {
+     "obstacles": [
+      [
+       24,
+       3
+      ]
+     ],
+     "holes": [
+      [
+       12,
+       8
+      ],
+      [
+       48,
+       8
+      ]
+     ],
+     "course_x": 7144
+    },
+    {
+     "obstacles": [
+      [
+       12,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 7220
+    }
+   ],
+   "vertical": [
+    {
+     "x": 28,
+     "ground": 0,
+     "state": 2
+    },
+    {
+     "x": 8,
+     "ground": 1,
+     "state": 17
+    },
+    {
+     "x": 68,
+     "ground": 2,
+     "state": 11
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 25,
+   "type": "land",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       8,
+       2
+      ]
+     ],
+     "holes": [
+      [
+       16,
+       16
+      ],
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 7296
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 7372
+    },
+    {
+     "obstacles": [
+      [
+       12,
+       3
+      ],
+      [
+       44,
+       1
+      ],
+      [
+       72,
+       2
+      ]
+     ],
+     "holes": [
+      [
+       20,
+       8
+      ],
+      [
+       48,
+       8
+      ],
+      [
+       60,
+       8
+      ]
+     ],
+     "course_x": 7448
+    },
+    {
+     "obstacles": [
+      [
+       28,
+       1
+      ],
+      [
+       40,
+       2
+      ]
+     ],
+     "holes": [],
+     "course_x": 7524
+    }
+   ],
+   "vertical": [
+    {
+     "x": 12,
+     "ground": 0,
+     "state": 14
+    },
+    {
+     "x": 56,
+     "ground": 1,
+     "state": 14
+    },
+    {
+     "x": 56,
+     "ground": 2,
+     "state": 9
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 26,
+   "type": "sea",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       60,
+       3
+      ],
+      [
+       68,
+       2
+      ]
+     ],
+     "holes": [
+      [
+       12,
+       8
+      ],
+      [
+       24,
+       8
+      ],
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 7600
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 7676
+    },
+    {
+     "obstacles": [
+      [
+       12,
+       2
+      ],
+      [
+       28,
+       3
+      ],
+      [
+       40,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       16,
+       12
+      ],
+      [
+       48,
+       8
+      ]
+     ],
+     "course_x": 7752
+    },
+    {
+     "obstacles": [
+      [
+       8,
+       1
+      ],
+      [
+       20,
+       2
+      ]
+     ],
+     "holes": [],
+     "course_x": 7828
+    }
+   ],
+   "vertical": [
+    {
+     "x": 56,
+     "ground": 0,
+     "state": 14
+    },
+    {
+     "x": 56,
+     "ground": 1,
+     "state": 9
+    },
+    {
+     "x": 36,
+     "ground": 2,
+     "state": 11
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 27,
+   "type": "snow",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       12,
+       1
+      ],
+      [
+       44,
+       2
+      ],
+      [
+       72,
+       3
+      ]
+     ],
+     "holes": [
+      [
+       16,
+       12
+      ],
+      [
+       48,
+       8
+      ]
+     ],
+     "course_x": 7904
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 7980
+    },
+    {
+     "obstacles": [
+      [
+       8,
+       3
+      ],
+      [
+       20,
+       1
+      ],
+      [
+       56,
+       2
+      ]
+     ],
+     "holes": [
+      [
+       12,
+       8
+      ],
+      [
+       24,
+       8
+      ],
+      [
+       60,
+       8
+      ]
+     ],
+     "course_x": 8056
+    },
+    {
+     "obstacles": [
+      [
+       60,
+       2
+      ],
+      [
+       68,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 8132
+    }
+   ],
+   "vertical": [
+    {
+     "x": 56,
+     "ground": 0,
+     "state": 9
+    },
+    {
+     "x": 36,
+     "ground": 1,
+     "state": 11
+    },
+    {
+     "x": 44,
+     "ground": 2,
+     "state": 12
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 28,
+   "type": "land",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       28,
+       1
+      ],
+      [
+       40,
+       2
+      ]
+     ],
+     "holes": [
+      [
+       56,
+       12
+      ]
+     ],
+     "course_x": 8208
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 8284
+    },
+    {
+     "obstacles": [
+      [
+       68,
+       3
+      ]
+     ],
+     "holes": [
+      [
+       28,
+       8
+      ],
+      [
+       52,
+       16
+      ]
+     ],
+     "course_x": 8360
+    },
+    {
+     "obstacles": [
+      [
+       36,
+       3
+      ],
+      [
+       44,
+       1
+      ],
+      [
+       72,
+       2
+      ]
+     ],
+     "holes": [],
+     "course_x": 8436
+    }
+   ],
+   "vertical": [
+    {
+     "x": 44,
+     "ground": 0,
+     "state": 12
+    },
+    {
+     "x": 48,
+     "ground": 1,
+     "state": 6
+    },
+    {
+     "x": 24,
+     "ground": 2,
+     "state": 5
+    },
+    {
+     "x": 20,
+     "ground": 3,
+     "state": 3
+    },
+    {
+     "x": 12,
+     "ground": 0,
+     "state": 4
+    },
+    {
+     "x": 16,
+     "ground": 1,
+     "state": 15
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 29,
+   "type": "sea",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       8,
+       1
+      ],
+      [
+       20,
+       2
+      ]
+     ],
+     "holes": [
+      [
+       28,
+       8
+      ],
+      [
+       40,
+       8
+      ],
+      [
+       52,
+       8
+      ],
+      [
+       72,
+       8
+      ]
+     ],
+     "course_x": 8512
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 8588
+    },
+    {
+     "obstacles": [
+      [
+       36,
+       2
+      ],
+      [
+       44,
+       3
+      ],
+      [
+       72,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       52,
+       8
+      ]
+     ],
+     "course_x": 8664
+    },
+    {
+     "obstacles": [
+      [
+       40,
+       1
+      ],
+      [
+       44,
+       3
+      ]
+     ],
+     "holes": [],
+     "course_x": 8740
+    }
+   ],
+   "vertical": [
+    {
+     "x": 48,
+     "ground": 0,
+     "state": 6
+    },
+    {
+     "x": 24,
+     "ground": 1,
+     "state": 5
+    },
+    {
+     "x": 20,
+     "ground": 2,
+     "state": 3
+    },
+    {
+     "x": 12,
+     "ground": 3,
+     "state": 4
+    },
+    {
+     "x": 16,
+     "ground": 0,
+     "state": 15
+    },
+    {
+     "x": 60,
+     "ground": 1,
+     "state": 4
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 30,
+   "type": "snow",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       68,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       28,
+       8
+      ],
+      [
+       40,
+       20
+      ]
+     ],
+     "course_x": 8816
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 8892
+    },
+    {
+     "obstacles": [
+      [
+       40,
+       3
+      ],
+      [
+       44,
+       2
+      ]
+     ],
+     "holes": [
+      [
+       48,
+       12
+      ]
+     ],
+     "course_x": 8968
+    },
+    {
+     "obstacles": [
+      [
+       20,
+       1
+      ],
+      [
+       48,
+       3
+      ],
+      [
+       56,
+       2
+      ]
+     ],
+     "holes": [],
+     "course_x": 9044
+    }
+   ],
+   "vertical": [
+    {
+     "x": 24,
+     "ground": 0,
+     "state": 5
+    },
+    {
+     "x": 20,
+     "ground": 1,
+     "state": 3
+    },
+    {
+     "x": 12,
+     "ground": 2,
+     "state": 4
+    },
+    {
+     "x": 16,
+     "ground": 3,
+     "state": 15
+    },
+    {
+     "x": 60,
+     "ground": 0,
+     "state": 4
+    },
+    {
+     "x": 16,
+     "ground": 1,
+     "state": 10
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 31,
+   "type": "land",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       36,
+       3
+      ],
+      [
+       72,
+       2
+      ]
+     ],
+     "holes": [
+      [
+       24,
+       12
+      ],
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 9120
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 9196
+    },
+    {
+     "obstacles": [
+      [
+       20,
+       3
+      ],
+      [
+       48,
+       2
+      ],
+      [
+       56,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       24,
+       8
+      ],
+      [
+       72,
+       8
+      ]
+     ],
+     "course_x": 9272
+    },
+    {
+     "obstacles": [
+      [
+       24,
+       3
+      ],
+      [
+       56,
+       2
+      ]
+     ],
+     "holes": [],
+     "course_x": 9348
+    }
+   ],
+   "vertical": [
+    {
+     "x": 20,
+     "ground": 0,
+     "state": 3
+    },
+    {
+     "x": 12,
+     "ground": 1,
+     "state": 4
+    },
+    {
+     "x": 16,
+     "ground": 2,
+     "state": 15
+    },
+    {
+     "x": 60,
+     "ground": 3,
+     "state": 4
+    },
+    {
+     "x": 16,
+     "ground": 0,
+     "state": 10
+    },
+    {
+     "x": 40,
+     "ground": 1,
+     "state": 13
+    },
+    {
+     "x": 52,
+     "ground": 2,
+     "state": 14
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 32,
+   "type": "sea",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [],
+     "holes": [
+      [
+       20,
+       12
+      ],
+      [
+       44,
+       8
+      ],
+      [
+       72,
+       8
+      ]
+     ],
+     "course_x": 9424
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 9500
+    },
+    {
+     "obstacles": [],
+     "holes": [
+      [
+       24,
+       12
+      ],
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 9576
+    },
+    {
+     "obstacles": [
+      [
+       20,
+       3
+      ],
+      [
+       36,
+       2
+      ],
+      [
+       72,
+       1
+      ]
+     ],
+     "holes": [],
+     "course_x": 9652
+    }
+   ],
+   "vertical": [
+    {
+     "x": 12,
+     "ground": 0,
+     "state": 4
+    },
+    {
+     "x": 16,
+     "ground": 1,
+     "state": 15
+    },
+    {
+     "x": 60,
+     "ground": 2,
+     "state": 4
+    },
+    {
+     "x": 16,
+     "ground": 3,
+     "state": 10
+    },
+    {
+     "x": 40,
+     "ground": 0,
+     "state": 13
+    },
+    {
+     "x": 52,
+     "ground": 1,
+     "state": 14
+    },
+    {
+     "x": 56,
+     "ground": 2,
+     "state": 2
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 33,
+   "type": "snow",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       56,
+       2
+      ]
+     ],
+     "holes": [
+      [
+       20,
+       12
+      ],
+      [
+       44,
+       8
+      ],
+      [
+       72,
+       8
+      ]
+     ],
+     "course_x": 9728
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 9804
+    },
+    {
+     "obstacles": [
+      [
+       20,
+       2
+      ],
+      [
+       36,
+       1
+      ],
+      [
+       72,
+       3
+      ]
+     ],
+     "holes": [
+      [
+       24,
+       12
+      ],
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 9880
+    },
+    {
+     "obstacles": [
+      [
+       12,
+       3
+      ],
+      [
+       44,
+       2
+      ]
+     ],
+     "holes": [],
+     "course_x": 9956
+    }
+   ],
+   "vertical": [
+    {
+     "x": 16,
+     "ground": 0,
+     "state": 15
+    },
+    {
+     "x": 60,
+     "ground": 1,
+     "state": 4
+    },
+    {
+     "x": 16,
+     "ground": 2,
+     "state": 10
+    },
+    {
+     "x": 40,
+     "ground": 3,
+     "state": 13
+    },
+    {
+     "x": 52,
+     "ground": 0,
+     "state": 14
+    },
+    {
+     "x": 56,
+     "ground": 1,
+     "state": 2
+    },
+    {
+     "x": 8,
+     "ground": 2,
+     "state": 15
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 34,
+   "type": "land",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [],
+     "holes": [
+      [
+       20,
+       12
+      ],
+      [
+       44,
+       8
+      ],
+      [
+       72,
+       8
+      ]
+     ],
+     "course_x": 10032
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 10108
+    },
+    {
+     "obstacles": [
+      [
+       12,
+       2
+      ]
+     ],
+     "holes": [
+      [
+       24,
+       12
+      ],
+      [
+       44,
+       8
+      ]
+     ],
+     "course_x": 10184
+    },
+    {
+     "obstacles": [
+      [
+       16,
+       3
+      ],
+      [
+       48,
+       2
+      ]
+     ],
+     "holes": [],
+     "course_x": 10260
+    }
+   ],
+   "vertical": [
+    {
+     "x": 60,
+     "ground": 0,
+     "state": 4
+    },
+    {
+     "x": 16,
+     "ground": 1,
+     "state": 10
+    },
+    {
+     "x": 40,
+     "ground": 2,
+     "state": 13
+    },
+    {
+     "x": 52,
+     "ground": 3,
+     "state": 14
+    },
+    {
+     "x": 56,
+     "ground": 0,
+     "state": 2
+    },
+    {
+     "x": 8,
+     "ground": 1,
+     "state": 15
+    },
+    {
+     "x": 60,
+     "ground": 2,
+     "state": 14
+    },
+    {
+     "x": 56,
+     "ground": 3,
+     "state": 7
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  },
+  {
+   "level": 35,
+   "type": "sea",
+   "holeStart": 0,
+   "grounds": [
+    {
+     "obstacles": [
+      [
+       20,
+       3
+      ],
+      [
+       36,
+       2
+      ]
+     ],
+     "holes": [
+      [
+       44,
+       8
+      ],
+      [
+       72,
+       8
+      ]
+     ],
+     "course_x": 10336
+    },
+    {
+     "obstacles": [],
+     "holes": [],
+     "course_x": 10412
+    },
+    {
+     "obstacles": [
+      [
+       16,
+       2
+      ],
+      [
+       48,
+       1
+      ]
+     ],
+     "holes": [
+      [
+       20,
+       8
+      ],
+      [
+       68,
+       12
+      ]
+     ],
+     "course_x": 10488
+    },
+    {
+     "obstacles": [
+      [
+       24,
+       2
+      ],
+      [
+       60,
+       3
+      ]
+     ],
+     "holes": [],
+     "course_x": 10564
+    }
+   ],
+   "vertical": [
+    {
+     "x": 16,
+     "ground": 0,
+     "state": 10
+    },
+    {
+     "x": 40,
+     "ground": 1,
+     "state": 13
+    },
+    {
+     "x": 52,
+     "ground": 2,
+     "state": 14
+    },
+    {
+     "x": 56,
+     "ground": 3,
+     "state": 2
+    },
+    {
+     "x": 8,
+     "ground": 0,
+     "state": 15
+    },
+    {
+     "x": 60,
+     "ground": 1,
+     "state": 14
+    },
+    {
+     "x": 56,
+     "ground": 2,
+     "state": 7
+    },
+    {
+     "x": 28,
+     "ground": 3,
+     "state": 13
+    }
+   ],
+   "horizontal": {
+    "x": 74,
+    "ground": 1
+   }
+  }
+ ]
+}

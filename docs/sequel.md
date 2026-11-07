@@ -45,8 +45,10 @@ After level 36 the original goes back to level 33.
 **Speed.** `update_player` adds velocity x 3/256 to `player_x`, which counts in 2-pixel columns.
 Velocity is capped at 250, so the top speed is 2.93 columns per update. **The original updates
 once every 3 fields (16.7 Hz)**, so its top speed is 48.8 columns a second, **0.98 columns per
-50 Hz field** (measured, step 2). SHIFT adds 2 to velocity per update, so 0 to 250 takes 125
-updates, 7.5 seconds. At 50 Hz the sequel moves in steps of at most one column (2 pixels) where
+50 Hz field** (measured, step 2). SHIFT adds 3 to velocity per update (three `INC`s), on the ground
+and in the air, so 0 to 250 takes 84 updates, 5.0 seconds (step 2's recording: 0, 3, 6 ...; an
+earlier note here said 2 and 7.5 s, which was a misreading). Starting a level - not only a take -
+sets velocity to 0 (`initialise_level`). At 50 Hz the sequel moves in steps of at most one column (2 pixels) where
 the original jumped up to 3 columns at a time. Decision 16 keeps the speeds the same.
 
 **The jump** (`update_player`, `jump_offsets_table`; measured, step 2):
@@ -58,25 +60,57 @@ the original jumped up to 3 columns at a time. Decision 16 keeps the speeds the 
 - **What it clears:** an obstacle is 16 lines tall, and the rider is at least 16 lines up for states
   8-23 (16 passes, 48 fields). At top speed that is 47 columns of clearance, against an obstacle
   only 4 columns wide.
-- **How far it goes:** speed does not change in the air, so a jump at top speed covers 82 columns,
-  more than a screen width.
+- **How far it goes:** SHIFT still adds to velocity in the air, so a jump started below top speed
+  ends faster than it began. At top speed it covers 82 columns, more than a screen width.
 - **Holes are only checked on the ground.** Each pass, with the rider not jumping, it reads the
   ground row under the rider's LEFT column (`player_x`). A zero byte there means a fall. So a rider
   falls only when that column is over the 8-column hole.
 
-**Collisions** are reads of screen bytes; anything non-zero hits:
+**Collisions** (`check_for_collision`, and the middle-right read in `main_game_loop`) are reads of
+screen bytes; anything non-zero hits:
 - the column just right of the sprite, kept by `plot_sprite` as `right_edge`;
 - its middle-right and top-right;
-- below it while jumping.
+- below its left column, the line under its feet, while jumping.
+
+So a crash is a lit byte at one of a few points, not an overlap of shapes. Gold is lit too: touching
+it on the right edge with colour &1F collects it, but meeting it at another point would be a crash
+(read from the code, not seen happen).
+
+**What moves** (read from the code; the step 2 rider's planner models it, `tools/record_original.mjs`):
+- **The horizontal enemy** (every level): +1 column a pass along the second ground, back to 0 at
+  &4B.
+- **The vertical enemies:** each at a fixed column, raised `jump_offsets_table[state]` lines, the
+  state stepping 1 to &1F a pass (it reads two bytes past the 30-byte table). Only the first five
+  move: the update loop stops at X = &0F. Levels with 6-8 have the rest cleared and never drawn.
+- **The spider,** levels 1-3: column &28 over the fourth ground, down and up a line a pass.
+- **The helicopter,** from level 4: -1 column a pass; at 0 it goes back to &4C and up a ground. It
+  drops the gold.
 
 For the sequel at 50 Hz (decision 16), the jump state counts in thirds and the height comes from
 interpolating between table entries. The arc is the same shape, drawn a line at a time instead of
 up to 3 lines a pass.
 
-**Course length.** A ground is about 76 columns, from `player_x` 0 to &4B. That makes 36 levels x 4
-grounds, about 11,000 columns. At the top speed of 48.8 columns a second, that is about 225
-seconds (under four minutes) of flat-out riding, so the endless part (looping the last sets, then a generator or an
-editor) arrives quickly.
+**The course** (captured, step 3: `data/course.json`, made by `tools/capture_course.mjs` and
+`tools/make_course.py`; checked by redrawing every level from it, 71 pictures, 0 bytes wrong):
+- **35 levels, not 36.** After level 35 the game goes to 33 (`INC level`, then 36 becomes 33), so
+  level 36 is never played; no skill starts there (F starts at 31). Level 33 the second time round
+  is the same as the first.
+- **Everything is on a 4-column grid,** 20 cells a ground. 144 obstacles, 106 holes.
+- **The second ground never has an obstacle.** `clear_paths_of_enemies` wipes its whole obstacle
+  row for the horizontal enemy. Holes are only on the first and third grounds.
+- **Holes are 8 columns wide, but can touch or overlap:** 90 are 8, 13 are 12, 2 are 16, 1 is 20.
+- **A level is not always the same twice.** The first time a level comes up (through the
+  end-of-level path) and on a retake (through `new_take`) the holes start from different offsets
+  in 20 of the 35 levels, and `new_take` also clears an obstacle at column 8 of the first ground,
+  which the end-of-level path does not. With velocity reset to 0 at a level start, that obstacle
+  can be all but unclearable: level 7's first take begins 4 columns from a grave with a house 4
+  beyond it. The course file holds the FIRST time each level comes up.
+- **Length.** The rider travels about 76 columns a ground (`player_x` 0 to &4B-&4D). 140 grounds at
+  76 is 10,640 columns: about 218 seconds at the top speed of 48.8 columns a second, so the
+  endless part (looping the last sets, then a generator or an editor) arrives quickly.
+- **Open for step 4:** the course file places ground s at column 76s, but 7 holes run past column
+  76 of their ground (to 80). Joined at 76 they would cut the first 4 columns of the next ground;
+  joined at 80 the rider would ride 4 columns more a ground than the original's.
 
 ## How the sequel is built
 
@@ -94,10 +128,11 @@ editor) arrives quickly.
 - The byte-identical rebuild stays as the reference: tag `step1-byte-identical-rebuild`, and
   `.\build.ps1` builds both.
 
-**The course is captured, not re-derived.** A jsbeeb harness runs the original's
-`initialise_level` and `consider_plotting_holes` for each level from a fixed state. It reads the
-object positions back and writes the course table. It is checked by drawing each captured level
-and comparing it byte for byte with the original's screen.
+**The course is captured, not re-derived** (done, step 3). A jsbeeb harness plays the original
+from level 1, moving the rider to the end of each level so the game's own end-of-level code sets
+up the next. It logs every sprite plot and the screen, and crashes once on each level to see the
+retake too. `make_course.py` turns the plots into the course, then redraws every picture from the
+course alone and compares it with the original's screen.
 
 ## Settled 2026-11-07
 

@@ -1,29 +1,21 @@
 # Plan
 
 What is left. What has landed is in `docs/done.md`. The sequel's design is `docs/sequel.md`; the
-decisions are `docs/decisions.md` (4-15).
+decisions are `docs/decisions.md` (4-17).
 
 ## Step 1 - the original, buildable and verified: DONE (tag `step1-byte-identical-rebuild`, public at github.com/kieranhj/ddd2)
 
-## Step 2 - measure the original (what the sequel must match)
+## Step 2 - measure the original: DONE but for one item
 
 - [ ] Owner agrees decisions 1-3.
-- [ ] A short recording of the original being played, as the behavioural reference.
-- Dropped from the porting method (`PORTING.md` 2.1c): the whole-game relocation proof. The sequel
-  is a new loop around the original's parts (`docs/sequel.md`), so nothing relies on the original's
-  layout staying put.
 
-## Step 3 - the course, captured from the original
-
-- [ ] `tools/capture_course.mjs`: for each of the 36 levels, set `level` from a fixed state, run
-      `initialise_level` and `consider_plotting_holes`, and read back the obstacles, holes and
-      enemies of each ground.
-- [ ] `tools/make_course.py`: the course table, ground by ground, in course columns.
-- [ ] Oracle: draw each captured level and compare it with the original's screen, 0 bytes wrong.
+## Step 3 - the course, captured from the original: DONE (`data/course.json`, 0 bytes wrong in 71)
 
 ## Step 4 - the sequel, one layer at a time (each visible in jsbeeb before the next)
 
-1. [ ] One strip on the real course: the scroll from the spike, optimised (unrolled column copy;
+1. [ ] One strip on the real course (`data/course.json`): first settle how grounds join - at 76
+       columns (the original's distance, but 7 holes run to 80 and would cut the next ground's
+       first 4) or at 80. Then the scroll from the spike, optimised (unrolled column copy;
        redraw the rider only when something passes under it; target: the four strips well under
        the spike's 22-23.5K cycles at the real top speed). The accelerate key drives the
        original's velocity rules. Measure the worst case.

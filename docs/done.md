@@ -4,6 +4,38 @@ What has landed, with the number that says it landed. `PLAN.md` is what is left.
 
 ---
 
+## Step 3: the course, captured from the original (2026-11-07)
+
+**MEASURED** (`tools/capture_course.mjs` on headless jsbeeb 2.10.2, `B-DFS1.2`, `build/ddd.ssd`;
+`tools/make_course.py`). Skill A. For each level: a picture the first time the game sets it up,
+then a crash (`is_collision`, take held at 1) and a picture of the retake. Then the rider is put at
+the end of the last ground and the game's own end-of-level code moves on. Level order 1-35, then
+33 again (the same course as the first time); 71 pictures, every `plot_sprite` call logged.
+- **Oracle:** every picture redrawn from the course alone (ground colour from
+  `ground_colours_table`, sprites from DENIS3), compared with the captured screen over character
+  rows 3-31: **0 bytes wrong in 71**. Shown able to fail: one obstacle dropped and one hole moved
+  4 columns gave 46 and 32 bytes wrong, exit 1.
+- **The course** (`data/course.json`): 35 levels, 140 grounds, 144 obstacles, 106 holes (widths 8 x
+  90, 12 x 13, 16 x 2, 20 x 1), the enemies' starting places; 10,640 columns at 76 a ground.
+- **Found:** level 36 is never played; the second ground never has an obstacle; the holes start
+  from a different offset on a retake in 20 of 35 levels; the end-of-level path leaves an obstacle
+  at column 8 that `new_take` clears. Details in `docs/sequel.md`.
+
+## Step 2: the original played, recorded (2026-11-07)
+
+**MEASURED** (`tools/record_original.mjs`, headless jsbeeb 2.10.2, `B-DFS1.2`, skill A, the takes
+held with the disassembly's `&1B51=&60`; 6,000 fields). `data/original_play.json` has the state at
+each of 1,297 passes of `main_game_loop`; `build/original_play.mp4` and `.wav` are the picture and
+sound (not committed; the tool makes them again exactly).
+- **The rider** is a planner: SHIFT held, and SPACE or RETURN when a 48-pass simulation of the
+  original's rules, against the screen and the moving enemies, says so.
+- **It reached level 7:** levels 1-4 without a crash, then 7 crashes, at fields 2133 (level 5),
+  3439 (6), 3896 (7), then 4353, 4810, 5267, 5724, all on the same jump on level 7. Its first
+  jump on that level lands at column 43, just before the hole at 44. Then it has to jump at once,
+  and rises into the policeman at 60. A planner that also scored a second jump, and one with a
+  90-pass horizon, were tried and stopped on level 4.
+- **What it showed that the docs had wrong:** velocity rises 3 a pass, not 2, and in the air too.
+
 ## Step 2: the original's update rate (2026-11-07)
 
 **MEASURED** (jsbeeb MCP, `B-DFS1.2`, `build/ddd.ssd`, skill A, level 1): cycles between passes of
@@ -12,8 +44,9 @@ What has landed, with the number that says it landed. `PLAN.md` is what is left.
 - **With SHIFT held:** 119,996 and 120,004, while velocity (`&0C13`) rose from 60 to 66.
 
 So one pass every 3 fields, 16.7 Hz, whatever the speed. Top speed 2.93 columns a pass = 48.8
-columns a second = 0.98 columns per field. Velocity rises 2 a pass, so it takes 7.5 s to reach the
-cap.
+columns a second = 0.98 columns per field. Velocity rises 3 a pass (corrected: this said 2, and 7.5 s;
+the recording below shows 0, 3, 6 ..., and the code has three `INC`s), so it takes 84 passes, 5.0 s,
+to reach the cap.
 
 **The jump** (same session): SPACE held for one pass. `player_jump_state` (`&0C12`) read at
 `main_game_loop` after each pass: 2 after the first, 28 after the 27th, 29, then 0. That is 28
