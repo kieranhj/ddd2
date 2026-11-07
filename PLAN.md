@@ -16,7 +16,7 @@ decisions are `docs/decisions.md` (1-27).
        decisions 24-25 proposed, the colours of 17 to be seen). Left: b2 (`sequel/build.ps1 -Run`)
        and real hardware for the tearing and the keys' ghosting.
 3. [x] Jump, collisions, crash and respawn, takes; holes crash (decision 6): DONE in jsbeeb
-       (`docs/done.md` layer 4.3; decisions 26-27 proposed). Left: b2 and real hardware, as 4.2.
+       (`docs/done.md` layer 4.3; decisions 26-27 agreed). Left: b2 and real hardware, as 4.2.
        Only 658 bytes are free below the screen: the RAM hunt (`beeb-ram-hunt`; &0400-&0DFF is
        unclaimed) comes before 4.4.
 4. [ ] Enemies, horizontal and vertical, in course coordinates. Each strip changes its level type
