@@ -124,6 +124,28 @@ function enemies(r) {
     }
     return out;
 }
+// wages (layer 4.5a; is_end_of_ground): at the end of each ground (the rider's column at a
+// multiple of 76) 10 x that ground's level; nothing for grounds a respawn passes (decision 34)
+function wageCheck(r) {
+    if (r.pos + RIDER >= r.wg) { r.wages = (r.wages + 10 * (Math.floor(r.gcount / 4) + 1)) % 1000000; r.wg += 76; r.gcount++; }
+}
+function skipGrounds(r) { while (r.pos + RIDER >= r.wg) { r.wg += 76; r.gcount++; } }
+// the status line (decisions 13, 33): row 1, a block of 20 byte columns a player in its colour,
+// wages at columns 2-13 and takes left at 16-17 in 3 x 7 digits, 4 pixels wide
+const DIGITS = [[7, 5, 5, 5, 5, 5, 7], [2, 6, 2, 2, 2, 2, 7], [7, 1, 1, 7, 4, 4, 7], [7, 1, 1, 7, 1, 1, 7], [5, 5, 5, 7, 1, 1, 1],
+                [7, 4, 4, 7, 1, 1, 7], [7, 4, 4, 7, 5, 5, 7], [7, 1, 1, 1, 1, 1, 1], [7, 5, 5, 7, 5, 5, 7], [7, 5, 5, 7, 1, 1, 7]];
+const PCOL = [2, 3, 6, 5].map(both);
+function statusRow(snap) {
+    const w = new Uint8Array(ROW);
+    snap.forEach(({ wages, takes }, p) => {
+        const L = PCOL[p] & 0xaa, R = PCOL[p] & 0x55;
+        const digit = (d, col) => DIGITS[d].forEach((g, y) => { w[col * 8 + y] = (g & 4 ? L : 0) | (g & 2 ? R : 0); w[col * 8 + 8 + y] = g & 1 ? L : 0; });
+        String(wages).padStart(6, "0").split("").forEach((ch, i) => digit(+ch, 20 * p + 2 + 2 * i));
+        digit(takes, 20 * p + 16);
+    });
+    return w;
+}
+const snapshot = () => riders.map((r) => ({ wages: r.wages, takes: 4 - r.take }));
 const clocks = (r) => { for (const [l, f] of r.clk) r.clk.set(l, f + 1); };
 function startVisible(r) {
     const l0 = Math.floor(r.pos / LEVEL);
@@ -184,7 +206,7 @@ function collide(read, t, air) {
     return read(RIDER, SKY + 16) ? 0 : 5;              // the ground under it: a hole
 }
 const newRider = (p) => ({ p, pos: 0, frac: 0, vel: 0, js: 0, t: SKY, phase: 0, ct: 0, take: 1, sea: LEVEL, finished: false,
-                           crashT: 0, dead: null, w: null, cause: 0, clk: new Map([[0, 0]]) });
+                           crashT: 0, dead: null, w: null, cause: 0, clk: new Map([[0, 0]]), wages: 0, wg: 76, gcount: 0 });
 function seaCheck(r) {
     while (r.pos + RIDER >= r.sea) { if (r.take >= 2) r.take--; r.sea += 3 * LEVEL; }
 }
@@ -201,6 +223,7 @@ function step(r, accel, jump, draw) {
                 r.pos++;
                 if (r.pos >= FINISH - RIDER) { r.finished = true; r.vel = 0; }
                 seaCheck(r);
+                wageCheck(r);
             }
         }
         clocks(r);
@@ -245,6 +268,7 @@ function step(r, accel, jump, draw) {
         Object.assign(r, { pos: q - RIDER, frac: 0, vel: 0, js: 0, t: SKY, phase: 0 });
         if (r.pos >= FINISH - RIDER) { r.pos = FINISH - RIDER; r.finished = true; }
         seaCheck(r);
+        skipGrounds(r);
         startVisible(r);
         if (draw) r.w = riding(r);
     } else clocks(r);
@@ -291,6 +315,7 @@ const riders = [0, 1, 2, 3].map(newRider);
 riders.forEach((r) => { r.w = riding(r); });
 
 const LOOP = N("loop");
+let statusSnap = snapshot(), statusWrong = 0, firstStatus = null;
 // the palette (layer 4.4): every write to the ULA's palette register once the loop runs must be
 // the rotating colour's next step, 3 fields after the last
 const palette = [];
@@ -305,9 +330,10 @@ let respawns = 0, outs = 0, takesBack = 0;
 const fieldCost = [], stripCost = [[], [], [], []], keyCost = [];
 const held = [[false, false], [false, false], [false, false], [false, false]];
 h.onExec(N("new_field"), () => {
-    // the game's loop has run a pass a field since start-up (pass k for field k); the riders stood
-    // still all that time (no keys), but the enemies' clocks ran: the model catches up first
-    if (!started) for (let k = 1; k < h.cpu.a; k++) riders.forEach(clocks);
+    // the game's loop has made pass_count passes since start-up (this one not yet counted: the
+    // hook is at new_field's head); the riders stood still all that time (no keys), but the
+    // enemies' clocks ran a step a pass: the model catches up first
+    if (!started) for (let k = 0; k < h.word(N("pass_count"), "main"); k++) riders.forEach(clocks);
     started = true; passes++; cur = { strips: [0, 0, 0, 0], keys: 0 }; fieldCost.push(cur); });
 h.onExec(N("strip_go"), () => { t0 = h.s.elapsedCycles; });
 // the breakdown of a riding strip's update: moving (strip_go to prof_enemies), the enemies
@@ -345,6 +371,10 @@ h.onWrite(0x3000, 0x7fff, (addr, val, ctx) => {
     if (!started) return false;
     writes++;
     const row = Math.floor((addr - 0x3000) / ROW);
+    if (row === 1) {                                   // the status line: not while it is shown
+        if (!ctx.adj && ctx.vc === 1) { tears++; if (!firstTear) firstTear = { field: fields, addr: "&" + addr.toString(16), status: true, vc: ctx.vc, at: h.symAt(ctx.pc) }; }
+        return false;
+    }
     const k = Math.floor((row - 4) / 7);
     if (row < 4 || (row - 4) % 7 > 5 || k > 3) return false;
     const lo = 4 + 7 * k, hi = 9 + 7 * k;
@@ -382,6 +412,9 @@ h.onExec(N("loop"), () => {
         const m = { pos: r.pos, vel: r.vel, js: r.js, phase: r.phase, take: r.take };
         if (JSON.stringify(g) !== JSON.stringify(m)) { stateWrong++; if (!firstState) firstState = { field: fields, pass: passes, strip: k, game: g, model: m }; }
     }
+    const sGot = h.rd(0x3000 + ROW, ROW, "main"), sWant = statusRow(statusSnap);
+    for (let i = 0; i < ROW; i++) if (sGot[i] !== sWant[i]) { statusWrong++; if (!firstStatus) firstStatus = { field: fields, col: i >> 3, line: i & 7, got: sGot[i], want: sWant[i], snap: statusSnap }; }
+    statusSnap = snapshot();                           // what the next pass's head draws
     checked++;
 });
 
@@ -433,9 +466,9 @@ for (let s0 = 0; s0 < C8.length; s0++) {
     if (n < paletteWrong) { paletteWrong = n; firstPalette = first; }
 }
 const coverage = SCENARIO === "play" ? causes[1] > 0 && causes[4] > 0 && causes[5] > 0 && respawns > 0 && outs > 0 : outs === 4;
-const ok = done() && checked > 0 && wrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 && paletteWrong === 0 && palette.length > fields / 3 - 2 &&
+const ok = done() && checked > 0 && wrong === 0 && statusWrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 && paletteWrong === 0 && palette.length > fields / 3 - 2 &&
            Math.abs(passes - elapsed) <= 1 && coverage;
-h.finish({ scenario: SCENARIO, fields, passes, elapsed_fields: elapsed, coverage, checked, bytes_wrong: wrong, first_wrong: firstWrong, state_wrong: stateWrong, first_state: firstState,
+h.finish({ scenario: SCENARIO, status_wrong: statusWrong, first_status_wrong: firstStatus, wages: riders.map((r) => r.wages), fields, passes, elapsed_fields: elapsed, coverage, checked, bytes_wrong: wrong, first_wrong: firstWrong, state_wrong: stateWrong, first_state: firstState,
            crashes: crashes.game.length, crashes_disagreeing: crashDiff.slice(0, 5), by_cause: { right_edge: causes[1], middle_right: causes[2], top_right: causes[3], landed_on: causes[4], hole: causes[5] },
            respawns, outs, takes_back: takesBack, model_crashes: process.env.CRASHLOG ? crashes.model : undefined,
            finals: riders.map((r) => ({ pos: r.pos, finished: r.finished, phase: r.phase, take: r.take })),

@@ -116,6 +116,15 @@ d16src   = &92                  \ draw16: the source column (2)
 rb0      = &94                  \ draw16: the three rows, set back (2 each)
 rb1      = &96
 rb2      = &98
+wlev     = &9A                  \ status.6502's
+sp_player = &9B
+dg_l     = &9C
+dg_r     = &9D
+dg_col   = &9E
+dg_i     = &9F
+dg_n     = &A0
+dg_g     = &A1
+dg_y     = &A2
 en_n     = &1E                  \ enemies on the list this field
 d2       = &50                  \ 2: draw16's third character row
 ts       = &52                  \ draw16: the tall sprite
@@ -174,6 +183,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA #31                     \ (enemies.6502; decision 31). The picture is the same: border
     STA &FE01                   \ black for a row of black
     JSR enemy_init
+    JSR status_init
     LDX #3
 .init_strip
     STX strip
@@ -196,6 +206,10 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     JMP wait_field
 .new_field
     STA field
+    INC pass_count              \ passes made (for the oracle; a field can be dropped)
+    BNE nf_counted
+    INC pass_count + 1
+.nf_counted
     LDX #0
 .strip_loop
     STX strip
@@ -220,7 +234,8 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
 .band_left
     LDX strip
     BNE strip_go
-    JSR read_keys               \ before strip 0: this field's keys
+    JSR status_update           \ before strip 0: the status line (status.6502)
+    JSR read_keys               \ and this field's keys
     LDX #0
 .strip_go
     JSR update_strip
@@ -330,6 +345,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     STA vel,X
 .us_go
     JSR level_check
+    JSR wage_check
     JSR ground_edge
     JSR scroll
 .us_jump
@@ -499,6 +515,8 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     CMP #2
     BCC lc_next
     DEC take,X
+    LDA #1
+    STA sdirty,X
 .lc_next
     CLC
     LDA rl_lo,X
@@ -1011,6 +1029,8 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     RTS
 .cu_take                        \ the crash is over: the next take, or out
     INC take,X
+    LDA #1
+    STA sdirty,X
     LDA take,X
     CMP #TAKES + 1
     BNE cu_erase
@@ -1160,6 +1180,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
 .rs_drawn
     LDX strip
     JSR level_check             \ the levels the rider has reached
+    JSR skip_grounds            \ the grounds it has passed, unpaid
 .rs_levels                      \ and the one at the left edge
     LDA pos_lo,X
     CMP nb_lo,X
@@ -1455,8 +1476,10 @@ WS = 7 * ROW                    \ one strip to the next
 .c8_step    EQUB 0
 .cause      EQUB 0              \ the last crash's reading (collide)
 .frames     EQUW 0
+.pass_count EQUW 0
 
     INCLUDE "enemies.6502"
+    INCLUDE "status.6502"
     INCLUDE "../build/data.6502"
 .end                            \ the end of what runs at &0E00 up: below the screen
     ASSERT end <= SCREEN

@@ -1,0 +1,274 @@
+\ status.6502 - wages and the status line (layer 4.5a).
+\
+\ WAGES (the original's is_end_of_ground, add_to_wages): as a rider reaches the end of each
+\ ground - its column at a multiple of 76, the grounds' join (decision 18) - it is paid 10 x the
+\ level that ground is in. Six decimal digits a player. A respawn pays nothing for the grounds
+\ it passes (decision 34, PROPOSED): the original's retake makes the rider ride the level again.
+\
+\ THE STATUS LINE (decision 13; its layout decision 33, PROPOSED) is character row 1: each
+\ player a block of 20 byte columns, in the player's colour (decision 17's: green, yellow, cyan,
+\ magenta) - its wages at columns 2-13 and its takes left (3, 2, 1, 0) at 16-17, in the
+\ sequel's own digits, 4 pixels wide (3 lit, 1 gap) and 7 lines tall, so 40 fit a row where
+\ MODE 2's characters fit 20. A player's block is drawn again when it changes (`sdirty`), at the
+\ head of a pass, before strip 0: the raster is then past row 1 (strip 0 starts after line 120)
+\ and its update ends before the next field's row 1 (decision 12).
+
+STATUS = SCREEN + 1 * ROW       \ character row 1
+WAGES_AT = 2                    \ byte columns in a player's block
+TAKES_AT = 16
+
+\ wage_check: X = strip, just moved a column. At the end of a ground, its pay. X kept.
+.wage_check
+    CLC
+    LDA pos_lo,X
+    ADC #RIDER
+    STA tmp
+    LDA pos_hi,X
+    ADC #0
+    STA tmp2
+    LDA tmp
+    CMP wg_lo,X
+    LDA tmp2
+    SBC wg_hi,X
+    BCC wc_rts                  \ not at the ground's end yet
+    LDA gcount,X                \ the level that ground is in: gcount DIV 4 + 1
+    LSR A
+    LSR A
+    CLC
+    ADC #1
+    STA wlev
+    JSR next_ground
+.wc_pay
+    JSR add_ten                 \ (add_to_wages, level times)
+    DEC wlev
+    BNE wc_pay
+    LDA #1
+    STA sdirty,X
+.wc_rts
+    RTS
+
+\ skip_grounds: X = strip, after a respawn. The grounds it has passed, unpaid. X kept.
+.skip_grounds
+    CLC
+    LDA pos_lo,X
+    ADC #RIDER
+    STA tmp
+    LDA pos_hi,X
+    ADC #0
+    STA tmp2
+.sg_loop
+    LDA tmp
+    CMP wg_lo,X
+    LDA tmp2
+    SBC wg_hi,X
+    BCC sg_rts
+    JSR next_ground
+    JMP sg_loop
+.sg_rts
+    RTS
+
+\ next_ground: X = strip. The next ground's end. X kept.
+.next_ground
+    CLC
+    LDA wg_lo,X
+    ADC #76
+    STA wg_lo,X
+    LDA wg_hi,X
+    ADC #0
+    STA wg_hi,X
+    INC gcount,X
+    RTS
+
+\ add_ten: X = strip. Its wages + 10: the tens digit, carried. X kept.
+.add_ten
+    LDA strip6,X
+    CLC
+    ADC #4
+    TAY
+.at_digit
+    LDA wages,Y
+    CLC
+    ADC #1
+    CMP #10
+    BCC at_done
+    LDA #0
+    STA wages,Y
+    TYA
+    CMP strip6,X                \ the top digit carried out: the wages wrap, as the original's
+    BEQ at_rts
+    DEY
+    JMP at_digit
+.at_done
+    STA wages,Y
+.at_rts
+    RTS
+
+\ status_update: each player's block drawn again if it changed.
+.status_update
+    LDX #3
+.su_loop
+    LDA sdirty,X
+    BEQ su_next
+    LDA #0
+    STA sdirty,X
+    STX sp_player
+    JSR status_draw
+    LDX sp_player
+.su_next
+    DEX
+    BPL su_loop
+    RTS
+
+\ status_draw: player sp_player's block: wages, then takes left (4 - take).
+.status_draw
+    LDX sp_player
+    LDA colour_left,X
+    STA dg_l
+    LDA colour_right,X
+    STA dg_r
+    LDA block_col,X
+    CLC
+    ADC #WAGES_AT
+    STA dg_col
+    LDA strip6,X
+    STA dg_i
+    LDA #6
+    STA dg_n
+.sd_wages
+    LDY dg_i
+    LDA wages,Y
+    CMP shown,Y                 \ only the digits that changed (shown: what is on the screen)
+    BEQ sd_same
+    STA shown,Y
+    JSR draw_digit
+.sd_same
+    INC dg_i
+    INC dg_col
+    INC dg_col
+    DEC dg_n
+    BNE sd_wages
+    LDX sp_player
+    LDA block_col,X
+    CLC
+    ADC #TAKES_AT
+    STA dg_col
+    LDA #4
+    SEC
+    SBC take,X
+    CMP shown_takes,X
+    BNE sd_takes
+    RTS
+.sd_takes
+    STA shown_takes,X
+    \ fall through
+
+\ draw_digit: A = 0-9, at byte columns dg_col and dg_col + 1 of the status row, in the colour
+\ whose left and right pixel bits are dg_l, dg_r. Glyph rows are 3 bits: 4 the left pixel of the
+\ first byte, 2 its right, 1 the left of the second.
+.draw_digit
+    STA tmp
+    ASL A
+    ASL A
+    ASL A
+    SEC
+    SBC tmp                     \ x 7
+    STA dg_g
+    LDY dg_col
+    LDA col8_lo,Y
+    CLC
+    ADC #LO(STATUS)
+    STA pk
+    LDA col8_hi,Y
+    ADC #HI(STATUS)
+    STA pk + 1
+    LDY #0
+.dd_line
+    STY dg_y
+    LDX dg_g
+    LDA digit_font,X
+    STA tmp
+    LDA #0
+    LSR tmp                     \ bit 0: the second byte's left pixel
+    BCC dd_b1
+    LDA dg_l
+.dd_b1
+    LDY dg_y
+    PHA
+    LDA #0
+    LSR tmp                     \ bit 1: the first byte's right pixel
+    BCC dd_r
+    LDA dg_r
+.dd_r
+    LSR tmp                     \ bit 2: its left pixel
+    BCC dd_a
+    ORA dg_l
+.dd_a
+    STA (pk),Y                  \ the first byte, this line
+    TYA
+    ORA #8
+    TAY
+    PLA
+    STA (pk),Y                  \ the second
+    INC dg_g
+    LDY dg_y
+    INY
+    CPY #7
+    BNE dd_line
+    LDA #0                      \ line 7: blank
+    STA (pk),Y
+    LDY #15
+    STA (pk),Y
+    RTS
+
+\ status_init: every player's wages 0, the first ground's end at 76, every block to be drawn.
+.status_init
+    LDA #0
+    LDX #23
+.si_wages
+    STA wages,X
+    DEX
+    BPL si_wages
+    LDA #&FF                    \ nothing shown yet
+    LDX #27
+.si_shown
+    STA shown,X
+    DEX
+    BPL si_shown
+    LDX #3
+.si_strip
+    LDA #76
+    STA wg_lo,X
+    LDA #0
+    STA wg_hi,X
+    STA gcount,X
+    LDA #1
+    STA sdirty,X
+    DEX
+    BPL si_strip
+    RTS
+
+.strip6       EQUB 0, 6, 12, 18             \ a player's first wages digit
+.block_col    EQUB 0, 20, 40, 60            \ its status block
+.colour_left  EQUB &08, &0A, &28, &22       \ green, yellow, cyan, magenta: the left pixel's bits
+.colour_right EQUB &04, &05, &14, &11       \ and the right's (decision 17's colours)
+.digit_font                                 \ the sequel's digits, 3 x 7 (bits 4 2 1: left to right)
+    EQUB 7, 5, 5, 5, 5, 5, 7                \ 0
+    EQUB 2, 6, 2, 2, 2, 2, 7                \ 1
+    EQUB 7, 1, 1, 7, 4, 4, 7                \ 2
+    EQUB 7, 1, 1, 7, 1, 1, 7                \ 3
+    EQUB 5, 5, 5, 7, 1, 1, 1                \ 4
+    EQUB 7, 4, 4, 7, 1, 1, 7                \ 5
+    EQUB 7, 4, 4, 7, 5, 5, 7                \ 6
+    EQUB 7, 1, 1, 1, 1, 1, 1                \ 7
+    EQUB 7, 5, 5, 7, 5, 5, 7                \ 8
+    EQUB 7, 5, 5, 7, 1, 1, 7                \ 9
+
+\ the state, in row 31 after the enemies' (enemies.6502)
+wages   = ROW31 + 320           \ 24: per player, 6 digits, the most significant first
+wg_lo   = ROW31 + 344           \ per strip: the next ground's end (course column)
+wg_hi   = ROW31 + 348
+gcount  = ROW31 + 352           \ the grounds ended so far
+sdirty  = ROW31 + 356           \ its status block to be drawn again
+shown   = ROW31 + 360           \ 24: the wages digits on the screen; then 4: the takes
+shown_takes = ROW31 + 384
+ASSERT shown_takes + 4 <= ROW31 + 640
