@@ -315,6 +315,13 @@ h.onExec(N("strip_go"), () => { t0 = h.s.elapsedCycles; });
 let tE = 0, tR = 0;
 const segs = [];
 h.onExec(N("prof_enemies"), () => { tE = h.s.elapsedCycles; tR = 0; });
+const timed = {};
+for (const [from, to] of [["enemies_over_rider", "eor_rts"], ["draw16", "d16_rts"], ["restore_under", "ru_draw"], ["erase_box", null], ["restore_lines", "rl_rts"]]) {
+    if (!to) continue;
+    let t = 0; timed[from] = [];
+    h.onExec(N(from), () => { t = h.s.elapsedCycles; });
+    h.onExec(N(to), () => { if (t) timed[from].push(h.s.elapsedCycles - t); t = 0; });
+}
 h.onExec(N("prof_rider"), () => { tR = h.s.elapsedCycles; });
 h.onExec(N("strip_done"), () => {
     if (tE && tR) segs.push({ move: tE - t0, enemies: tR - tE, rider: h.s.elapsedCycles - tR });
@@ -343,7 +350,9 @@ h.onWrite(0x3000, 0x7fff, (addr, val, ctx) => {
     const lo = 4 + 7 * k, hi = 9 + 7 * k;
     if (!ctx.adj && ctx.vc >= lo && ctx.vc <= hi) {
         tears++;
-        if (!firstTear) firstTear = { field: fields, addr: "&" + addr.toString(16), strip: k, vc: ctx.vc, sc: ctx.sc, pc: "&" + ctx.pc.toString(16), at: h.symAt(ctx.pc) };
+        if (!firstTear) firstTear = { field: fields, addr: "&" + addr.toString(16), strip: k, vc: ctx.vc, sc: ctx.sc, pc: "&" + ctx.pc.toString(16), at: h.symAt(ctx.pc),
+                                       updating: h.byte(SYM.strip), bands: h.byte(0x8a), loop_field: h.byte(0x8b), frames: h.word(SYM.frames, "main") & 255,
+                                       since_strip_go: h.s.elapsedCycles - t0 };
     } else if (!ctx.adj) minGap = Math.min(minGap, (lo - ctx.vc + 39) % 39);
     return false;
 });
@@ -426,11 +435,12 @@ for (let s0 = 0; s0 < C8.length; s0++) {
 const coverage = SCENARIO === "play" ? causes[1] > 0 && causes[4] > 0 && causes[5] > 0 && respawns > 0 && outs > 0 : outs === 4;
 const ok = done() && checked > 0 && wrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 && paletteWrong === 0 && palette.length > fields / 3 - 2 &&
            Math.abs(passes - elapsed) <= 1 && coverage;
-h.finish({ scenario: SCENARIO, fields, passes, checked, bytes_wrong: wrong, first_wrong: firstWrong, state_wrong: stateWrong, first_state: firstState,
+h.finish({ scenario: SCENARIO, fields, passes, elapsed_fields: elapsed, coverage, checked, bytes_wrong: wrong, first_wrong: firstWrong, state_wrong: stateWrong, first_state: firstState,
            crashes: crashes.game.length, crashes_disagreeing: crashDiff.slice(0, 5), by_cause: { right_edge: causes[1], middle_right: causes[2], top_right: causes[3], landed_on: causes[4], hole: causes[5] },
            respawns, outs, takes_back: takesBack, model_crashes: process.env.CRASHLOG ? crashes.model : undefined,
            finals: riders.map((r) => ({ pos: r.pos, finished: r.finished, phase: r.phase, take: r.take })),
            palette_writes: palette.length, palette_wrong: paletteWrong, first_palette_wrong: firstPalette, screen_writes: writes, tearing_writes: tears, first_tear: firstTear, closest_rows_ahead_of_window: minGap,
            keys: stats(keyCost), strips: stripCost.map(stats),
+           timed: Object.fromEntries(Object.entries(timed).map(([k, v]) => [k, { ...stats(v), total: v.reduce((x, y) => x + y, 0) }])),
            riding_parts: { move: stats(segs.map((x) => x.move)), enemies: stats(segs.map((x) => x.enemies)), rider: stats(segs.map((x) => x.rider)) }, field_total: stats(totals), worst_field: worstField },
          ok, { samples: checked });

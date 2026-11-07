@@ -4,6 +4,82 @@ What has landed, with the number that says it landed. `PLAN.md` is what is left.
 
 ---
 
+## Layer 4.4: level types and the enemies (2026-11-07)
+
+**Level types (4.4a):**
+- The ground is drawn in each level's colour: `ground_colours_table`, with the sea always blue
+  (decision 30). It changes a column a scroll at a level's start.
+- A hole's edges are redrawn in their own level's colour.
+- The rider becomes that level type's (bike, boat, skis) as it reaches the level.
+- Logical colour 8 steps through the original's cycle every 3 fields from the VSync interrupt.
+  Measured on the original (`tools/measure_palette.mjs`): physical 0 4 5 1 6 3 7 7 7 3 6 1 5 4,
+  a step every 3.0 fields.
+
+**The enemies (4.4b, `sequel/src/enemies.6502`):**
+- **What:** each level's horizontal enemy on its second ground, and its first five vertical
+  enemies (`initialise_level`'s; `data/course.json`).
+- **When:** stepping as the original's, from the field the level scrolls on (decision 28). A
+  crashed strip's enemies stand still on its screen until respawn.
+- **Slots:** two level slots a strip; the enemies of the level at the left edge and the next.
+- **Erasing:** a moved enemy's vacated pixels are put back from the course (`restore_lines`).
+- **Drawing:** an enemy is drawn whole if it moved or anything wrote over its columns this
+  field (spans).
+- **The rider's columns:** where the rider is drawn again, what is under it is put back, the
+  enemies in its columns are drawn again, then the rider.
+- **The spider, helicopter and gold** come in 4.5 (decision 29).
+
+**RAM** (decisions 31, 32). The program ends at &2D02, **766 bytes free**.
+- **Row 31:** off the display (R6 = 31), it holds the enemies' state (320 bytes).
+- **Page &0D:** `RTI` at &0D00, then the small tables (216 bytes).
+- **Page &0C:** four tall sprites.
+- **Pages &09-&0B:** the enemy tables.
+- **Zero page &90-&99:** `draw16`'s pointers.
+- **The sprites come first in the program,** from &0E00, a page start, so no ALIGN gaps.
+- **The crash's column and line tables** are cut to the 42 flying fields.
+- **Measured unwritten in play** (`memwatch`): zero page &90-&CF, page &0D, and the stack below
+  &01D8.
+
+**Speed: what it took to fit.** First version, `play`: field median 10,153 cycles, worst 53,963,
+1,368 writes in a window. Then, in order:
+- **A compact list:** the enemies that exist, made once a field (the overhead was 3,300 cycles a
+  field).
+- **`restore_lines`:** a pointer per character row, not per line.
+- **The rider's columns:** `compose_full`, a 40-line buffer per column, is gone (9,400 cycles a
+  call).
+- **`draw16`:** unrolled runs, entered by the sprite's line within its character row: 2,060 ->
+  1,472 cycles a sprite.
+
+**Two scheduling rules in the loop:**
+- **A strip starts at most two bands after its own,** so at least 208 lines before the raster
+  is back. A later start waits for the next field: a dropped field, never a write in the window.
+  This is the cause of the 4.4 tears: a pass that started late let strip 0 run on past VSync
+  into its own window, 9,092 cycles after its start.
+- **Strip 3 may also start in the next field before its first band:** its window is at line
+  240, 120 lines on. Without this, strips 0-2 had to finish within 192 lines of band 1 (21
+  fields dropped in `play`).
+
+**MEASURED** (`tools/verify_strips.mjs`, jsbeeb 2.10.2, `B-DFS1.2`). The oracle models the level
+types (ground colours, riders, every palette write) and the enemies from the course and the
+original's rules. It also catches up the enemies' clocks for the passes before it starts
+watching.
+
+| Scenario | Fields (= passes) | Bytes wrong | Crashes, all agreed | Writes in a window | Worst field |
+|---|---|---|---|---|---|
+| `play` | 3,922 | 0 | 14: 9 front, 1 top right (an enemy), 2 landed on, 2 holes | 0 (nearest 18 rows) | 34,615; strip worst 14,510 |
+| `level` | 894 | 0 | all | 0 (nearest 13 rows) | 41,037: more than a field's 39,936, absorbed by strip 3's late start, none dropped |
+
+- **Palette writes:** 1,314 in `play`, all in step.
+- **Still able to fail:**
+  - `--plant`: 197 bytes wrong;
+  - `--early`: 86,968 writes in a window;
+  - `--no-holes`: 3,602 bytes wrong and a crash only the model made.
+- **Bug found on the way:** `el_want` tested Z after `STA sl_nv` (STA sets no flags). A level
+  with no vertical enemies then wrote a garbage count of phases across other strips' enemies;
+  the horizontal enemies of strips 2 and 3 started at x 54 and 6.
+
+**The clip:** `build/layer44.mp4`. **Not yet:** b2 and real hardware for the shortened display
+(R6 = 31) and the NMI guard.
+
 ## RAM hunt before layer 4.4 (2026-11-07, branch `ram-hunt-2026-11-07`)
 
 Layer 4.3 left 658 bytes below the screen. Layer 4.4 (enemies, their sprites and tables,

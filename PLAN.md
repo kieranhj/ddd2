@@ -1,7 +1,7 @@
 # Plan
 
 What is left. What has landed is in `docs/done.md`. The sequel's design is `docs/sequel.md`; the
-decisions are `docs/decisions.md` (1-30).
+decisions are `docs/decisions.md` (1-32).
 
 ## Step 1 - the original, buildable and verified: DONE (tag `step1-byte-identical-rebuild`, public at github.com/kieranhj/ddd2)
 
@@ -18,9 +18,8 @@ decisions are `docs/decisions.md` (1-30).
 3. [x] Jump, collisions, crash and respawn, takes; holes crash (decision 6): DONE in jsbeeb
        (`docs/done.md` layer 4.3; decisions 26-27 agreed). Left: b2 and real hardware, as 4.2.
        RAM hunt done (`docs/done.md`): 2,240 bytes free below the screen, 478 in low RAM.
-4. [ ] Enemies, horizontal and vertical, in course coordinates (decision 28: a level's start moving
-       when it scrolls on). Each strip changes its level type
-       (land, sea, snow; sprites and ground colour) as its rider crosses a level boundary.
+4. [x] Level types, and the enemies in course coordinates: DONE in jsbeeb (`docs/done.md` layer
+       4.4; decisions 28-32). Left: b2 and real hardware, as 4.2.
 5. [ ] The status line at the top: four players' wages and takes (decision 13). The spider, the
        helicopter and its gold (decision 29). Game mode 1
        (decision 8). The title screen, and skill chosen once for everyone (decision 15). A strip

@@ -263,9 +263,8 @@
     LDA ro_c
     JSR rider_cols
     BCC ed_erase_next
-    LDA #1
+    LDA #1                      \ it was in the rider's columns: the rider is drawn again
     STA hit
-    STA erider                  \ it left the rider's columns: compose_full clears them
 .ed_erase_next
     INC eo
     LDA eo
@@ -285,8 +284,8 @@
 .ed_vis
     JSR rider_cols
     BCC ed_out_rider
-    LDA #1
-    STA erider
+    LDA #1                      \ in the rider's columns: compose_rider draws it again, under
+    STA erider                  \ the rider, if it puts back what is under the rider
 .ed_out_rider
     LDY eo
     LDX en_g,Y
@@ -313,11 +312,7 @@
     STA ts
     LDA dcol
     JSR add_span
-    LDA #1
-    STA d16_skip
-    JSR draw16
-    LDA #0
-    STA d16_skip
+    JSR draw16                  \ whole: the rider is drawn over it after, if they meet
     LDA dcol
     JSR rider_cols
     BCC ed_draw_next
@@ -327,7 +322,8 @@
     INC eo
     LDA eo
     CMP en_n
-    BNE ed_draw
+    BEQ ed_none
+    JMP ed_draw
 .ed_none
     LDX ek
     RTS
@@ -518,10 +514,6 @@
     STA rl_c
     CMP #80
     BCS eb_next                 \ off the screen
-    SEC
-    SBC #RIDER
-    CMP #4
-    BCC eb_next                 \ the rider's: compose_rider's
     LDA ro_t
     STA rl_a
     CLC
@@ -687,176 +679,62 @@
     RTS
 
 \ ---------------------------------------------------------------------------------------------
-\ compose_full: strip `strip`, the rider's top at newt. Its four columns, lines 0-39, made in a
-\ buffer from the course (black, the obstacle under), each enemy over them in order, the rider
-\ over all; then written. For when an enemy is in the rider's columns.
-.compose_full
-    JSR find_under
-    LDA #0
-    STA cc
-.cf_col
-    \ the course
-    LDA #0
-    LDX #SKY - 1
-.cf_sky
-    STA cbuf,X
-    DEX
-    BPL cf_sky
-    LDX cc
-    LDY ukind,X
-    BMI cf_black
-    LDA uoc,X
-    ASL A : ASL A : ASL A
-    STA tmp
-    CLC
-    LDA spr_top_lo,Y : ADC tmp : STA cf_top + 1
-    LDA spr_top_hi,Y : ADC #0  : STA cf_top + 2
-    CLC
-    LDA spr_bot_lo,Y : ADC tmp : STA cf_bot + 1
-    LDA spr_bot_hi,Y : ADC #0  : STA cf_bot + 2
-    LDY #7
-.cf_obst
-.cf_top
-    LDA &FFFF,Y
-    STA cbuf + SKY,Y
-.cf_bot
-    LDA &FFFF,Y
-    STA cbuf + SKY + 8,Y
-    DEY
-    BPL cf_obst
-    BMI cf_enemies
-.cf_black
-    LDA #0
-    LDY #15
-.cf_zero
-    STA cbuf + SKY,Y
-    DEY
-    BPL cf_zero
-.cf_enemies
+\ enemies_over_rider: strip `strip`. Each enemy on the list whose box is in the rider's
+\ columns, drawn again, in order: after what is under the rider has been put back (lines the
+\ course has), before the rider is drawn over them.
+.enemies_over_rider
     LDA en_n
-    BEQ cf_rider
+    BEQ eor_rts
     LDA #0
     STA eo
-.cf_enemy
+.eor_loop
     LDY eo
     LDX en_g,Y
     LDA en_dc,X
     CMP #&80
-    BEQ cf_enext
-    STA tmp                     \ its column over this one: RIDER + cc - dc, within 0-3
-    LDA cc
-    CLC
-    ADC #RIDER
-    SEC
-    SBC tmp
-    CMP #4
-    BCS cf_enext
-    STA tmp
+    BEQ eor_next
+    STA dcol
+    JSR rider_cols
+    BCC eor_next
+    LDY eo
+    LDX en_g,Y
     LDA en_dt,X
-    STA tmp2
+    STA dt
     LDA en_spr,X
-    JSR cf_copy
-.cf_enext
+    STA ts
+    JSR draw16
+.eor_next
     INC eo
     LDA eo
     CMP en_n
-    BNE cf_enemy
-.cf_rider                       \ the rider
-    LDA cc
-    STA tmp
-    LDA newt
-    STA tmp2
-    LDX strip
-    LDA rider_tall,X
-    CLC
-    ADC rtype,X
-    JSR cf_copy
-    \ write the column
-    LDA #0
-    STA tmp2                    \ the character row
-.cf_row
-    LDX strip
-    LDA wix,X
-    CLC
-    ADC tmp2
-    TAX
-    LDA cc
-    CLC
-    ADC #RIDER
-    TAY
-    CLC
-    LDA wrow_lo,X : ADC col8_lo,Y : STA pk
-    LDA wrow_hi,X : ADC col8_hi,Y : STA pk + 1
-    LDA tmp2
-    ASL A : ASL A : ASL A
-    TAX
-    LDY #0
-.cf_write
-    LDA cbuf,X
-    STA (pk),Y
-    INX
-    INY
-    CPY #8
-    BNE cf_write
-    INC tmp2
-    LDA tmp2
-    CMP #5
-    BNE cf_row
-    INC cc
-    LDA cc
-    CMP #4
-    BEQ cf_rts
-    JMP cf_col
-.cf_rts
-    RTS
-
-\ cf_copy: A = tall sprite, its column tmp (0-3), 16 lines into cbuf from line tmp2.
-.cf_copy
-    TAX
-    LDA tall_lo,X
-    STA cfc_src + 1
-    LDA tall_hi,X
-    STA cfc_src + 2
-    LDA tmp                     \ its column: 16 bytes from tmp x 16
-    ASL A : ASL A : ASL A : ASL A
-    TAY
-    LDX tmp2
-    LDA #16
-    STA cf_n
-.cfc_loop
-.cfc_src
-    LDA &FFFF,Y
-    STA cbuf,X
-    INX
-    INY
-    DEC cf_n
-    BNE cfc_loop
+    BNE eor_loop
+.eor_rts
     RTS
 
 \ ---------------------------------------------------------------------------------------------
 \ enemy state
 \ ---------------------------------------------------------------------------------------------
 MAX_SPANS = 16
-\ The state lives in page &0C, low RAM no table uses (make_data.py packs pages &09-&0B), set up
-\ by enemy_init: nothing of it is in the file.
-sl_level    = &0C00             \ per slot (strip x 2 + s): its level (&FF none)
-sl_start_lo = &0C08
-sl_start_hi = &0C10
-sl_sub      = &0C18             \ fields into the pass, for the horizontal enemy
-sl_nv       = &0C20             \ its vertical enemies
-sl_type     = &0C28             \ its level type
-en_q        = &0C30             \ per enemy (slot x 6 + e): its phase
-en_dc       = &0C60             \ where drawn (&80 not)
-en_dt       = &0C90
-en_spr      = &0CC0             \ and as which tall sprite
-ASSERT en_spr + 48 <= &0D00
-cbuf        = &20               \ compose_full's column, 40 bytes of zero page (&20-&47)
-.en_g        SKIP 12            \ the list: this field's enemies, in order (enemy_draw)
-.en_nc       SKIP 12            \ its column (&80 off the screen)
-.en_nt       SKIP 12
-.en_ns       SKIP 12
-.sp_lo       SKIP MAX_SPANS
-.sp_hi       SKIP MAX_SPANS
+\ The state lives in screen row 31 (&7D80), which the CRTC no longer displays (main.6502's
+\ start; decision 31), set up by enemy_init after MODE 2 has cleared it: none of it is in the file.
+ROW31       = &7D80
+sl_level    = ROW31             \ per slot (strip x 2 + s): its level (&FF none)
+sl_start_lo = ROW31 + 8
+sl_start_hi = ROW31 + 16
+sl_sub      = ROW31 + 24        \ fields into the pass, for the horizontal enemy
+sl_nv       = ROW31 + 32        \ its vertical enemies
+sl_type     = ROW31 + 40        \ its level type
+en_q        = ROW31 + 48        \ per enemy (slot x 6 + e): its phase
+en_dc       = ROW31 + 96        \ where drawn (&80 not)
+en_dt       = ROW31 + 144
+en_spr      = ROW31 + 192       \ and as which tall sprite
+en_g        = ROW31 + 240       \ the list: this field's enemies, in order (enemy_draw)
+en_nc       = ROW31 + 252       \ its column (&80 off the screen)
+en_nt       = ROW31 + 264
+en_ns       = ROW31 + 276
+sp_lo       = ROW31 + 288       \ the spans
+sp_hi       = ROW31 + 288 + MAX_SPANS
+ASSERT sp_hi + MAX_SPANS <= ROW31 + 640
 
 \ enemy_init: no slot holds a level; no enemy is drawn.
 .enemy_init

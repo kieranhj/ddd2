@@ -112,6 +112,10 @@ d16_skip = &1B                  \ draw16: non-zero, not the rider's columns
 d16_sc   = &1C
 d16_row  = &1D
 rl_off   = &1F                  \ restore_lines: the obstacle column, x 8
+d16src   = &92                  \ draw16: the source column (2)
+rb0      = &94                  \ draw16: the three rows, set back (2 each)
+rb1      = &96
+rb2      = &98
 en_n     = &1E                  \ enemies on the list this field
 d2       = &50                  \ 2: draw16's third character row
 ts       = &52                  \ draw16: the tall sprite
@@ -165,6 +169,10 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA #0 : JSR OSWRCH
     DEX
     BNE cursor_off
+    LDA #6                      \ the CRTC shows 31 character rows, not 32: row 31 (&7D80), black
+    STA &FE00                   \ and never drawn, leaves the display and holds the enemies' state
+    LDA #31                     \ (enemies.6502; decision 31). The picture is the same: border
+    STA &FE01                   \ black for a row of black
     JSR enemy_init
     LDX #3
 .init_strip
@@ -191,11 +199,24 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDX #0
 .strip_loop
     STX strip
-    INX
-.wait_band
-    CPX bands                   \ until bands >= strip + 1
-    BEQ band_left
-    BCS wait_band
+.wait_band                      \ until bands >= strip + 1: the raster has left its window
+    LDA bands
+    BNE wb_band
+    LDA strip                   \ bands 0: the next field, before its first band (line 120).
+    CMP #3                      \ Strip 3 may start then: its window comes at line 240, 120
+    BEQ band_left               \ lines (15,000 cycles) on. The others wait.
+    BNE wait_band
+.wb_band
+    SEC
+    SBC strip
+    BEQ wait_band               \ (bands - strip - 1 < 0)
+    BCC wait_band
+    CMP #3                      \ but no more than two bands later (bands - strip <= 2): then
+    BCC band_left               \ 208 lines or more (26,600 cycles) before the raster is back.
+.too_late                       \ Later than that (the pass started late, after one that ran
+    LDA bands                   \ over), wait for this field to end and the band in the next:
+    BNE too_late                \ a field dropped, never a write in the window
+    JMP wait_band
 .band_left
     LDX strip
     BNE strip_go
@@ -564,14 +585,6 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     CMP drawn_t,X
     BEQ cr_rts
 .cr_go
-    LDA erider
-    BEQ cr_plain
-    JSR compose_full            \ an enemy is in its columns, or was: all of them, made up
-    LDX strip
-    LDA newt
-    STA drawn_t,X
-    RTS
-.cr_plain
     LDA newt
     CMP #SKY
     BNE cr_under                \ in the air: what is under it shows
@@ -600,12 +613,16 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
 .cr_sky
     LDA vfrom
     CMP vto
-    BCS cr_rider
+    BCS cr_enemies
     CMP #SKY
-    BCS cr_rider
+    BCS cr_enemies
     JSR black_line
     INC vfrom
     JMP cr_sky
+.cr_enemies                     \ enemies in its columns: drawn again over what was put back
+    LDA erider
+    BEQ cr_rider
+    JSR enemies_over_rider
 .cr_rider
     LDX strip
     LDA newt
@@ -806,105 +823,115 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     RTS
 
 \ draw16: the tall sprite `ts`, its top at window line `dt` (0-24), screen columns dcol to
-\ dcol+3 (dcol signed: -3 to 79; the columns off the screen are not drawn, nor the rider's,
-\ RIDER .. RIDER+3, when d16_skip is non-zero), strip `strip`; whole, black included. Each
-\ column is three runs: the lines in the first character row (Y 0 .. lena-1, through d0), the
-\ next row (lena .. lenb-1, d1) and the row after (lenb .. 15, d2), each pointer set back so
-\ that Y counts sprite lines throughout.
+\ dcol+3 (dcol signed, -3 to 79: the columns off the screen are not drawn), strip `strip`;
+\ whole, black included. A column's 16 lines are three runs: those in the first character row
+\ (lines 0 .. 7-s, s = dt AND 7; through d0), the 8 in the next (d1), the s in the row after
+\ (d2), each pointer set back so that Y is the sprite's line throughout, and the source
+\ (d16src) the column's 16 bytes. The runs are unrolled, 13 cycles a byte: the first is entered
+\ s steps in, the last 7 - s steps in (d16_ja, d16_jc: set once a sprite).
 .draw16
     LDX ts
     LDA tall_lo,X
-    STA d16_a + 1 : STA d16_b + 1 : STA d16_c + 1
+    STA d16src
     LDA tall_hi,X
-    STA d16_a + 2 : STA d16_b + 2 : STA d16_c + 2
+    STA d16src + 1
     LDA dt
     AND #7
-    STA tmp
-    LDA #8
+    STA tmp                     \ s
+    ASL A : ASL A
+    ADC tmp                     \ s x 5 (C clear: s < 8)
+    ADC #LO(d16_A)
+    STA d16_ja + 1
+    LDA #HI(d16_A)
+    ADC #0
+    STA d16_ja + 2
+    LDA #7 * 5                  \ (7 - s) x 5 = 35 - s x 5
+    SEC
+    SBC tmp : SBC tmp : SBC tmp : SBC tmp : SBC tmp
+    CLC
+    ADC #LO(d16_C)
+    STA d16_jc + 1
+    LDA #HI(d16_C)
+    ADC #0
+    STA d16_jc + 2
+    LDA #8                      \ lena = 8 - s: the lines in the first row
     SEC
     SBC tmp
     STA lena
     CLC
     ADC #8
     STA lenb
-    LDA dt
-    LSR A : LSR A : LSR A
+    LDA dt                      \ the three rows' bases, set back: rb0 + s, rb1 - lena,
+    LSR A : LSR A : LSR A       \ rb2 - lenb
     LDX strip
     CLC
     ADC wix,X
-    STA d16_row                 \ the first character row
+    TAX
+    CLC
+    LDA wrow_lo,X : ADC tmp : STA rb0
+    LDA wrow_hi,X : ADC #0  : STA rb0 + 1
+    SEC
+    LDA wrow_lo + 1,X : SBC lena : STA rb1
+    LDA wrow_hi + 1,X : SBC #0   : STA rb1 + 1
+    SEC
+    LDA wrow_lo + 2,X : SBC lenb : STA rb2
+    LDA wrow_hi + 2,X : SBC #0   : STA rb2 + 1
     LDA #0
     STA cc
 .d16_col
     LDA dcol
     CLC
     ADC cc
-    STA d16_sc
     CMP #80
-    BCS d16_skip_far            \ off the screen (negative, or right of it)
-    LDY d16_skip
-    BEQ d16_go
-    SEC
-    SBC #RIDER
-    CMP #4
-    BCS d16_go
-.d16_skip_far
-    JMP d16_skipcol             \ the rider's
-.d16_go
-    LDY d16_sc
-    LDX d16_row
-    CLC                         \ d0 = row + column + the line in it
-    LDA wrow_lo,X : ADC col8_lo,Y : STA d0
-    LDA wrow_hi,X : ADC col8_hi,Y : STA d0 + 1
+    BCC d16_on
+    JMP d16_skipcol             \ off the screen (negative, or right of it)
+.d16_on
+    TAY
     CLC
-    LDA d0 : ADC tmp : STA d0
-    BCC d16_p1
-    INC d0 + 1
-.d16_p1
-    CLC                         \ d1 = the next row + column - lena
-    LDA wrow_lo + 1,X : ADC col8_lo,Y : STA d1
-    LDA wrow_hi + 1,X : ADC col8_hi,Y : STA d1 + 1
-    SEC
-    LDA d1 : SBC lena : STA d1
-    BCS d16_p2
-    DEC d1 + 1
-.d16_p2
-    CLC                         \ d2 = the row after + column - lenb
-    LDA wrow_lo + 2,X : ADC col8_lo,Y : STA d2
-    LDA wrow_hi + 2,X : ADC col8_hi,Y : STA d2 + 1
-    SEC
-    LDA d2 : SBC lenb : STA d2
-    BCS d16_p3
-    DEC d2 + 1
-.d16_p3
-    LDA cc                      \ the sprite's column: 16 bytes from cc x 16
-    ASL A : ASL A : ASL A : ASL A
-    TAX
+    LDA rb0 : ADC col8_lo,Y : STA d0
+    LDA rb0 + 1 : ADC col8_hi,Y : STA d0 + 1
+    CLC
+    LDA rb1 : ADC col8_lo,Y : STA d1
+    LDA rb1 + 1 : ADC col8_hi,Y : STA d1 + 1
+    CLC
+    LDA rb2 : ADC col8_lo,Y : STA d2
+    LDA rb2 + 1 : ADC col8_hi,Y : STA d2 + 1
     LDY #0
-.d16_a
-    LDA &FFFF,X
-    STA (d0),Y
-    INX
-    INY
-    CPY lena
-    BNE d16_a
-.d16_b
-    LDA &FFFF,X
-    STA (d1),Y
-    INX
-    INY
-    CPY lenb
-    BNE d16_b
-    CPY #16
-    BEQ d16_skipcol
-.d16_c
-    LDA &FFFF,X
-    STA (d2),Y
-    INX
-    INY
-    CPY #16
-    BNE d16_c
+.d16_ja
+    JMP &FFFF
+.d16_A
+    LDA (d16src),Y : STA (d0),Y : INY
+    LDA (d16src),Y : STA (d0),Y : INY
+    LDA (d16src),Y : STA (d0),Y : INY
+    LDA (d16src),Y : STA (d0),Y : INY
+    LDA (d16src),Y : STA (d0),Y : INY
+    LDA (d16src),Y : STA (d0),Y : INY
+    LDA (d16src),Y : STA (d0),Y : INY
+    LDA (d16src),Y : STA (d0),Y : INY
+.d16_B
+    LDA (d16src),Y : STA (d1),Y : INY
+    LDA (d16src),Y : STA (d1),Y : INY
+    LDA (d16src),Y : STA (d1),Y : INY
+    LDA (d16src),Y : STA (d1),Y : INY
+    LDA (d16src),Y : STA (d1),Y : INY
+    LDA (d16src),Y : STA (d1),Y : INY
+    LDA (d16src),Y : STA (d1),Y : INY
+    LDA (d16src),Y : STA (d1),Y : INY
+.d16_jc
+    JMP &FFFF
+.d16_C
+    LDA (d16src),Y : STA (d2),Y : INY
+    LDA (d16src),Y : STA (d2),Y : INY
+    LDA (d16src),Y : STA (d2),Y : INY
+    LDA (d16src),Y : STA (d2),Y : INY
+    LDA (d16src),Y : STA (d2),Y : INY
+    LDA (d16src),Y : STA (d2),Y : INY
+    LDA (d16src),Y : STA (d2),Y : INY
 .d16_skipcol
+    LDA d16src                  \ the next column's 16 bytes (a tall sprite never crosses a page)
+    CLC
+    ADC #16
+    STA d16src
     INC cc
     LDA cc
     CMP #4
@@ -912,6 +939,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     JMP d16_col
 .d16_rts
     RTS
+
 
 \ ---------------------------------------------------------------------------------------------
 \ the crash, and after it (kill_player)
@@ -1217,12 +1245,6 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     JSR enemy_levels
     JSR enemy_draw
     LDA drawn_t,X
-    STA newt
-    LDA erider
-    BEQ dw_rider
-    JMP compose_full            \ an enemy in its columns: made up from all of them
-.dw_rider
-    LDA drawn_t,X
     STA dt
     LDA #RIDER
     STA dcol
@@ -1405,22 +1427,9 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
 \ ---------------------------------------------------------------------------------------------
 W0 = SCREEN + 4 * ROW           \ strip 0's window
 WS = 7 * ROW                    \ one strip to the next
-.wrow_lo                        \ strip k's window rows 0-5 at k x 6
-    EQUB LO(W0), LO(W0+ROW), LO(W0+2*ROW), LO(W0+3*ROW), LO(W0+4*ROW), LO(W0+5*ROW)
-    EQUB LO(W0+WS), LO(W0+WS+ROW), LO(W0+WS+2*ROW), LO(W0+WS+3*ROW), LO(W0+WS+4*ROW), LO(W0+WS+5*ROW)
-    EQUB LO(W0+2*WS), LO(W0+2*WS+ROW), LO(W0+2*WS+2*ROW), LO(W0+2*WS+3*ROW), LO(W0+2*WS+4*ROW), LO(W0+2*WS+5*ROW)
-    EQUB LO(W0+3*WS), LO(W0+3*WS+ROW), LO(W0+3*WS+2*ROW), LO(W0+3*WS+3*ROW), LO(W0+3*WS+4*ROW), LO(W0+3*WS+5*ROW)
-.wrow_hi
-    EQUB HI(W0), HI(W0+ROW), HI(W0+2*ROW), HI(W0+3*ROW), HI(W0+4*ROW), HI(W0+5*ROW)
-    EQUB HI(W0+WS), HI(W0+WS+ROW), HI(W0+WS+2*ROW), HI(W0+WS+3*ROW), HI(W0+WS+4*ROW), HI(W0+WS+5*ROW)
-    EQUB HI(W0+2*WS), HI(W0+2*WS+ROW), HI(W0+2*WS+2*ROW), HI(W0+2*WS+3*ROW), HI(W0+2*WS+4*ROW), HI(W0+2*WS+5*ROW)
-    EQUB HI(W0+3*WS), HI(W0+3*WS+ROW), HI(W0+3*WS+2*ROW), HI(W0+3*WS+3*ROW), HI(W0+3*WS+4*ROW), HI(W0+3*WS+5*ROW)
-.wix        EQUB 0, 6, 12, 18
-.obase_lo   EQUB LO(W0 + 3*ROW), LO(W0 + WS + 3*ROW), LO(W0 + 2*WS + 3*ROW), LO(W0 + 3*WS + 3*ROW)
-.obase_hi   EQUB HI(W0 + 3*ROW), HI(W0 + WS + 3*ROW), HI(W0 + 2*WS + 3*ROW), HI(W0 + 3*WS + 3*ROW)
-.gbase_lo   EQUB LO(W0 + 5*ROW), LO(W0 + WS + 5*ROW), LO(W0 + 2*WS + 5*ROW), LO(W0 + 3*WS + 5*ROW)
-.gbase_hi   EQUB HI(W0 + 5*ROW), HI(W0 + WS + 5*ROW), HI(W0 + 2*WS + 5*ROW), HI(W0 + 3*WS + 5*ROW)
-.rider_tall EQUB TALL_PLAYER, TALL_PLAYER + TALL_STRIDE, TALL_PLAYER + 2*TALL_STRIDE, TALL_PLAYER + 3*TALL_STRIDE
+\ The per-strip constants (wrow, wix, obase, gbase, rider_tall) and the key tables are in
+\ page &0D (make_data.py, low.6502), from these same numbers:
+    ASSERT SCREEN = &3000 AND ROW = 640 AND TALL_PLAYER = 2 AND TALL_STRIDE = 5
 .pos_frac   EQUB 0, 0, 0, 0
 .pos_lo     EQUB 0, 0, 0, 0
 .pos_hi     EQUB 0, 0, 0, 0
@@ -1446,10 +1455,6 @@ WS = 7 * ROW                    \ one strip to the next
 .c8_step    EQUB 0
 .cause      EQUB 0              \ the last crash's reading (collide)
 .frames     EQUW 0
-.key_numbers                    \ internal key numbers, measured (docs/done.md layer 4.2)
-    EQUB 97, 66, 99, 100, 101, 102, 103, 104    \ Z X V B M , . /
-.key_slot                       \ where each goes: keys + p (accelerate), jumps + p (jump)
-    EQUB 0, 4, 1, 5, 2, 6, 3, 7
 
     INCLUDE "enemies.6502"
     INCLUDE "../build/data.6502"
@@ -1466,6 +1471,7 @@ WS = 7 * ROW                    \ one strip to the next
 \ upwards: the destination is always below the source, and this routine is above all of it.
 LOAD_OF_A = low_a_image - ORG_AT + LOAD_AT
 LOAD_OF_B = low_b_image - ORG_AT + LOAD_AT
+LOAD_OF_D = low_d_image - ORG_AT + LOAD_AT
 .reloc
     SEI
     LDA #LO(LOAD_OF_A) : STA d0
@@ -1479,6 +1485,12 @@ LOAD_OF_B = low_b_image - ORG_AT + LOAD_AT
     LDA #LO(LOW_B)     : STA d1
     LDA #HI(LOW_B)     : STA d1 + 1
     LDX #LOW_B_PAGES
+    JSR reloc_pages - ORG_AT + LOAD_AT
+    LDA #LO(LOAD_OF_D) : STA d0
+    LDA #HI(LOAD_OF_D) : STA d0 + 1
+    LDA #LO(LOW_D)     : STA d1
+    LDA #HI(LOW_D)     : STA d1 + 1
+    LDX #LOW_D_PAGES
     JSR reloc_pages - ORG_AT + LOAD_AT
     LDA #LO(LOAD_AT) : STA d0
     LDA #HI(LOAD_AT) : STA d0 + 1
