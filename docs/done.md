@@ -15,6 +15,10 @@ So one pass every 3 fields, 16.7 Hz, whatever the speed. Top speed 2.93 columns 
 columns a second = 0.98 columns per field. Velocity rises 2 a pass, so it takes 7.5 s to reach the
 cap.
 
+**The jump** (same session): SPACE held for one pass. `player_jump_state` (`&0C12`) read at
+`main_game_loop` after each pass: 2 after the first, 28 after the 27th, 29, then 0. That is 28
+passes in the air, from elapsed cycle 44,903,552 to 48,263,606: 3,360,054 cycles = 84.0 fields.
+
 **The spike at that speed** (all four at 0.98 columns a field): 21,987-23,510 cycles a field, against
 25,158-27,328 at 2.93. The distance moved hardly matters; the per-object redraw does.
 

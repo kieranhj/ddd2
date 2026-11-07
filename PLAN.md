@@ -8,8 +8,6 @@ decisions are `docs/decisions.md` (4-15).
 ## Step 2 - measure the original (what the sequel must match)
 
 - [ ] Owner agrees decisions 1-3.
-- [ ] The jump: the arc, how long it lasts, and what it clears, read from `game.6502` and confirmed
-      in jsbeeb.
 - [ ] A short recording of the original being played, as the behavioural reference.
 - Dropped from the porting method (`PORTING.md` 2.1c): the whole-game relocation proof. The sequel
   is a new loop around the original's parts (`docs/sequel.md`), so nothing relies on the original's

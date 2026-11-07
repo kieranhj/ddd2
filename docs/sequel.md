@@ -49,6 +49,30 @@ once every 3 fields (16.7 Hz)**, so its top speed is 48.8 columns a second, **0.
 updates, 7.5 seconds. At 50 Hz the sequel moves in steps of at most one column (2 pixels) where
 the original jumped up to 3 columns at a time. Decision 16 keeps the speeds the same.
 
+**The jump** (`update_player`, `jump_offsets_table`; measured, step 2):
+- **Starting it:** SPACE, only from the ground (`player_jump_state` 0).
+- **Its length:** the state counts up one a pass; on reaching 30 it is set back to 0. After the
+  pass that sees SPACE the state is 2, so the rider is in the air for 28 passes: 84 fields, 1.68 s.
+- **Its height:** the rider is raised by `jump_offsets_table[state]`, which climbs 0, 1, 3, 6 ... to
+  a peak of 20 lines (&14) at states 13-18 and falls back symmetrically.
+- **What it clears:** an obstacle is 16 lines tall, and the rider is at least 16 lines up for states
+  8-23 (16 passes, 48 fields). At top speed that is 47 columns of clearance, against an obstacle
+  only 4 columns wide.
+- **How far it goes:** speed does not change in the air, so a jump at top speed covers 82 columns,
+  more than a screen width.
+- **Holes are only checked on the ground.** Each pass, with the rider not jumping, it reads the
+  ground row under the rider's LEFT column (`player_x`). A zero byte there means a fall. So a rider
+  falls only when that column is over the 8-column hole.
+
+**Collisions** are reads of screen bytes; anything non-zero hits:
+- the column just right of the sprite, kept by `plot_sprite` as `right_edge`;
+- its middle-right and top-right;
+- below it while jumping.
+
+For the sequel at 50 Hz (decision 16), the jump state counts in thirds and the height comes from
+interpolating between table entries. The arc is the same shape, drawn a line at a time instead of
+up to 3 lines a pass.
+
 **Course length.** A ground is about 76 columns, from `player_x` 0 to &4B. That makes 36 levels x 4
 grounds, about 11,000 columns. At the top speed of 48.8 columns a second, that is about 225
 seconds (under four minutes) of flat-out riding, so the endless part (looping the last sets, then a generator or an
