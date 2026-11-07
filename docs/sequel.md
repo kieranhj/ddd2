@@ -84,8 +84,5 @@ and comparing it byte for byte with the original's screen.
 - **Always four strips (decision 14).** A strip no one is playing stays static; computer riders
   come later.
 - **Skill A-F is chosen once, for everyone (decision 15).**
-
-## Questions still open
-
-- **Telling riders apart.** Four identical sprites. Recolour each rider, which is cheap in MODE 2
-  by remapping the sprite bytes per player?
+- **Each rider has its own colour (decision 17).**
+- **The original's speeds, in smoother steps (decision 16).**

@@ -33,7 +33,8 @@ decisions are `docs/decisions.md` (4-15).
        for ghosting (`beeb-key-numbers`). The cycle budget. No tearing (decision 12): each strip
        is written only while the raster is outside its band. Choose, by measuring, between
        polling the raster and a timer on IRQ1V. Show it with an oracle that records each write's
-       raster line, and get a second opinion in b2 (`beeb-cross-emulator`).
+       raster line, and get a second opinion in b2 (`beeb-cross-emulator`). Choose the four rider
+       colours (decision 17).
 3. [ ] Jump, collisions, crash and respawn, takes. Holes crash (decision 6).
 4. [ ] Enemies, horizontal and vertical, in course coordinates. Each strip changes its level type
        (land, sea, snow; sprites and ground colour) as its rider crosses a level boundary.
