@@ -167,11 +167,24 @@ tmp2     = &8D
 
 IRQ_UNINSTALL = 0
 
-SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, filename = "!BOOT"
+\ !BOOT (*EXEC, the disc's option 3): MODE 2 once, before the game loads, so that it never has to be
+\ set again (decision 37); then the game.
+SECTION boot, org = 0, filename = "!BOOT"
+    EQUS "MODE2", 13, "*RUN DDD2", 13
+ENDSECTION
+
+SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, filename = "DDD2"
 
     INCLUDE "../build/sprites.6502"     \ first: ORG_AT is a page start (make_data.py)
 
 .start
+    LDA #23 : JSR OSWRCH        \ VDU 23,1,0;0;0;0; - cursor off
+    LDA #1  : JSR OSWRCH
+    LDX #8
+.cursor_off
+    LDA #0 : JSR OSWRCH
+    DEX
+    BNE cursor_off
     JSR install_irq             \ IRQ1V ours from here on (the MOS's text output still serves)
     LDX #0                      \ page 8's code and the stack page's, from the file's tail (at
 .start_copy                     \ its load address, above anything the move down wrote; MODE 2
@@ -1470,7 +1483,6 @@ WS = 7 * ROW                    \ one strip to the next
 .pass_count EQUW 0
 
     INCLUDE "enemies.6502"
-    INCLUDE "status.6502"
     INCLUDE "flow.6502"
     INCLUDE "../build/data.6502"
 .end                            \ the end of what runs at &0E00 up: below the screen
@@ -1492,6 +1504,12 @@ SECTION page1, org = &0100, guard = &01C0
     INCLUDE "flow1.6502"
 .p1_end
 ENDSECTION
+.r0_image                       \ row 0, &3000-&327F: off the display (decision 37)
+SECTION row0, org = SCREEN, guard = SCREEN + ROW
+    INCLUDE "status.6502"
+    INCLUDE "screen.6502"
+.r0_end
+ENDSECTION
 
 \ reloc: runs at its LOAD address (exec), so only relative branches until the JMP, and its
 \ addresses are load addresses (x - ORG_AT + LOAD_AT). First the low RAM images to their places
@@ -1500,6 +1518,7 @@ ENDSECTION
 LOAD_OF_A = low_a_image - ORG_AT + LOAD_AT
 LOAD_OF_B = low_b_image - ORG_AT + LOAD_AT
 LOAD_OF_D = low_d_image - ORG_AT + LOAD_AT
+LOAD_OF_R0 = r0_image - ORG_AT + LOAD_AT
 .reloc
     SEI
     LDA #LO(LOAD_OF_A) : STA d0
@@ -1525,6 +1544,12 @@ LOAD_OF_D = low_d_image - ORG_AT + LOAD_AT
     LDA #LO(ORG_AT)  : STA d1
     LDA #HI(ORG_AT)  : STA d1 + 1
     LDX #HI(end - ORG_AT + 255)
+    JSR reloc_pages - ORG_AT + LOAD_AT
+    LDA #LO(LOAD_OF_R0) : STA d0    \ row 0's code: after the move down, whose source covered
+    LDA #HI(LOAD_OF_R0) : STA d0 + 1    \ &3000 (decision 37)
+    LDA #LO(SCREEN)     : STA d1
+    LDA #HI(SCREEN)     : STA d1 + 1
+    LDX #3
     JSR reloc_pages - ORG_AT + LOAD_AT
     CLI
     JMP start

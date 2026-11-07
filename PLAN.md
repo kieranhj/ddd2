@@ -1,7 +1,7 @@
 # Plan
 
 What is left. What has landed is in `docs/done.md`. The sequel's design is `docs/sequel.md`; the
-decisions are `docs/decisions.md` (1-35).
+decisions are `docs/decisions.md` (1-37).
 
 ## Step 1 - the original, buildable and verified: DONE (tag `step1-byte-identical-rebuild`, public at github.com/kieranhj/ddd2)
 

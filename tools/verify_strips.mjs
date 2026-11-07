@@ -391,19 +391,21 @@ h.onWrite(0x3000, 0x7fff, (addr, val, ctx) => {
     if (!started) return false;
     writes++;
     const row = Math.floor((addr - 0x3000) / ROW);
+    // the CRTC shows memory row 1 first (decision 37: rows 1-30), so the row being shown is vc + 1
+    const shown = ctx.vc + 1;
     if (row === 1) {                                   // the status line: not while it is shown
-        if (!ctx.adj && ctx.vc === 1) { tears++; if (!firstTear) firstTear = { field: fields, addr: "&" + addr.toString(16), status: true, vc: ctx.vc, at: h.symAt(ctx.pc) }; }
+        if (!ctx.adj && shown === 1) { tears++; if (!firstTear) firstTear = { field: fields, addr: "&" + addr.toString(16), status: true, vc: ctx.vc, at: h.symAt(ctx.pc) }; }
         return false;
     }
     const k = Math.floor((row - 4) / 7);
     if (row < 4 || (row - 4) % 7 > 5 || k > 3) return false;
     const lo = 4 + 7 * k, hi = 9 + 7 * k;
-    if (!ctx.adj && ctx.vc >= lo && ctx.vc <= hi) {
+    if (!ctx.adj && shown >= lo && shown <= hi) {
         tears++;
         if (!firstTear) firstTear = { field: fields, addr: "&" + addr.toString(16), strip: k, vc: ctx.vc, sc: ctx.sc, pc: "&" + ctx.pc.toString(16), at: h.symAt(ctx.pc),
                                        updating: h.byte(SYM.strip), bands: h.byte(0x8a), loop_field: h.byte(0x8b), frames: h.word(SYM.frames, "main") & 255,
                                        since_strip_go: h.s.elapsedCycles - t0 };
-    } else if (!ctx.adj) minGap = Math.min(minGap, (lo - ctx.vc + 39) % 39);
+    } else if (!ctx.adj) minGap = Math.min(minGap, (lo - shown + 39) % 39);
     return false;
 });
 // at the end of each pass: the model's field, then the pictures and the state

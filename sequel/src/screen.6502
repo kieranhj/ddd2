@@ -1,0 +1,38 @@
+\ screen.6502 - the screen's set-up (flow.6502's), assembled for row 0 (decision 37).
+
+\ screen_init: rows 1-30 cleared (MODE 2 is set once, by !BOOT: rows 0 and 31 hold code and
+\ state, decisions 31 and 37), and the CRTC's display: rows 1-30 (start &3280, R6 30), the
+\ vertical sync a row earlier (R7 33), so that every row is on the scanline it would be in MODE 2.
+.screen_init
+    LDA #LO(SCREEN + ROW)
+    STA pk
+    LDA #HI(SCREEN + ROW)
+    STA pk + 1
+    LDA #0
+    TAY
+    LDX #30 * ROW / 256         \ 75 pages, to &7D80
+.sci_clear
+    STA (pk),Y
+    INY
+    BNE sci_clear
+    INC pk + 1
+    DEX
+    BNE sci_clear
+    LDA #6                      \ R6: 30 rows shown
+    STA &FE00
+    LDA #30
+    STA &FE01
+    LDA #7                      \ R7: the vertical sync after 33 rows (MODE 2: 34)
+    STA &FE00
+    LDA #33
+    STA &FE01
+    LDA #12                     \ R12/R13: the display starts at row 1
+    STA &FE00
+    LDA #HI((SCREEN + ROW) / 8)
+    STA &FE01
+    LDA #13
+    STA &FE00
+    LDA #LO((SCREEN + ROW) / 8)
+    STA &FE01
+    RTS
+

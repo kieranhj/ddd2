@@ -2,23 +2,6 @@
 \ it there once install_irq has flushed the MOS's buffers (nothing writes the page after;
 \ decision 32).
 
-\ screen_init: MODE 2 (clearing the screen), cursor off, the CRTC's 31 rows (decision 31).
-.screen_init
-    LDA #22 : JSR OSWRCH
-    LDA #2  : JSR OSWRCH
-    LDA #23 : JSR OSWRCH        \ VDU 23,1,0;0;0;0; - cursor off
-    LDA #1  : JSR OSWRCH
-    LDX #8
-.cursor_off
-    LDA #0 : JSR OSWRCH
-    DEX
-    BNE cursor_off
-    LDA #6                      \ the CRTC shows 31 character rows, not 32: row 31 (&7D80), black
-    STA &FE00                   \ and never drawn, leaves the display and holds the enemies' and
-    LDA #31                     \ the status line's state (decision 31). The picture is the same:
-    STA &FE01                   \ border black for a row of black
-    RTS
-
 \ set_up: every strip at skill `skill`'s level; the joined ones to play, the rest idle; all drawn.
 .set_up
     JSR screen_init
