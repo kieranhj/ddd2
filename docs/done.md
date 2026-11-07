@@ -4,6 +4,43 @@ What has landed, with the number that says it landed. `PLAN.md` is what is left.
 
 ---
 
+## Layer 4.2: four strips, eight keys, 50 Hz, no tearing (2026-11-07)
+
+`sequel/build/ddd2.ssd`: four riders, each on two keys (decision 25, proposed), moving with the
+original's velocity rules (decision 16) and slowing when let go (decision 24, proposed), each in
+its own colours (decision 17). The program copies itself from &1900 to &0E00 after loading and
+runs &0E00-&22BA (5,307 bytes); IRQ1V is the kit's `irq.6502`, the keys the kit's
+`keydown.6502`. Strip k is updated once System VIA T1, started at VSync, has fired k+1 times: as
+the raster leaves its band (decision 12).
+
+**MEASURED** in jsbeeb (`B-DFS1.2`):
+- **The keys** (the jsbeeb MCP, host keys pressed by name, OSBYTE 121 scanning from 16; the scan
+  proven first on Z, 97): Z 97, X 66, V 99, B 100, M 101, comma 102, full stop 103, slash 104 -
+  matrix columns 1-8. jsbeeb was not shown to model phantom keys, so the ghosting claim rests on the
+  one-key-a-column layout; a real keyboard should confirm it.
+- **`tools/verify_strips.mjs`**, two whole-course rides, every field: each strip's three rows
+  against a redraw from `data/course.json` and the original's sprites (the riders' colour swap
+  redone in the tool); every screen write against the CRTC's row counter; loop passes against
+  fields.
+
+| Ride | Fields | Passes | Bytes wrong | Writes in a strip's band | Nearest write to its band |
+|---|---|---|---|---|---|
+| all four held together | 11,009 | 11,009 | 0 | 0 | 30 character rows ahead |
+| mixed: started late, let go, held again | 14,855 | 14,855 | 0 | 0 | 30 |
+
+  Shown able to fail: a byte planted in strip 2 gave 357 bytes wrong; T1's first fire moved a
+  band (24 lines) earlier gave 63,123 writes in a band in 600 fields, the first at field 23 with the
+  raster on row 8. (Starting each field one band early instead did not tear in 3,000 fields: a
+  strip's work over the sparse first levels ends before the 32 lines above its band run out.)
+- **The cost**, all four held together (the worst case: the densest stretches on all four strips
+  at once), cycles: one strip's update median 1,104, 99th percentile 3,691, worst 5,269 (strip 3:
+  5,412); the eight keys 692-693; the whole field's work median 5,108, 99th percentile 15,600,
+  **worst 21,912 - 55% of the 40,000-cycle field**. Mixed: field worst 14,257.
+- **Room:** &22BB-&2FFF (3,397 bytes) is free below the screen; &0400-&0DFF is not yet claimed.
+
+**Not yet:** a second opinion in b2 (`sequeluild.ps1 -Run` boots it) and on real hardware - the
+tearing claim is jsbeeb's CRTC counters.
+
 ## Layer 4.1: one strip on the real course (2026-11-07)
 
 `sequel/` (its own `build.ps1`, after the main build) builds `sequel/build/ddd2.ssd`, 4,400 bytes of

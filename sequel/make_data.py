@@ -10,7 +10,9 @@ lines. Here each is two 32-byte blocks in screen order, one per character row: b
 is column c, line l (top block lines 0-7, bottom block lines 8-15). A whole sprite is then one
 loop of Y = 31..0 over both character rows, and column c alone is 8 bytes from c * 8 in each.
   sprites 0-8   the obstacles: level type t (0 land, 1 sea, 2 snow), sprite n (1-3) at 3t + n - 1
-  sprites 9-11  the riders, by level type
+  sprites 9-20  the riders: player p's for level type t at 9 + 3p + t. Player 1 (p 0) is the
+                original's; for the others its green (logical colour 2) is swapped with yellow,
+                cyan or magenta, both ways (decision 17: RIDER_SWAP)
 
 THE COURSE is data/course.json's flat `course` (decisions 18-22), in course columns:
   obj_x_lo/hi   the column it starts at, ascending; a sentinel at &7FFF ends it
@@ -38,6 +40,23 @@ TYPES = ['land', 'sea', 'snow']
 NAMES = ['obstacle_one', 'obstacle_two', 'obstacle_three']
 
 
+RIDER_SWAP = [None, 3, 6, 5]     # per player: the colour swapped with green (2); None: as drawn
+
+
+def recolour(raw, other):
+    """MODE 2: left pixel colour bits 3-0 in byte bits 7,5,3,1, right pixel in 6,4,2,0."""
+    if other is None:
+        return bytes(raw)
+    out = []
+    for b in raw:
+        px = []
+        for shift in (1, 0):
+            c = sum(((b >> (2 * i + shift)) & 1) << i for i in range(4))
+            px.append(other if c == 2 else 2 if c == other else c)
+        out.append(sum(((px[0] >> i) & 1) << (2 * i + 1) | ((px[1] >> i) & 1) << (2 * i) for i in range(4)))
+    return bytes(out)
+
+
 def blocks(raw):
     top = [raw[line * 4 + c] for c in range(4) for line in range(8)]
     bot = [raw[(line + 8) * 4 + c] for c in range(4) for line in range(8)]
@@ -51,12 +70,18 @@ def equb(vals):
 def main():
     load, code = denis3()
     syms = symbols()
-    sprites = []
+    sprites, raws = [], {}
     for t in TYPES:
         for n in NAMES:
-            sprites.append('sprite_%s_%s' % (t, n))
-    for t in TYPES:
-        sprites.append('sprite_%s_player' % t)
+            name = 'sprite_%s_%s' % (t, n)
+            sprites.append(name)
+            raws[name] = code[syms[name] - load:syms[name] - load + 64]
+    for p, other in enumerate(RIDER_SWAP):
+        for t in TYPES:
+            name = 'rider%d_%s' % (p + 1, t)
+            sprites.append(name)
+            src = 'sprite_%s_player' % t
+            raws[name] = recolour(code[syms[src] - load:syms[src] - load + 64], other)
 
     course = json.load(open(os.path.join(ROOT, 'data', 'course.json')))
     types = {L['level']: TYPES.index(L['type']) for L in course['levels']}
@@ -76,7 +101,7 @@ def main():
          'NUM_OBJECTS = %d' % len(objs), '',
          'ALIGN 256      \\ no sprite block crosses a page: LDA abs,Y stays 4 cycles']
     for name in sprites:
-        top, bot = blocks(code[syms[name] - load:syms[name] - load + 64])
+        top, bot = blocks(raws[name])
         L.append('.%s_top' % name)
         L += equb(top)
         L.append('.%s_bot' % name)

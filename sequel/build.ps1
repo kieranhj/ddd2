@@ -1,6 +1,8 @@
-# Build the sequel -> sequel/build/ddd2.ssd (SHIFT+BREAK runs it).
+# Build the sequel -> sequel/build/ddd2.ssd (SHIFT+BREAK runs it). -Run: and boot it in b2
+# (B2 from local.ps1 or the environment, else the PATH).
 # Needs the original built first (.\build.ps1 at the top): the sprites come out of build/ddd.ssd,
 # the course out of data/course.json.
+param([switch]$Run)
 $ErrorActionPreference = 'Stop'
 $root  = $PSScriptRoot
 $top   = Join-Path $root '..'
@@ -23,3 +25,8 @@ try {
     }
 } finally { Pop-Location }
 "Built $build\ddd2.ssd"
+if ($Run) {
+    $b2 = $env:B2
+    if (-not $b2) { $b2 = (Get-Command b2 -ErrorAction Stop).Source }
+    & $b2 -0 (Join-Path $build 'ddd2.ssd') -b
+}

@@ -53,7 +53,8 @@ from there (`python tools/listing.py symbols build/ddd.symbols.json NAME`).
 | `lib/` | the kit's shared includes (IRQ owner, keyboard, loader, ZX02), not yet used |
 
 The sequel's design is `docs/sequel.md`; its source is `sequel/` (`sequeluild.ps1` after the
-main build -> `sequel/build/ddd2.ssd`; `node tools/verify_strip.mjs` is its oracle, 0 bytes wrong).
+main build -> `sequel/build/ddd2.ssd`, `-Run` boots it in b2; `node tools/verify_strips.mjs` is its
+oracle: every strip, every field, 0 bytes wrong, 0 writes in a strip's band).
 `spikes/swscroll/` is the software-scroll spike (its own
 `build.ps1`, after the main build: it takes the sprites from `build/ddd.ssd`).
 

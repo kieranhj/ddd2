@@ -1,38 +1,57 @@
 \ main.6502 - Dare Devil Denis 2: four strips of the original, each an endless runner.
 \
-\ LAYER 4.1 (PLAN.md): one strip on the real course. The four strips are drawn, strip 0's rider
-\ is driven by SHIFT with the original's velocity rules, strips 1-3 stand still (decision 14). No
-\ jumping, no collisions, no enemies: obstacles pass through the rider. The MOS stays in for now
-\ (VDU 22 for the mode, OSBYTE 19 for v-sync, OSBYTE &81 for SHIFT); keys straight from the VIA
-\ and the raster timing come with layer 4.2.
+\ LAYER 4.2 (PLAN.md): four strips, eight keys, 50 Hz, no tearing. Each player has two keys,
+\ accelerate and jump (decision 7; jump is read but not used until layer 4.3), measured in jsbeeb
+\ (docs/done.md layer 4.2): Z X | V B | M , | . /, one key in each of matrix columns 1-8, so no
+\ three held keys can make a phantom. Letting go of accelerate slows the rider by 1 a field
+\ (decision 24, PROPOSED). Each rider has its own colours (decision 17). No jumping, collisions,
+\ enemies or level types yet: obstacles pass through the riders.
+\
+\ THE MACHINE. Loaded at &1900 by *RUN, it copies itself down to &0E00 (`reloc`, last in the
+\ file) over the DFS's workspace, and never touches the disc again. The MOS sets MODE 2 and turns
+\ the cursor off; then IRQ1V is ours (the kit's irq.6502): the MOS's interrupts stop, and the
+\ keys are read straight off the System VIA (the kit's keydown.6502).
+\
+\ THE TIMING (decision 12). Strip k's writes are to character rows 7+7k to 9+7k, which the
+\ raster shows on scanlines 56+56k to 79+56k. The VSync interrupt starts System VIA T1, which
+\ fires as the raster leaves each band - first 120 scanlines after the VSync edge (MODE 2: R7 =
+\ 34, so the display starts 40 lines after it), then every 56 - and counts `bands`. The main
+\ loop updates strip k only once `bands` > k in this field: the raster has passed its band and
+\ will not be back for 288 lines (36,864 cycles).
 \
 \ THE SCREEN is the original's MODE 2 (docs/sequel.md): strip k's obstacles on character rows
 \ 7+7k and 8+7k, its ground on 9+7k. The ground character's top four lines are lit and the same
 \ at every column, so the ground is drawn once and only holes change it.
 \
 \ THE SCROLL. Each strip has a course position `pos` (the course column at screen column 0), in
-\ 16.8 fixed point. Per field: pos += vel / 256, then vel += 1 with SHIFT held, up to 250. That
-\ is the original's motion exactly (update_player: x += vel x 3 / 256 and vel += 3, once every 3
-\ fields) at 3 times the rate and a third of the step (decision 16). vel < 256, so a strip moves
-\ 0 or 1 column a field, and a move of one column means, for each object on screen:
-\   obstacle   draw it whole at its new column, clear the column it left (col + 4)
+\ 16.8 fixed point. Per field: pos += vel / 256, then vel += 1 with accelerate held, up to 250.
+\ That is the original's motion exactly (update_player: x += vel x 3 / 256 and vel += 3, once
+\ every 3 fields) at 3 times the rate and a third of the step (decision 16). vel < 256, so a
+\ strip moves 0 or 1 column a field, and a move of one column means, for each object on screen:
+\   obstacle   its shift routine (make_data.py): only the bytes that differ from one column right
 \   hole       open its new left column, close the column it left (col + w)
 \ and the rider redrawn if anything was written over its four columns. Objects come off
 \ `first`, the first not yet gone off the left, in course order.
 \
-\   frame_start .. frame_end    the field's work, for a cycle-count breakpoint pair
+\   strip_go .. strip_done      one strip's update (X = strip), for a cycle-count breakpoint pair
+\   keys_go .. keys_done        the eight keys
 
-OSWRCH = &FFEE
-OSBYTE = &FFF4
+INCLUDE "../../src/lib/beeb.h.6502"
+
+OSWRCH  = oswrch
+LOAD_AT = &1900                 \ where *RUN puts the file
+ORG_AT  = &0E00                 \ where it runs
 
 SCREEN  = &3000
 ROW     = 640                   \ bytes in a MODE 2 character row
 GROUND  = &0C                   \ logical colour 2 (green) in both pixels: the land ground
 RIDER   = 12                    \ the riders' fixed screen column (decision 23, PROPOSED)
 VMAX    = 250                   \ the original's velocity cap (update_player)
-PLAYER  = 9                     \ sprite: the land rider (level types come with layer 4.4)
+PLAYERS = 9                     \ sprites 9 + 3p + t: player p's rider for level type t
+T1_FIRST = 120 * SL - 4 * SL - 2    \ VSync edge -> band 0 left; the handler runs ~4 lines late
+T1_NEXT  = 56 * SL - 2              \ one band to the next (T1 continuous: the latch reloads)
 
-\ zero page: &70-&8F is the user's under the MOS
+\ zero page: &70-&8F is the user's
 d0       = &70                  \ 2: the top character row at a column
 d1       = &72                  \ 2: the character row below it
 bas      = &74                  \ 2: this strip's obstacle row
@@ -45,10 +64,16 @@ kind     = &7C
 hit      = &7D                  \ non-zero: the rider's columns were written over
 cc       = &7E                  \ a sprite column, 0-3
 tmp      = &7F
-keys     = &80                  \ 4: SHIFT held, per strip
-vec      = &84                  \ 2: a shift routine
+keys     = &80                  \ 4: accelerate held, per strip (bit 7)
+jumps    = &84                  \ 4: jump held, per strip (bit 7)
+vec      = &88                  \ 2: a shift routine
+bands    = &8A                  \ bands the raster has left this field (the T1 hook)
+field    = &8B                  \ the field this pass of the loop is for
+kn       = &8C                  \ the key being read
 
-SECTION ddd2, org = &1900, load = &1900, exec = start, filename = "!BOOT"
+IRQ_UNINSTALL = 0
+
+SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, filename = "!BOOT"
 
 .start
     LDA #22 : JSR OSWRCH
@@ -60,10 +85,6 @@ SECTION ddd2, org = &1900, load = &1900, exec = start, filename = "!BOOT"
     LDA #0 : JSR OSWRCH
     DEX
     BNE cursor_off
-    LDA #0
-    STA keys + 1                \ strips 1-3 have no one playing (decision 14)
-    STA keys + 2
-    STA keys + 3
     LDX #3
 .init_strip
     STX strip
@@ -71,26 +92,79 @@ SECTION ddd2, org = &1900, load = &1900, exec = start, filename = "!BOOT"
     LDX strip
     DEX
     BPL init_strip
+    JSR install_irq
+    LDA frames                  \ start on a whole field
+.first_field
+    CMP frames
+    BEQ first_field
 
 .loop
-    LDA #19 : JSR OSBYTE        \ wait for vertical sync
-.frame_start
-    LDA #&81 : LDX #&FF : LDY #&FF
-    JSR OSBYTE                  \ INKEY(-1): SHIFT
-    STX keys                    \ &FF held, 0 not
+    LDA frames                  \ one pass a field: wait for one that has not had its pass
+.wait_field
+    CMP field
+    BNE new_field
+    LDA frames
+    JMP wait_field
+.new_field
+    STA field
     LDX #0
 .strip_loop
     STX strip
+    INX
+.wait_band
+    CPX bands                   \ until bands >= strip + 1
+    BEQ band_left
+    BCS wait_band
+.band_left
+    LDX strip
+    BNE strip_go
+    JSR read_keys               \ before strip 0: this field's keys
+    LDX #0
+.strip_go
     JSR update_strip
+.strip_done
     LDX strip
     INX
     CPX #4
     BNE strip_loop
-.frame_end
-    INC frames
-    BNE loop
-    INC frames + 1
     JMP loop
+
+\ read_keys: the eight keys into keys and jumps (bit 7 set: held).
+.read_keys
+.keys_go
+    LDA #7
+    STA kn
+.rk_loop
+    LDY kn
+    LDX key_numbers,Y
+    JSR keydown_int             \ A = &80 held, 0 not; X, Y clobbered
+    LDY kn
+    LDX key_slot,Y
+    STA keys,X
+    DEC kn
+    BPL rk_loop
+.keys_done
+    RTS
+
+\ the IRQ hooks (irq.6502)
+.irq_vsync_hook
+    INC frames
+    BNE vs_count
+    INC frames + 1
+.vs_count
+    LDA #0
+    STA bands
+    LDA #LO(T1_FIRST) : STA SYS_VIA_T1CL    \ (writes the latch's low byte)
+    LDA #HI(T1_FIRST) : STA SYS_VIA_T1CH    \ load the counter and start
+    LDA #LO(T1_NEXT)  : STA SYS_VIA_T1LL    \ then every band after it
+    LDA #HI(T1_NEXT)  : STA SYS_VIA_T1LH
+    RTS
+.irq_timer_hook
+    INC bands
+    RTS
+
+    INCLUDE "../../src/lib/irq.6502"
+    INCLUDE "../../src/lib/keydown.6502"
 
 \ ---------------------------------------------------------------------------------------------
 \ update_strip: X = strip. Move it by its velocity; redraw what moved.
@@ -98,7 +172,7 @@ SECTION ddd2, org = &1900, load = &1900, exec = start, filename = "!BOOT"
 .us_stay
     RTS
 .update_strip
-    LDA done,X
+    LDA finished,X
     BNE us_stay
     CLC                         \ pos += vel / 256 (the original moves, then accelerates)
     LDA pos_frac,X
@@ -106,12 +180,17 @@ SECTION ddd2, org = &1900, load = &1900, exec = start, filename = "!BOOT"
     STA pos_frac,X
     PHP
     LDA keys,X
-    BEQ us_coast
+    BPL us_coast
     LDA vel,X
     CMP #VMAX
-    BCS us_coast
+    BCS us_speed
     INC vel,X
+    BCC us_speed                \ (always: C clear from the CMP)
 .us_coast
+    LDA vel,X                   \ let go: slow by 1 a field (decision 24, PROPOSED)
+    BEQ us_speed
+    DEC vel,X
+.us_speed
     PLP
     BCC us_stay                 \ under a column: nothing on the screen moves
     INC pos_lo,X
@@ -124,7 +203,7 @@ SECTION ddd2, org = &1900, load = &1900, exec = start, filename = "!BOOT"
     SBC #HI(FINISH - RIDER)
     BCC us_go
     LDA #1
-    STA done,X
+    STA finished,X
     LDA #0
     STA vel,X
 .us_go
@@ -367,8 +446,11 @@ SECTION ddd2, org = &1900, load = &1900, exec = start, filename = "!BOOT"
 
 \ draw_rider: the strip's rider at RIDER (bas set).
 .draw_rider
+    LDA strip                   \ player p's land rider: 9 + 3p
+    ASL A
+    ADC strip
+    ADC #PLAYERS
     LDX #RIDER
-    LDA #PLAYER
     JMP draw_sprite
 
 \ draw_strip: X = strip. The whole strip from scratch at its pos: the ground, every object on
@@ -427,10 +509,37 @@ SECTION ddd2, org = &1900, load = &1900, exec = start, filename = "!BOOT"
 .pos_hi     EQUB 0, 0, 0, 0
 .vel        EQUB 0, 0, 0, 0
 .first      EQUB 0, 0, 0, 0
-.done       EQUB 0, 0, 0, 0
+.finished   EQUB 0, 0, 0, 0
 .frames     EQUW 0
+.key_numbers                    \ internal key numbers, measured (docs/done.md layer 4.2)
+    EQUB 97, 66, 99, 100, 101, 102, 103, 104    \ Z X V B M , . /
+.key_slot                       \ where each goes: keys + p (accelerate), jumps + p (jump)
+    EQUB 0, 4, 1, 5, 2, 6, 3, 7
 
     INCLUDE "../build/data.6502"
+
+\ reloc: runs at its LOAD address (exec), so only relative branches until the JMP. Copies the
+\ whole file from LOAD_AT down to ORG_AT, a page at a time, upwards: the destination is always
+\ below the source, and this routine, last in the file, is above everything it writes.
+.reloc
+    SEI
+    LDA #LO(LOAD_AT) : STA d0
+    LDA #HI(LOAD_AT) : STA d0 + 1
+    LDA #LO(ORG_AT)  : STA d1
+    LDA #HI(ORG_AT)  : STA d1 + 1
+    LDX #HI(end - ORG_AT + 255)
+    LDY #0
+.reloc_copy
+    LDA (d0),Y
+    STA (d1),Y
+    INY
+    BNE reloc_copy
+    INC d0 + 1
+    INC d1 + 1
+    DEX
+    BNE reloc_copy
+    CLI
+    JMP start
 .end
-    ASSERT end <= SCREEN
+    ASSERT ORG_AT + HI(end - ORG_AT + 255) * 256 <= SCREEN
 ENDSECTION
