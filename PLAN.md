@@ -2,7 +2,7 @@
 
 What is left. What has landed is in `docs/done.md`.
 
-## Step 1 - the original, buildable and verified: DONE (to be tagged `step1-byte-identical-rebuild` at the first commit)
+## Step 1 - the original, buildable and verified: DONE (tag `step1-byte-identical-rebuild`)
 
 ## Step 2 - make it ours to change (beeb-port-kit PORTING.md 2.1c, steps 3-6)
 
