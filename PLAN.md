@@ -24,7 +24,8 @@ decisions are `docs/decisions.md` (1-38).
        DONE in jsbeeb but for the field budget (`docs/done.md` layer 4.5; decisions 33-38): 7
        fields in 3,397 dropped in the full four-player run, all with the four scripted riders in
        lockstep at heavy moments (a level crossing recolouring four riders, four airborne among
-       enemies). Left: those, b2 and real hardware.
+       enemies). Merged as it is to be play tested: `BUGS.md` #1 has the measurements and the
+       mitigations. Left: b2 and real hardware.
 6. [ ] Sound, and no MOS interrupt handling at all (the owner, 2026-11-07: "remove any MOS IRQ
        handling and do it all ourselves"). Today the MOS's IRQ entry still dispatches to our
        IRQ1V, and the MOS's sound code still touches page 8 (&083B written in play, the RAM
