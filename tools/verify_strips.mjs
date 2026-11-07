@@ -104,6 +104,50 @@ const GROUNDS = [...bytesAt("ground_colours_table", 3)].map(both);
 // the rotating colour: logical 8 stepped once a pass, VDU 19,8,rotating_colour_table[i] (&10 is 0)
 const C8 = [...bytesAt("rotating_colour_table", 14)].map((v) => 0x80 | ((v & 15) ^ 7));
 const riderOf = (r) => RIDERS[r.p][typeAt(r.pos + RIDER)];
+// the enemies (layer 4.4; initialise_level, update_rotating_colour_and_enemies): per level, the
+// horizontal enemy on its second ground (column 76 of the level), x 0-74 and round, a column a
+// pass of 3 fields; the first five vertical enemies at 76 x ground + x, jump_offsets_table[state]
+// lines up, the state stepping 1-31 a pass from the one after its start (interpolated in thirds,
+// as the jump). Decision 28: a level's clock starts the first field it is on a strip's screen,
+// and runs every field after. Drawn whole, the level at the left edge's first, the horizontal
+// before the vertical, the rider over them.
+const HZ = TYPES.map((t) => sprite(`sprite_${t}_horizontal_enemy`)), VT = TYPES.map((t) => sprite(`sprite_${t}_vertical_enemy`));
+const VEN = course.levels.map((L) => L.vertical.slice(0, 5).map((v) => ({ off: 76 * v.ground + v.x, q0: 3 * (v.state % 31) })));
+const vheight = (q) => { const s = Math.floor(q / 3), f = q % 3, a = JT[s + 1], b = JT[(s + 1) % 31 + 1]; return Math.floor((6 * a + (b - a) * f * 2 + 3) / 6); };
+function enemies(r) {
+    const out = [], l0 = Math.floor(r.pos / LEVEL);
+    for (const l of [l0, l0 + 1]) {
+        if (!r.clk.has(l)) continue;
+        const f = r.clk.get(l), S = l * LEVEL, ty = l % 3;
+        out.push({ x: S + 76 + (Math.floor(f / 3) % 75), t: SKY, spr: HZ[ty] });
+        for (const v of VEN[l]) out.push({ x: S + v.off, t: SKY - vheight((v.q0 + f) % 93), spr: VT[ty] });
+    }
+    return out;
+}
+const clocks = (r) => { for (const [l, f] of r.clk) r.clk.set(l, f + 1); };
+function startVisible(r) {
+    const l0 = Math.floor(r.pos / LEVEL);
+    for (const l of [l0, l0 + 1]) if (l < course.levels.length && l * LEVEL <= r.pos + 79 && !r.clk.has(l)) r.clk.set(l, 0);
+}
+// the picture while riding: the course, the enemies, the rider
+function riding(r) {
+    const w = picture(r.pos);
+    for (const e of enemies(r)) putClip(w, e.spr, e.x - r.pos, e.t);
+    put(w, riderOf(r), RIDER, r.t);
+    return w;
+}
+// what the collision reads see without a picture (the planner): the enemies over the course
+function reader(r, blind) {
+    const es = enemies(r).reverse();
+    return (c, L) => {
+        for (const e of es) {
+            const ec = c - (e.x - r.pos), el = L - e.t;
+            if (ec >= 0 && ec < 4 && el >= 0 && el < 16) return e.spr[el * 4 + ec];
+        }
+        if (blind && L >= SKY + 16) return L < SKY + 20 ? 1 : 0;
+        return bg(r.pos, c, L);
+    };
+}
 const DEAD = SWAP.map((o) => [recolour(sprite("sprite_dead_player_one"), o), recolour(sprite("sprite_dead_player_two"), o)]);
 const EXPLOSION = sprite("sprite_explosion"), BLANK = new Uint8Array(64);
 // the jump: the table at state s3/3 (thirds), interpolated, rounded half up
@@ -128,6 +172,9 @@ function picture(pos) {
 function put(w, spr, c0, t) {                          // a 16-line sprite, whole, top at line t
     for (let c = 0; c < 4; c++) for (let l = 0; l < 16; l++) w[at(c0 + c, t + l)] = spr[l * 4 + c];
 }
+function putClip(w, spr, c0, t) {                      // the same, but only its columns on the screen
+    for (let c = 0; c < 4; c++) if (c0 + c >= 0 && c0 + c < 80) for (let l = 0; l < 16; l++) w[at(c0 + c, t + l)] = spr[l * 4 + c];
+}
 // a collision reading: which of the original's points is lit (unlit, for the hole); 0 if none
 function collide(read, t, air) {
     if (read(RIDER + 4, t + 15)) return 1;             // right_edge
@@ -137,7 +184,7 @@ function collide(read, t, air) {
     return read(RIDER, SKY + 16) ? 0 : 5;              // the ground under it: a hole
 }
 const newRider = (p) => ({ p, pos: 0, frac: 0, vel: 0, js: 0, t: SKY, phase: 0, ct: 0, take: 1, sea: LEVEL, finished: false,
-                           crashT: 0, dead: null, w: null, cause: 0 });
+                           crashT: 0, dead: null, w: null, cause: 0, clk: new Map([[0, 0]]) });
 function seaCheck(r) {
     while (r.pos + RIDER >= r.sea) { if (r.take >= 2) r.take--; r.sea += 3 * LEVEL; }
 }
@@ -156,21 +203,22 @@ function step(r, accel, jump, draw) {
                 seaCheck(r);
             }
         }
+        clocks(r);
+        startVisible(r);
         if (r.js === 0) { if (jump) r.js = 1; } else if (++r.js === JUMP_FIELDS + 1) r.js = 0;
         r.t = SKY - (r.js ? height(3 + r.js) : 0);
         let read;
         if (draw) {
-            r.w = picture(r.pos);
-            put(r.w, riderOf(r), RIDER, r.t);
+            r.w = riding(r);
             read = (c, L) => r.w[at(c, L)];
-        } else if (r.blind) read = (c, L) => (L >= SKY + 16 ? (L < SKY + 20 ? 1 : 0) : bg(r.pos, c, L));
-        else read = (c, L) => bg(r.pos, c, L);
+        } else read = reader(r, r.blind);
         r.cause = collide(read, r.t, r.js !== 0);
         if (r.cause) {
             r.phase = 1; r.ct = 0; r.vel = 0; r.js = 0; r.crashT = r.t; r.dead = null;
             if (draw) put(r.w, EXPLOSION, RIDER, r.t);
         }
     } else if (r.phase === 1) {
+        clocks(r);
         if (r.ct === CRASH_ALL) {
             r.take++;
             if (r.take === 4) { r.phase = 3; return 0; }
@@ -187,6 +235,7 @@ function step(r, accel, jump, draw) {
         put(r.w, spr, c, t);
         r.dead = { c, t };
     } else if (r.phase === 2) {
+        clocks(r);
         let q = r.pos + RIDER;                         // past the crash, CLEAR (16) columns clear
         for (const o of objects) {
             if (o.x + o.w <= r.pos) continue;
@@ -196,11 +245,12 @@ function step(r, accel, jump, draw) {
         Object.assign(r, { pos: q - RIDER, frac: 0, vel: 0, js: 0, t: SKY, phase: 0 });
         if (r.pos >= FINISH - RIDER) { r.pos = FINISH - RIDER; r.finished = true; }
         seaCheck(r);
-        if (draw) { r.w = picture(r.pos); put(r.w, riderOf(r), RIDER, SKY); }
-    }
+        startVisible(r);
+        if (draw) r.w = riding(r);
+    } else clocks(r);
     return r.cause;
 }
-const clone = (r) => ({ ...r, w: null, dead: r.dead && { ...r.dead } });
+const clone = (r) => ({ ...r, w: null, dead: r.dead && { ...r.dead }, clk: new Map(r.clk) });
 // the planner: jump now if riding on (no jumps) crashes within the horizon and jumping now gets
 // it back on the ground clear of it - or if it is the last field it could jump at all
 function plan(r, accelFor, { blind = false, eager = false } = {}) {
@@ -238,7 +288,7 @@ if (NOHOLES) {
     h.wr(a + 1, [0]);
 }
 const riders = [0, 1, 2, 3].map(newRider);
-riders.forEach((r) => { r.w = picture(0); put(r.w, riderOf(r), RIDER, SKY); });
+riders.forEach((r) => { r.w = riding(r); });
 
 const LOOP = N("loop");
 // the palette (layer 4.4): every write to the ULA's palette register once the loop runs must be
@@ -254,8 +304,22 @@ const crashes = { game: [], model: [] }, causes = [0, 0, 0, 0, 0, 0];
 let respawns = 0, outs = 0, takesBack = 0;
 const fieldCost = [], stripCost = [[], [], [], []], keyCost = [];
 const held = [[false, false], [false, false], [false, false], [false, false]];
-h.onExec(N("new_field"), () => { started = true; passes++; cur = { strips: [0, 0, 0, 0], keys: 0 }; fieldCost.push(cur); });
+h.onExec(N("new_field"), () => {
+    // the game's loop has run a pass a field since start-up (pass k for field k); the riders stood
+    // still all that time (no keys), but the enemies' clocks ran: the model catches up first
+    if (!started) for (let k = 1; k < h.cpu.a; k++) riders.forEach(clocks);
+    started = true; passes++; cur = { strips: [0, 0, 0, 0], keys: 0 }; fieldCost.push(cur); });
 h.onExec(N("strip_go"), () => { t0 = h.s.elapsedCycles; });
+// the breakdown of a riding strip's update: moving (strip_go to prof_enemies), the enemies
+// (to prof_rider), the rider and its collisions (to strip_done)
+let tE = 0, tR = 0;
+const segs = [];
+h.onExec(N("prof_enemies"), () => { tE = h.s.elapsedCycles; tR = 0; });
+h.onExec(N("prof_rider"), () => { tR = h.s.elapsedCycles; });
+h.onExec(N("strip_done"), () => {
+    if (tE && tR) segs.push({ move: tE - t0, enemies: tR - tE, rider: h.s.elapsedCycles - tR });
+    tE = tR = 0;
+});
 h.onExec(N("strip_done"), () => {
     const k = h.byte(SYM.strip), c = h.s.elapsedCycles - t0;
     if (cur) cur.strips[k] = c;
@@ -367,5 +431,6 @@ h.finish({ scenario: SCENARIO, fields, passes, checked, bytes_wrong: wrong, firs
            respawns, outs, takes_back: takesBack, model_crashes: process.env.CRASHLOG ? crashes.model : undefined,
            finals: riders.map((r) => ({ pos: r.pos, finished: r.finished, phase: r.phase, take: r.take })),
            palette_writes: palette.length, palette_wrong: paletteWrong, first_palette_wrong: firstPalette, screen_writes: writes, tearing_writes: tears, first_tear: firstTear, closest_rows_ahead_of_window: minGap,
-           keys: stats(keyCost), strips: stripCost.map(stats), field_total: stats(totals), worst_field: worstField },
+           keys: stats(keyCost), strips: stripCost.map(stats),
+           riding_parts: { move: stats(segs.map((x) => x.move)), enemies: stats(segs.map((x) => x.enemies)), rider: stats(segs.map((x) => x.rider)) }, field_total: stats(totals), worst_field: worstField },
          ok, { samples: checked });

@@ -1,0 +1,875 @@
+\ enemies.6502 - the horizontal and vertical enemies in course coordinates (layer 4.4).
+\
+\ WHAT (update_rotating_colour_and_enemies, initialise_level; make_data.py's ENEMIES): every
+\ level has a horizontal enemy on its second ground, x 0-74 and round again, a column a pass,
+\ and up to five vertical enemies at fixed columns, rising and falling by jump_offsets_table
+\ (interpolated in thirds of a pass, `vh`). All on the strip's obstacle rows, drawn whole, black
+\ included, as plot_sprite does; the rider over them.
+\
+\ WHEN (decision 28): a level's enemies start, in a strip, the first field the level is on its
+\ screen (its start at column 79 or less), and from then step every field the strip lives - in
+\ a crash too. A crashed strip's enemies stand still on its screen until the respawn redraws it.
+\
+\ HOW. Each strip has two SLOTS, one per level it can show: the level at its left edge
+\ (`lidx`) and the one after (a level is 304 columns, the screen 80). Slot s of strip k holds a
+\ level (`sl_level`, &FF none), its start column, its horizontal enemy's sub-pass count, and
+\ its count of vertical enemies; its six enemies (0 the horizontal, 1-5 the vertical) are
+\ en_*[12k + 6s + e]: the phase (`en_q`: the horizontal's x, a vertical's 0-92), and where it is
+\ drawn (`en_dc`, &80 not drawn; `en_dt`) with which sprite. Each field, in order of level, then
+\ enemy:
+\   positions   each enemy's screen column (visible from -3 to 79) and top line, into en_nc/nt
+\   erase       where one has moved or gone, what it left: the course under it (restore_lines)
+\   draw        each that moved, or that something was written over (a SPAN: the columns an
+\               obstacle's shift, an erase or an earlier enemy's draw wrote), drawn whole -
+\               but not in the rider's four columns, which compose_rider makes from all of them
+\ `hit` is set when anything changes in the rider's columns; `erider` when an enemy is in them.
+
+\ ---------------------------------------------------------------------------------------------
+\ enemy_clocks: X = strip. Every slot's enemies one field on. X kept.
+.enemy_clocks
+    STX ek
+    TXA
+    ASL A
+    STA es                      \ slot index, strip x 2
+    LDA #2
+    STA en_cnt
+.ec_slot
+    LDY es
+    LDA sl_level,Y
+    BMI ec_next
+    TYA                         \ g = strip x 12 + s x 6 = slot index x 6
+    ASL A
+    ADC es                      \ (C clear: slot index < 128)
+    ASL A
+    TAX                         \ X = g, the horizontal enemy
+    LDA sl_sub,Y
+    CLC
+    ADC #1
+    CMP #3
+    BNE ec_sub
+    INC en_q,X                  \ a pass: the horizontal enemy a column on
+    LDA en_q,X
+    CMP #HZ_WRAP
+    BNE ec_x
+    LDA #0
+    STA en_q,X
+.ec_x
+    LDA #0
+.ec_sub
+    STA sl_sub,Y
+    LDA sl_nv,Y
+    BEQ ec_next
+    STA tmp2
+.ec_vert
+    INX
+    INC en_q,X
+    LDA en_q,X
+    CMP #VPHASES
+    BNE ec_vnext
+    LDA #0
+    STA en_q,X
+.ec_vnext
+    DEC tmp2
+    BNE ec_vert
+.ec_next
+    INC es
+    DEC en_cnt
+    BNE ec_slot
+    LDX ek
+    RTS
+
+\ ---------------------------------------------------------------------------------------------
+\ enemy_levels: X = strip. The level at the left edge, and the next if it is on the screen, each
+\ in its slot (lidx AND 1, and the other); a level new to its slot starts its enemies' clock
+\ (init_slot). X kept.
+.enemy_levels
+    STX ek
+    LDA lidx,X                  \ the level at the left edge: it started at nb - 304
+    STA el_level
+    SEC
+    LDA nb_lo,X
+    SBC #LO(LEVEL_COLS)
+    STA el_start
+    LDA nb_hi,X
+    SBC #HI(LEVEL_COLS)
+    STA el_start + 1
+    JSR el_want
+    LDX ek
+    LDA lidx,X                  \ the next level, if on the screen: its start within 79
+    CLC
+    ADC #1
+    CMP #NUM_LEVELS
+    BCS el_rts
+    STA el_level
+    SEC
+    LDA nb_lo,X
+    SBC pos_lo,X
+    STA tmp
+    LDA nb_hi,X
+    SBC pos_hi,X
+    BNE el_rts
+    LDA tmp
+    CMP #80
+    BCS el_rts
+    LDA nb_lo,X
+    STA el_start
+    LDA nb_hi,X
+    STA el_start + 1
+    JSR el_want
+.el_rts
+    LDX ek
+    RTS
+
+\ el_want: level el_level (starting at el_start) in its slot of strip ek, started if it is not.
+.el_want
+    LDA ek
+    ASL A
+    STA es
+    LDA el_level
+    AND #1
+    ORA es
+    STA es                      \ the slot index
+    TAY
+    LDA sl_level,Y
+    CMP el_level
+    BEQ ew_rts                  \ already there and running
+    \ a new level for this slot: rub out what its last level left drawn, then start it
+    JSR slot_g
+    LDA #6
+    STA en_cnt
+.ew_rub
+    LDX eg
+    LDA en_dc,X
+    CMP #&80
+    BEQ ew_rub_next
+    STA ro_c                    \ its whole box, back to the course
+    LDA en_dt,X
+    STA ro_t
+    LDA #&80
+    STA rn_c                    \ (no new box)
+    JSR erase_box
+    LDX eg
+    LDA #&80
+    STA en_dc,X
+.ew_rub_next
+    INC eg
+    DEC en_cnt
+    BNE ew_rub
+    LDY es
+    LDA el_level
+    STA sl_level,Y
+    LDA el_start
+    STA sl_start_lo,Y
+    LDA el_start + 1
+    STA sl_start_hi,Y
+    LDA #0
+    STA sl_sub,Y
+    LDA el_level                \ its type: level MOD 3
+.ew_mod
+    CMP #3
+    BCC ew_type
+    SBC #3
+    BCS ew_mod
+.ew_type
+    STA sl_type,Y
+    JSR slot_g
+    LDX eg
+    LDA #0
+    STA en_q,X                  \ the horizontal enemy at x 0 (74, and the first pass's step)
+    LDY el_level
+    LDA ven_first + 1,Y
+    SEC
+    SBC ven_first,Y
+    LDY es
+    STA sl_nv,Y
+    CMP #0                      \ (STA sets no flags)
+    BEQ ew_rts
+    STA tmp2
+    LDY el_level
+    LDA ven_first,Y
+    TAY
+.ew_vert
+    INX
+    LDA ven_q0,Y
+    STA en_q,X
+    INY
+    DEC tmp2
+    BNE ew_vert
+.ew_rts
+    RTS
+
+\ slot_g: eg = slot `es` x 6, its first enemy.
+.slot_g
+    LDA es
+    ASL A
+    ADC es
+    ASL A
+    STA eg
+    RTS
+
+\ ---------------------------------------------------------------------------------------------
+\ enemy_draw: X = strip, the strip's objects already moved. Its enemies where they are this
+\ field (the head of the file). X kept.
+\ The LIST is this field's enemies in drawing order (the left edge's level first, its horizontal
+\ enemy, then its vertical ones; then the next level's): en_g[i] the enemy, en_nc/en_nt/en_ns[i]
+\ its column (&80: off the screen), top line and sprite; en_n of them.
+.enemy_draw
+    STX ek
+    LDA #0
+    STA erider
+    STA en_n
+    LDA lidx,X
+    AND #1
+    STA eo_first
+    TXA
+    ASL A
+    ORA eo_first
+    STA es
+    JSR ed_slot_pos
+    LDA es
+    EOR #1
+    STA es
+    JSR ed_slot_pos
+    \ erase: what has moved or gone
+    LDA en_n
+    BNE ed_some
+    JMP ed_none
+.ed_some
+    LDA #0
+    STA eo
+.ed_erase
+    LDY eo
+    LDX en_g,Y
+    LDA en_dc,X
+    CMP #&80
+    BEQ ed_erase_next
+    CMP en_nc,Y
+    BNE ed_erase_it
+    LDA en_dt,X
+    CMP en_nt,Y
+    BEQ ed_erase_next
+.ed_erase_it
+    LDA en_dc,X
+    STA ro_c
+    LDA en_dt,X
+    STA ro_t
+    LDA en_nc,Y
+    STA rn_c
+    LDA en_nt,Y
+    STA rn_t
+    JSR erase_box
+    LDA ro_c
+    JSR add_span
+    LDA ro_c
+    JSR rider_cols
+    BCC ed_erase_next
+    LDA #1
+    STA hit
+    STA erider                  \ it left the rider's columns: compose_full clears them
+.ed_erase_next
+    INC eo
+    LDA eo
+    CMP en_n
+    BNE ed_erase
+    \ draw: in order
+    LDA #0
+    STA eo
+.ed_draw
+    LDY eo
+    LDX en_g,Y
+    LDA en_nc,Y
+    CMP #&80
+    BNE ed_vis
+    STA en_dc,X                 \ not on the screen: not drawn
+    JMP ed_draw_next
+.ed_vis
+    JSR rider_cols
+    BCC ed_out_rider
+    LDA #1
+    STA erider
+.ed_out_rider
+    LDY eo
+    LDX en_g,Y
+    LDA en_dc,X
+    CMP en_nc,Y
+    BNE ed_draw_it
+    LDA en_dt,X
+    CMP en_nt,Y
+    BNE ed_draw_it
+    LDA en_nc,Y                 \ not moved: drawn again only if something wrote over it
+    JSR span_hit
+    BCC ed_draw_next
+.ed_draw_it
+    LDY eo
+    LDX en_g,Y
+    LDA en_nc,Y
+    STA en_dc,X
+    STA dcol
+    LDA en_nt,Y
+    STA en_dt,X
+    STA dt
+    LDA en_ns,Y
+    STA en_spr,X
+    STA ts
+    LDA dcol
+    JSR add_span
+    LDA #1
+    STA d16_skip
+    JSR draw16
+    LDA #0
+    STA d16_skip
+    LDA dcol
+    JSR rider_cols
+    BCC ed_draw_next
+    LDA #1
+    STA hit
+.ed_draw_next
+    INC eo
+    LDA eo
+    CMP en_n
+    BNE ed_draw
+.ed_none
+    LDX ek
+    RTS
+
+\ ed_slot_pos: slot `es`'s enemies onto the list: screen column, top line, sprite.
+.ed_slot_pos
+    LDY es
+    LDA sl_level,Y
+    BPL esp_level
+    RTS                         \ no level: none
+.esp_level
+    JSR slot_g
+    \ the horizontal enemy: start + HZ_BASE + x, top line SKY
+    LDX eg
+    CLC
+    LDA sl_start_lo,Y
+    ADC #HZ_BASE
+    STA tmp
+    LDA sl_start_hi,Y
+    ADC #0
+    STA tmp2
+    CLC
+    LDA tmp
+    ADC en_q,X
+    STA tmp
+    LDA tmp2
+    ADC #0
+    STA tmp2
+    LDA #SKY
+    STA esp_t
+    LDA sl_type,Y
+    CLC
+    ADC #TALL_HZ
+    STA esp_s
+    JSR esp_put
+    \ the vertical ones
+    LDY es
+    LDA sl_nv,Y
+    BEQ esp_rts
+    STA en_cnt
+    LDA sl_type,Y
+    CLC
+    ADC #TALL_VT
+    STA esp_s
+    LDA sl_level,Y
+    TAY
+    LDA ven_first,Y
+    STA esp_v
+.esp_vert
+    INC eg
+    LDY es
+    LDX esp_v
+    CLC
+    LDA sl_start_lo,Y
+    ADC ven_off_lo,X
+    STA tmp
+    LDA sl_start_hi,Y
+    ADC ven_off_hi,X
+    STA tmp2
+    INC esp_v
+    LDX eg
+    LDY en_q,X
+    LDA #SKY
+    SEC
+    SBC vh,Y
+    STA esp_t
+    JSR esp_put
+    DEC en_cnt
+    BNE esp_vert
+.esp_rts
+    RTS
+
+\ esp_put: enemy eg at course column tmp/tmp2, top esp_t, sprite esp_s, onto the list: its
+\ screen column (&80 if no part of it is on the screen).
+.esp_put
+    LDX ek
+    SEC
+    LDA tmp
+    SBC pos_lo,X
+    STA tmp
+    LDA tmp2
+    SBC pos_hi,X
+    BEQ ep_right
+    CMP #&FF
+    BNE ep_off
+    LDA tmp                     \ -3 to -1: partly on
+    CMP #&FD
+    BCS ep_on
+    BCC ep_off
+.ep_right
+    LDA tmp
+    CMP #80
+    BCC ep_on
+.ep_off
+    LDA #&80
+.ep_on
+    LDY en_n
+    STA en_nc,Y
+    LDA eg
+    STA en_g,Y
+    LDA esp_t
+    STA en_nt,Y
+    LDA esp_s
+    STA en_ns,Y
+    INC en_n
+    RTS
+
+\ rider_cols: A = a box's first screen column (signed). C set if any of its four is one of the
+\ rider's, RIDER to RIDER + 3: A within RIDER - 3 .. RIDER + 3.
+.rider_cols
+    SEC
+    SBC #RIDER - 3
+    CMP #7                      \ C set: outside
+    LDA #0
+    ROL A
+    EOR #1
+    LSR A                       \ C set: inside
+    RTS
+
+\ ---------------------------------------------------------------------------------------------
+\ spans: the columns written this field, biased by 8 (so -3 is 5), to know what to draw again.
+\ add_span: A = a box's first column (signed); its four columns. span_hit: A = a box's first
+\ column; C set if any span meets its four.
+.add_span
+    LDX nspan
+    CPX #MAX_SPANS
+    BCS as_full
+    CLC
+    ADC #8
+    STA sp_lo,X
+    ADC #3
+    STA sp_hi,X
+    INC nspan
+    RTS
+.as_full
+    LDA #1                      \ too many: everything counts as written
+    STA sp_all
+    RTS
+.add_span5                      \ A = col: columns col .. col + 4 (an obstacle's shift)
+    LDX nspan
+    CPX #MAX_SPANS
+    BCS as_full
+    CLC
+    ADC #8
+    STA sp_lo,X
+    ADC #4
+    STA sp_hi,X
+    INC nspan
+    RTS
+.span_hit
+    LDX sp_all
+    BNE sh_yes
+    CLC
+    ADC #8
+    STA tmp                     \ its first column, biased
+    LDX nspan
+    BEQ sh_no
+.sh_loop
+    DEX
+    LDA sp_hi,X                 \ it meets [lo, hi] unless hi < first or lo > first + 3
+    CMP tmp
+    BCC sh_next
+    LDA tmp
+    CLC
+    ADC #3
+    CMP sp_lo,X
+    BCS sh_yes
+.sh_next
+    TXA
+    BNE sh_loop
+.sh_no
+    CLC
+    RTS
+.sh_yes
+    SEC
+    RTS
+
+\ ---------------------------------------------------------------------------------------------
+\ erase_box: the box drawn at ro_c (signed), top ro_t, back to the course, but for where the box
+\ at rn_c/rn_t (rn_c &80: none) covers it now, and for the rider's columns.
+.erase_box
+    LDA #0
+    STA eb_cc
+.eb_col
+    LDA ro_c
+    CLC
+    ADC eb_cc
+    STA rl_c
+    CMP #80
+    BCS eb_next                 \ off the screen
+    SEC
+    SBC #RIDER
+    CMP #4
+    BCC eb_next                 \ the rider's: compose_rider's
+    LDA ro_t
+    STA rl_a
+    CLC
+    ADC #16
+    STA rl_b
+    LDA rn_c
+    CMP #&80
+    BEQ eb_all
+    LDA rl_c                    \ is the new box over this column? rl_c - rn_c within 0-3
+    SEC
+    SBC rn_c
+    CMP #4
+    BCS eb_all
+    LDA rn_t                    \ yes: only the lines it has left
+    CMP ro_t
+    BEQ eb_next
+    BCC eb_rose
+    CMP rl_b                    \ it fell: ro_t .. min(rn_t, ro_t + 16)
+    BCS eb_all
+    STA rl_b
+    BCC eb_all
+.eb_rose
+    CLC                         \ it rose: max(rn_t + 16, ro_t) .. ro_t + 16
+    ADC #16
+    CMP rl_a
+    BCC eb_all
+    STA rl_a
+.eb_all
+    JSR restore_lines
+.eb_next
+    INC eb_cc
+    LDA eb_cc
+    CMP #4
+    BNE eb_col
+    RTS
+
+\ restore_lines: screen column rl_c (0-79), window lines rl_a .. rl_b - 1 of strip `strip`, as
+\ the course has them: the obstacle there (lines 24-39), or black.
+.restore_lines
+    LDA rl_a
+    CMP rl_b
+    BCC rl_some
+    RTS
+.rl_some
+    LDA #&FF
+    STA ro_kind
+    LDA rl_b
+    CMP #SKY + 1
+    BCC rl_lines                \ all sky: no need to look
+    \ the obstacle over column rl_c, if any
+    LDX strip
+    LDA first,X
+    STA obj
+.rl_obj
+    JSR object_column
+    BCS rl_lines
+    BMI rl_onext
+    LDA kind
+    BMI rl_onext
+    LDA rl_c                    \ rl_c - col within 0-3 (col signed: negative col gives > 3
+    SEC                         \ unless near, which is right)
+    SBC col
+    CMP #4
+    BCS rl_past
+    STA ro_oc
+    LDA kind
+    STA ro_kind
+    JMP rl_lines
+.rl_past
+    LDA col                     \ an obstacle right of the column: none further on
+    BMI rl_onext
+    CMP rl_c
+    BCS rl_lines
+.rl_onext
+    INC obj
+    JMP rl_obj
+.rl_lines                       \ a character row at a time: its pointer, and its source - the
+    LDA rl_a                    \ obstacle's top or bottom block column, or black (tall_blank)
+    STA tmp2                    \ L
+.rl_row
+    LDA tmp2
+    LSR A : LSR A : LSR A
+    STA tmp                     \ the window row
+    LDX strip
+    CLC
+    ADC wix,X
+    TAX
+    LDY rl_c
+    CLC
+    LDA wrow_lo,X : ADC col8_lo,Y : STA pk
+    LDA wrow_hi,X : ADC col8_hi,Y : STA pk + 1
+    LDA #LO(tall_blank) : STA rl_src + 1
+    LDA #HI(tall_blank) : STA rl_src + 2
+    LDY ro_kind
+    BMI rl_src_set
+    LDA tmp
+    CMP #3                      \ rows 3 and 4: the obstacle rows
+    BCC rl_src_set
+    LDA ro_oc
+    ASL A : ASL A : ASL A
+    STA rl_off
+    LDA tmp
+    CMP #3
+    BNE rl_bot
+    CLC
+    LDA spr_top_lo,Y : ADC rl_off : STA rl_src + 1
+    LDA spr_top_hi,Y : ADC #0     : STA rl_src + 2
+    JMP rl_src_set
+.rl_bot
+    CLC
+    LDA spr_bot_lo,Y : ADC rl_off : STA rl_src + 1
+    LDA spr_bot_hi,Y : ADC #0     : STA rl_src + 2
+.rl_src_set
+    LDA tmp2
+    AND #7
+    TAY
+.rl_line
+.rl_src
+    LDA &FFFF,Y
+    STA (pk),Y
+    INC tmp2
+    LDA tmp2
+    CMP rl_b
+    BCS rl_rts
+    INY
+    CPY #8
+    BNE rl_line
+    JMP rl_row
+.rl_rts
+    RTS
+
+\ ---------------------------------------------------------------------------------------------
+\ erase_enemies: X = strip. Every enemy drawn on it to black (erase_strip's: all is going).
+.erase_enemies
+    STX ek
+    TXA
+    ASL A
+    STA eg
+    ASL A
+    ADC eg
+    ASL A
+    STA eg                      \ strip x 12
+    LDA #12
+    STA en_cnt
+.ee_loop
+    LDX eg
+    LDA en_dc,X
+    CMP #&80
+    BEQ ee_next
+    STA dcol
+    LDA en_dt,X
+    STA dt
+    LDA #&80
+    STA en_dc,X
+    LDA #TALL_BLANK
+    STA ts
+    JSR draw16
+.ee_next
+    INC eg
+    DEC en_cnt
+    BNE ee_loop
+    LDX ek
+    RTS
+
+\ ---------------------------------------------------------------------------------------------
+\ compose_full: strip `strip`, the rider's top at newt. Its four columns, lines 0-39, made in a
+\ buffer from the course (black, the obstacle under), each enemy over them in order, the rider
+\ over all; then written. For when an enemy is in the rider's columns.
+.compose_full
+    JSR find_under
+    LDA #0
+    STA cc
+.cf_col
+    \ the course
+    LDA #0
+    LDX #SKY - 1
+.cf_sky
+    STA cbuf,X
+    DEX
+    BPL cf_sky
+    LDX cc
+    LDY ukind,X
+    BMI cf_black
+    LDA uoc,X
+    ASL A : ASL A : ASL A
+    STA tmp
+    CLC
+    LDA spr_top_lo,Y : ADC tmp : STA cf_top + 1
+    LDA spr_top_hi,Y : ADC #0  : STA cf_top + 2
+    CLC
+    LDA spr_bot_lo,Y : ADC tmp : STA cf_bot + 1
+    LDA spr_bot_hi,Y : ADC #0  : STA cf_bot + 2
+    LDY #7
+.cf_obst
+.cf_top
+    LDA &FFFF,Y
+    STA cbuf + SKY,Y
+.cf_bot
+    LDA &FFFF,Y
+    STA cbuf + SKY + 8,Y
+    DEY
+    BPL cf_obst
+    BMI cf_enemies
+.cf_black
+    LDA #0
+    LDY #15
+.cf_zero
+    STA cbuf + SKY,Y
+    DEY
+    BPL cf_zero
+.cf_enemies
+    LDA en_n
+    BEQ cf_rider
+    LDA #0
+    STA eo
+.cf_enemy
+    LDY eo
+    LDX en_g,Y
+    LDA en_dc,X
+    CMP #&80
+    BEQ cf_enext
+    STA tmp                     \ its column over this one: RIDER + cc - dc, within 0-3
+    LDA cc
+    CLC
+    ADC #RIDER
+    SEC
+    SBC tmp
+    CMP #4
+    BCS cf_enext
+    STA tmp
+    LDA en_dt,X
+    STA tmp2
+    LDA en_spr,X
+    JSR cf_copy
+.cf_enext
+    INC eo
+    LDA eo
+    CMP en_n
+    BNE cf_enemy
+.cf_rider                       \ the rider
+    LDA cc
+    STA tmp
+    LDA newt
+    STA tmp2
+    LDX strip
+    LDA rider_tall,X
+    CLC
+    ADC rtype,X
+    JSR cf_copy
+    \ write the column
+    LDA #0
+    STA tmp2                    \ the character row
+.cf_row
+    LDX strip
+    LDA wix,X
+    CLC
+    ADC tmp2
+    TAX
+    LDA cc
+    CLC
+    ADC #RIDER
+    TAY
+    CLC
+    LDA wrow_lo,X : ADC col8_lo,Y : STA pk
+    LDA wrow_hi,X : ADC col8_hi,Y : STA pk + 1
+    LDA tmp2
+    ASL A : ASL A : ASL A
+    TAX
+    LDY #0
+.cf_write
+    LDA cbuf,X
+    STA (pk),Y
+    INX
+    INY
+    CPY #8
+    BNE cf_write
+    INC tmp2
+    LDA tmp2
+    CMP #5
+    BNE cf_row
+    INC cc
+    LDA cc
+    CMP #4
+    BEQ cf_rts
+    JMP cf_col
+.cf_rts
+    RTS
+
+\ cf_copy: A = tall sprite, its column tmp (0-3), 16 lines into cbuf from line tmp2.
+.cf_copy
+    TAX
+    LDA tall_lo,X
+    STA cfc_src + 1
+    LDA tall_hi,X
+    STA cfc_src + 2
+    LDA tmp                     \ its column: 16 bytes from tmp x 16
+    ASL A : ASL A : ASL A : ASL A
+    TAY
+    LDX tmp2
+    LDA #16
+    STA cf_n
+.cfc_loop
+.cfc_src
+    LDA &FFFF,Y
+    STA cbuf,X
+    INX
+    INY
+    DEC cf_n
+    BNE cfc_loop
+    RTS
+
+\ ---------------------------------------------------------------------------------------------
+\ enemy state
+\ ---------------------------------------------------------------------------------------------
+MAX_SPANS = 16
+\ The state lives in page &0C, low RAM no table uses (make_data.py packs pages &09-&0B), set up
+\ by enemy_init: nothing of it is in the file.
+sl_level    = &0C00             \ per slot (strip x 2 + s): its level (&FF none)
+sl_start_lo = &0C08
+sl_start_hi = &0C10
+sl_sub      = &0C18             \ fields into the pass, for the horizontal enemy
+sl_nv       = &0C20             \ its vertical enemies
+sl_type     = &0C28             \ its level type
+en_q        = &0C30             \ per enemy (slot x 6 + e): its phase
+en_dc       = &0C60             \ where drawn (&80 not)
+en_dt       = &0C90
+en_spr      = &0CC0             \ and as which tall sprite
+ASSERT en_spr + 48 <= &0D00
+cbuf        = &20               \ compose_full's column, 40 bytes of zero page (&20-&47)
+.en_g        SKIP 12            \ the list: this field's enemies, in order (enemy_draw)
+.en_nc       SKIP 12            \ its column (&80 off the screen)
+.en_nt       SKIP 12
+.en_ns       SKIP 12
+.sp_lo       SKIP MAX_SPANS
+.sp_hi       SKIP MAX_SPANS
+
+\ enemy_init: no slot holds a level; no enemy is drawn.
+.enemy_init
+    LDA #&FF
+    LDX #7
+.ei_slots
+    STA sl_level,X
+    DEX
+    BPL ei_slots
+    LDA #&80
+    LDX #47
+.ei_enemies
+    STA en_dc,X
+    DEX
+    BPL ei_enemies
+    RTS

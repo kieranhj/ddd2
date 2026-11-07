@@ -77,7 +77,42 @@ CLEAR   = 16                    \ respawn: columns clear from the rider's left c
 T1_FIRST = 120 * SL - 4 * SL - 2    \ VSync edge -> band 0 left; the handler runs ~4 lines late
 T1_NEXT  = 56 * SL - 2              \ one band to the next (T1 continuous: the latch reloads)
 
-\ zero page: &70-&8F is the user's; &50-&6F is BASIC's, and BASIC never runs
+TALL_HZ = 22                    \ the horizontal enemy for level type t: 22 + t
+TALL_VT = 25                    \ the vertical enemy: 25 + t
+
+\ zero page: &70-&8F is the user's; &00-&6F is BASIC's, and BASIC never runs
+\ enemies.6502's:
+ek       = &00                  \ the strip
+es       = &01                  \ a slot index (strip x 2 + s)
+eg       = &02                  \ an enemy (slot x 6 + e)
+eo       = &03                  \ an order index (0-11)
+eo_first = &04                  \ the left edge level's slot parity
+en_cnt   = &05
+el_level = &06
+el_start = &07                  \ 2
+erider   = &09                  \ an enemy is in the rider's columns
+nspan    = &0A
+sp_all   = &0B
+ro_c     = &0C                  \ erase_box: the old box
+ro_t     = &0D
+rn_c     = &0E                  \ and the new
+rn_t     = &0F
+eb_cc    = &10
+rl_c     = &11                  \ restore_lines: the column
+rl_a     = &12                  \ and the lines
+rl_b     = &13
+ro_kind  = &14                  \ the obstacle there (&FF none)
+ro_oc    = &15                  \ and its column
+esp_t    = &16
+esp_s    = &17
+esp_v    = &18
+esp_left = &19
+cf_n     = &1A
+d16_skip = &1B                  \ draw16: non-zero, not the rider's columns
+d16_sc   = &1C
+d16_row  = &1D
+rl_off   = &1F                  \ restore_lines: the obstacle column, x 8
+en_n     = &1E                  \ enemies on the list this field
 d2       = &50                  \ 2: draw16's third character row
 ts       = &52                  \ draw16: the tall sprite
 dcol     = &53                  \ draw16: its screen column (0-76)
@@ -118,6 +153,8 @@ IRQ_UNINSTALL = 0
 
 SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, filename = "!BOOT"
 
+    INCLUDE "../build/sprites.6502"     \ first: ORG_AT is a page start (make_data.py)
+
 .start
     LDA #22 : JSR OSWRCH
     LDA #2  : JSR OSWRCH
@@ -128,6 +165,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA #0 : JSR OSWRCH
     DEX
     BNE cursor_off
+    JSR enemy_init
     LDX #3
 .init_strip
     STX strip
@@ -233,6 +271,8 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
 .us_ride
     LDA #0
     STA hit
+    STA nspan                   \ nothing written over yet this field
+    STA sp_all
     LDA finished,X
     BNE us_jump
     CLC                         \ pos += vel / 256 (the original moves, then accelerates)
@@ -271,9 +311,14 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     JSR level_check
     JSR ground_edge
     JSR scroll
-.us_jump                        \ the jump: from the ground with jump held; JUMP_FIELDS long
-    LDX strip
-    LDA js,X
+.us_jump
+.prof_enemies                   \ (a label for the cost's breakdown: tools/verify_strips.mjs)
+    LDX strip                   \ the enemies (enemies.6502)
+    JSR enemy_clocks
+    JSR enemy_levels
+    JSR enemy_draw
+.prof_rider
+    LDA js,X                    \ the jump: from the ground with jump held; JUMP_FIELDS long
     BNE us_air
     LDA jumps,X
     BPL us_drawn
@@ -340,6 +385,8 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA shift_lo,Y : STA vec
     LDA shift_hi,Y : STA vec + 1
     JSR jump_vec
+    LDA col                     \ what it wrote, columns col .. col + 4, for the enemies
+    JSR add_span5
     LDA col
     SEC
     SBC #RIDER - 4
@@ -350,6 +397,8 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     JMP us_next
 .us_ob_clip
     JSR draw_clipped
+    LDA col
+    JSR add_span5
     LDA col
     CLC
     ADC #4
@@ -478,6 +527,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
 
 \ next_level: X = strip. The level at the left edge is the next one. X kept.
 .next_level
+    INC lidx,X
     INC ltype,X
     LDA ltype,X
     CMP #3
@@ -514,6 +564,14 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     CMP drawn_t,X
     BEQ cr_rts
 .cr_go
+    LDA erider
+    BEQ cr_plain
+    JSR compose_full            \ an enemy is in its columns, or was: all of them, made up
+    LDX strip
+    LDA newt
+    STA drawn_t,X
+    RTS
+.cr_plain
     LDA newt
     CMP #SKY
     BNE cr_under                \ in the air: what is under it shows
@@ -586,6 +644,12 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
 \ restore_under: strip `strip`. Lines 24-39 of the rider's four columns as the course has them:
 \ the obstacle's column there, or black.
 .restore_under
+    JSR find_under
+    JMP ru_draw
+
+\ find_under: strip `strip`. ukind/uoc: the obstacle (and its column) under each of the rider's
+\ four columns, &FF none; bas set.
+.find_under
     LDA #&FF
     STA ukind
     STA ukind + 1
@@ -597,12 +661,12 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     STA obj
 .ru_obj
     JSR object_column
-    BCS ru_draw                 \ past the right edge
+    BCS ru_found                \ past the right edge
     BMI ru_next                 \ gone off the left
     LDA col
     BMI ru_cols                 \ (partly off the left: never under the rider, but harmless)
     CMP #RIDER + 4
-    BCS ru_draw                 \ right of the rider: so is every object after it
+    BCS ru_found                \ right of the rider: so is every object after it
 .ru_cols
     LDA kind
     BMI ru_next                 \ a hole: not on these lines
@@ -624,6 +688,8 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
 .ru_next
     INC obj
     JMP ru_obj
+.ru_found
+    RTS
 .ru_draw
     LDA #0
     STA cc
@@ -740,9 +806,11 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     RTS
 
 \ draw16: the tall sprite `ts`, its top at window line `dt` (0-24), screen columns dcol to
-\ dcol+3, strip `strip`; whole, black included. Each column is three runs: the lines in the
-\ first character row (Y 0 .. lena-1, through d0), the next row (lena .. lenb-1, d1) and the
-\ row after (lenb .. 15, d2), each pointer set back so that Y counts sprite lines throughout.
+\ dcol+3 (dcol signed: -3 to 79; the columns off the screen are not drawn, nor the rider's,
+\ RIDER .. RIDER+3, when d16_skip is non-zero), strip `strip`; whole, black included. Each
+\ column is three runs: the lines in the first character row (Y 0 .. lena-1, through d0), the
+\ next row (lena .. lenb-1, d1) and the row after (lenb .. 15, d2), each pointer set back so
+\ that Y counts sprite lines throughout.
 .draw16
     LDX ts
     LDA tall_lo,X
@@ -764,8 +832,27 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDX strip
     CLC
     ADC wix,X
-    TAX                         \ X = the first character row
-    LDY dcol
+    STA d16_row                 \ the first character row
+    LDA #0
+    STA cc
+.d16_col
+    LDA dcol
+    CLC
+    ADC cc
+    STA d16_sc
+    CMP #80
+    BCS d16_skip_far            \ off the screen (negative, or right of it)
+    LDY d16_skip
+    BEQ d16_go
+    SEC
+    SBC #RIDER
+    CMP #4
+    BCS d16_go
+.d16_skip_far
+    JMP d16_skipcol             \ the rider's
+.d16_go
+    LDY d16_sc
+    LDX d16_row
     CLC                         \ d0 = row + column + the line in it
     LDA wrow_lo,X : ADC col8_lo,Y : STA d0
     LDA wrow_hi,X : ADC col8_hi,Y : STA d0 + 1
@@ -790,8 +877,9 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     BCS d16_p3
     DEC d2 + 1
 .d16_p3
-    LDX #0
-.d16_col
+    LDA cc                      \ the sprite's column: 16 bytes from cc x 16
+    ASL A : ASL A : ASL A : ASL A
+    TAX
     LDY #0
 .d16_a
     LDA &FFFF,X
@@ -808,7 +896,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     CPY lenb
     BNE d16_b
     CPY #16
-    BEQ d16_next
+    BEQ d16_skipcol
 .d16_c
     LDA &FFFF,X
     STA (d2),Y
@@ -816,23 +904,11 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     INY
     CPY #16
     BNE d16_c
-.d16_next
-    CPX #64
+.d16_skipcol
+    INC cc
+    LDA cc
+    CMP #4
     BEQ d16_rts
-    CLC
-    LDA d0 : ADC #8 : STA d0
-    BCC d16_n1
-    INC d0 + 1
-.d16_n1
-    CLC
-    LDA d1 : ADC #8 : STA d1
-    BCC d16_n2
-    INC d1 + 1
-.d16_n2
-    CLC
-    LDA d2 : ADC #8 : STA d2
-    BCC d16_col
-    INC d2 + 1
     JMP d16_col
 .d16_rts
     RTS
@@ -843,6 +919,9 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
 
 \ crash_update: X = strip, A = its phase: 1 the crash, 2 respawn, 3 out of takes.
 .crash_update
+    PHA
+    JSR enemy_clocks            \ the enemies' clocks run on (decision 28); X kept
+    PLA
     CMP #2
     BNE cu_not_respawn
     JMP respawn
@@ -855,12 +934,19 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     BEQ cu_take
     LDA crash_spr,Y
     BEQ cu_tick                 \ nothing new to draw this field
+    LDA #RIDER + DEAD_COL       \ after it flies: there, on the ground
+    STA dcol
+    LDA #SKY
+    STA dt
+    CPY #CRASH_FLY
+    BCS cu_where
     LDA crash_col,Y
     CLC
     ADC #RIDER
     STA dcol
     LDA crash_t,Y
     STA dt
+.cu_where
     CPY #0
     BEQ cu_draw                 \ the first: nothing of it to rub out
     LDA dcol                    \ moved: rub out where it was (the original's sprite_blank)
@@ -940,6 +1026,8 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     INC obj
     JMP es_obj
 .es_marks
+    LDX strip
+    JSR erase_enemies
     LDA #TALL_BLANK
     STA ts
     LDX strip
@@ -1122,7 +1210,18 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     INC obj
     JMP dw_obj
 .dw_end
-    LDX strip
+    LDX strip                   \ the enemies, then the rider
+    LDA #0
+    STA nspan
+    STA sp_all
+    JSR enemy_levels
+    JSR enemy_draw
+    LDA drawn_t,X
+    STA newt
+    LDA erider
+    BEQ dw_rider
+    JMP compose_full            \ an enemy in its columns: made up from all of them
+.dw_rider
     LDA drawn_t,X
     STA dt
     LDA #RIDER
@@ -1339,6 +1438,7 @@ WS = 7 * ROW                    \ one strip to the next
 .rtype      EQUB 0, 0, 0, 0     \ the level type the rider is in (0 land, 1 sea, 2 snow)
 .rl_lo      EQUB LO(LEVEL_COLS), LO(LEVEL_COLS), LO(LEVEL_COLS), LO(LEVEL_COLS)   \ the next level's start, for the rider
 .rl_hi      EQUB HI(LEVEL_COLS), HI(LEVEL_COLS), HI(LEVEL_COLS), HI(LEVEL_COLS)
+.lidx       EQUB 0, 0, 0, 0     \ the level at the strip's left edge (0: level 1)
 .ltype      EQUB 0, 0, 0, 0     \ the level type at the strip's left edge (column 0)
 .nb_lo      EQUB LO(LEVEL_COLS), LO(LEVEL_COLS), LO(LEVEL_COLS), LO(LEVEL_COLS)   \ the next level's start after it
 .nb_hi      EQUB HI(LEVEL_COLS), HI(LEVEL_COLS), HI(LEVEL_COLS), HI(LEVEL_COLS)
@@ -1351,6 +1451,7 @@ WS = 7 * ROW                    \ one strip to the next
 .key_slot                       \ where each goes: keys + p (accelerate), jumps + p (jump)
     EQUB 0, 4, 1, 5, 2, 6, 3, 7
 
+    INCLUDE "enemies.6502"
     INCLUDE "../build/data.6502"
 .end                            \ the end of what runs at &0E00 up: below the screen
     ASSERT end <= SCREEN
@@ -1401,5 +1502,6 @@ LOAD_OF_B = low_b_image - ORG_AT + LOAD_AT
     DEX
     BNE reloc_copy
     RTS
-    ASSERT ORG_AT + HI(end - ORG_AT + 255) * 256 <= SCREEN
+\ (The program's last page may copy a little past `end`, into the screen at &3000: harmless,
+\ as `start`'s MODE 2 clears the screen. `end <= SCREEN` is the limit.)
 ENDSECTION
