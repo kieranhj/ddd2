@@ -1,0 +1,75 @@
+\ zp.6502 - zero page names and workspace outside the program.
+\
+\ Created once by tools/disasm2baron.py from the disassembly's operand comments. The game
+\ reuses zero page freely, so one address often has several names, each the one the
+\ disassembly uses in that routine. Hand-maintained from here on.
+
+\ ---- zero page ----
+count_0070                               = &70
+level_type_data_addresses_address        = &70
+level_type_data_addresses_address_low    = &70
+screen_address                           = &70
+screen_address_low                       = &70
+screen_address_x                         = &70
+skill                                    = &70
+skill_letter                             = &70
+source_address                           = &70
+source_address_low_0070                  = &70
+starting_level                           = &70
+target_address_low_0070                  = &70
+title_screen_colour                      = &70
+tune_address                             = &70
+tune_address_low                         = &70
+tune_data_address                        = &70
+tune_data_address_low                    = &70
+level_type_data_addresses_address_high   = &71
+lines_remaining                          = &71
+screen_address_high                      = &71
+screen_address_y                         = &71
+skill_y                                  = &71
+source_address_high_0071                 = &71
+start_screen_colour_one                  = &71
+suppress_leading_zeroes                  = &71
+target_address_high_0071                 = &71
+tune_address_high                        = &71
+tune_data_address_high                   = &71
+duration                                 = &72
+source_address_low_0072                  = &72
+sprite_address                           = &72
+sprite_address_low                       = &72
+start_screen_colour_two                  = &72
+target_address                           = &72
+target_address_low_0072                  = &72
+tune_cooldown                            = &72
+source_address_high_0073                 = &73
+sprite_address_high                      = &73
+start_screen_y                           = &73
+target_address_high_0073                 = &73
+first_character                          = &74
+scrolltext_cooldown                      = &77
+
+\ ---- workspace and screen (not part of any file) ----
+player_sprite_address_low                = &0C00
+sound_block_0c00                         = &0C00
+player_sprite_address_high               = &0C01
+vertical_enemy_sprite_address_low        = &0C02
+vertical_enemy_sprite_address_high       = &0C03
+horizontal_enemy_sprite_address_low      = &0C04
+horizontal_enemy_sprite_address_high     = &0C05
+player_can_brake                         = &0C09
+player_collided                          = &0C0A
+player_x                                 = &0C10
+player_ground_y                          = &0C11
+player_jump_state                        = &0C12
+player_x_velocity                        = &0C13
+player_x_fraction                        = &0C14
+take                                     = &0C15
+player_screen_address_low                = &0C16
+player_screen_address_high               = &0C17
+player_row_in_group                      = &0C18
+rotating_colour_state                    = &0C20
+game_over_count                          = &0C30
+level_ground_colour                      = &0C30
+sound_block_0c30                         = &0C30
+previous_level                           = &0C50
+screen_memory_7c00                       = &7C00

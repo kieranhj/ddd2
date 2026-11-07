@@ -1,0 +1,105 @@
+\ main.6502 - Dare Devil Denis (Visions, 1984; Simon Pick): the whole disc in one assembly.
+\
+\ The reference is the Stairway to Hell disc, reference/sth/DareDevilDenis.ssd (decision 1).
+\ Every file on it is a SECTION here, in the order the disc holds them (DENIS3 from sector 2,
+\ then DENIS2, DENIS, !BOOT, LOAD), so the image can be compared whole as well as per file:
+\ tools/compare.py.
+\
+\ The boot:  !BOOT (*EXEC'd, boot option 3)  ->  LOAD (STH's banner, MODE 7, *FX200,2,
+\ PAGE=&1900)  ->  DENIS (the envelopes and the ground character, PAGE=&4000)  ->  DENIS2 (BASIC
+\ at &4000: loading screen, v-sync event for the tune, loads DENIS3 at &1100 and copies it down
+\ to &0E00, CALL &3475)  ->  DENIS3, the game, at entry_point.
+\
+\   baron --warn 2 -o build/ddd.ssd --title DAREDEVILDEN --opt 3 --symbols ... src/main.6502
+
+INCLUDE "os.6502"
+INCLUDE "zp.6502"
+
+\ ---------------------------------------------------------------------------------------------
+\ DENIS3: the game. Loaded at &1100 by DENIS2 (DFS's workspace is below &1900) and copied down.
+\ ---------------------------------------------------------------------------------------------
+SECTION denis3, org = &0E00, load = &0E00, exec = &3475, filename = "DENIS3"
+    INCLUDE "game.6502"
+    ASSERT * = &3490
+    ASSERT entry_point = &3475
+ENDSECTION
+
+\ ---------------------------------------------------------------------------------------------
+\ DENIS2: CHAINed with PAGE=&4000, so it runs at &4000 whatever its catalogued &1900.
+\ The BASIC is the disc release's own (the tape's, in the disassembly, *RUNs the next file
+\ instead); the machine code after it is the tape's, byte for byte.
+\ ---------------------------------------------------------------------------------------------
+SECTION denis2, org = &4000, load = &1900, exec = &1900, filename = "DENIS2"
+BASIC
+   10 ?3830=0
+   20 MODE 7
+   30 ?112=1:?113=66
+   40 ?114=1
+   50 FOR A=0 TO 1023 STEP 4:!(A+&7C00)=!(A+18150):NEXT
+   60 ?&220=80
+   70 ?&221=65
+   80 *FX14,4
+   90 I=INKEY(3000)
+  100 *L.DENIS3 1100
+  110 *T.
+  120 FOR A%=0TO&2690STEP4:A%!&E00=A%!&1100:NEXT
+  130 CALL&3475
+ENDBASIC
+    \ Left in memory past the program's end when it was saved (not run, not read)
+    EQUB &ED, &33, &34, &37, &35, &0D, &FF, &26
+    ASSERT * = &40E9
+    INCLUDE "denis2.6502"
+    ASSERT * = &4B00
+ENDSECTION
+
+\ ---------------------------------------------------------------------------------------------
+\ DENIS: the envelopes, the ground character (CHARACTER_GROUND, 250), then DENIS2.
+\ ---------------------------------------------------------------------------------------------
+SECTION denis, org = &4000, load = &4000, exec = &FFFF8023, filename = "DENIS"
+BASIC
+   10 ENVELOPE1,0,0,0,0,0,0,0,0,0,0,-1,127,0
+   20 ENVELOPE2,0,0,0,0,0,0,0,0,0,0,-6,127,0
+   30 ENVELOPE3,10,20,20,16,1,1,1,0,0,0,-4,127,0
+   40 VDU 23,250,255,255,255,255,0,0,0,0
+   50 PAGE=&4000
+   60 CHAIN"DENIS2"
+ENDBASIC
+ENDSECTION
+
+\ ---------------------------------------------------------------------------------------------
+\ !BOOT: *EXEC'd. *BASIC, then CHAIN "LOAD".
+\ ---------------------------------------------------------------------------------------------
+SECTION boot, org = 0, load = 0, exec = 0, filename = "!BOOT"
+    EQUS "*B.", 13, "CH.", '"', "LOAD", '"', 13
+ENDSECTION
+
+\ ---------------------------------------------------------------------------------------------
+\ LOAD: the Stairway to Hell's loader. Line 0's REM shows their banner when listed.
+\ ---------------------------------------------------------------------------------------------
+SECTION load, org = &1900, load = &FFFF1900, exec = &FFFF8023, filename = "LOAD"
+BASIC
+    0REM{
+    EQUB &22, &16, &07, &84, &9D
+    EQUS "                                      "
+    EQUB &84, &9D, &83, &9D, &84, &8D
+    EQUS "     THE STAIRWAY TO HELL      "
+    EQUB &84, &9D
+    EQUS " "
+    EQUB &84, &9D, &83, &9D, &84, &8D
+    EQUS "     THE STAIRWAY TO HELL      "
+    EQUB &84, &9D
+    EQUS " "
+    EQUB &84, &9D, &83, &9D, &84
+    EQUS "     www.stairwaytohell.com     "
+    EQUB &84, &9D
+    EQUS " "
+    EQUB &84, &9D
+    EQUS "                                        "
+}
+   10 *EXEC
+   20 MODE 7
+   30 *FX 200,2
+   40 PAGE=&1900
+   50 CHAIN "DENIS"
+ENDBASIC
+ENDSECTION

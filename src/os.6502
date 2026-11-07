@@ -1,0 +1,5 @@
+\ os.6502 - MOS entry points the game calls.
+
+OSWORD = &FFF1
+OSBYTE = &FFF4
+OSWRCH = &FFEE

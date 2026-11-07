@@ -1,0 +1,636 @@
+\ denis2.6502 - DENIS2 from &40E9, after its BASIC: the tune player, loading screen and leftovers
+\
+\ Created once by tools/disasm2baron.py from Level7's disassembly,
+\ reference/dare-devil-denis-disassembly.txt (lines starting "\ " carry its annotations).
+\ Hand-maintained from here on. INCLUDEd inside its SECTION by src/main.6502.
+
+    EQUB &FF    \ End of BASIC program
+
+    EQUB &32, &00, &00, &8B, &00, &00, &00, &00
+
+    EQUB &32, &31, &0D    \ ... 21
+
+    EQUB &00, &78, &09, &20, &2A, &52, &55, &4E, &0D    \ 120 *RUN
+
+    EQUB &FF    \ End of BASIC program
+
+    EQUB &31, &33, &2C, &32, &33, &2C, &33, &39, &2C, &32, &31, &0D    \ ... 13,23,39,21
+
+    EQUB &00, &78, &09, &20, &2A, &52, &55, &4E, &0D    \ 120 *RUN
+
+    EQUB &FF    \ End of BASIC program
+
+    EQUB &33, &00, &00, &87, &32, &00, &00, &00
+
+    EQUB &37, &2C, &31, &35, &0D    \ ... 7,15
+
+    EQUB &00, &78, &09, &20, &2A, &52, &55, &4E, &0D    \ 120 *RUN
+
+    EQUB &FF    \ End of BASIC program
+
+    EQUB &0D, &00, &00, &8B, &00, &00, &00, &00
+
+    EQUB &30, &2C, &32, &30, &2C, &33, &30, &2C, &31, &37, &0D    \ ... 0,20,30,17
+
+    EQUB &00, &6E, &09, &20, &2A, &52, &55, &4E, &0D    \ 110 *RUN
+
+    EQUB &FF    \ End of BASIC program
+
+    EQUB &31, &00, &00, &8C, &75, &00, &00
+
+.event_handler
+    DEC tune_cooldown
+    LDA tune_cooldown
+    CMP #&00
+    BEQ update_tune
+    RTS
+.update_tune
+    CLC
+    LDA tune_address_low
+    ADC #&03
+    STA tune_address_low
+    LDA tune_address_high
+    ADC #&00
+    STA tune_address_high
+    LDY #&00
+    LDA (tune_address),Y            \ First byte of tune data specifies pitch
+    CMP #&00                        \ Zero indicates end of tune
+    BNE not_end_of_tune
+.restart_tune
+    LDA #LO(tune_data_4204 - 3)
+    STA tune_address_low
+    LDA #&42
+    STA tune_address_high
+    LDA #&01
+    STA tune_cooldown
+    RTS
+.not_end_of_tune
+    LDA #&11                        \ Play immediately on channel 1
+    STA sound_block_0c00            \ (channel)
+    LDA #&00
+    STA sound_block_0c00 + 1        \ (channel high)
+    LDA #&F1
+    STA sound_block_0c00 + 2        \ (volume)
+    LDA #&FF
+    STA sound_block_0c00 + 3        \ (volume high)
+    LDY #&00
+    LDA (tune_address),Y            \ First byte of tune data specifies first pitch
+    STA sound_block_0c00 + 4        \ (pitch)
+    LDA #&00
+    STA sound_block_0c00 + 5        \ (pitch high)
+    LDA #&FF
+    STA sound_block_0c00 + 6        \ (duration)
+    LDA #&00
+    STA sound_block_0c00 + 7        \ (duration high)
+    LDX #LO(sound_block_0c00)
+    LDY #&0C
+    LDA #&07                        \ Generate a sound
+    JSR OSWORD                      \ OSWORD    Play first note in chord on channel one
+    LDA #&12                        \ Play immediately on channel 2
+    STA sound_block_0c00            \ (channel)
+    LDA #&00
+    STA sound_block_0c00 + 1        \ (channel high)
+    LDA #&F1
+    STA sound_block_0c00 + 2        \ (volume)
+    LDA #&FF
+    STA sound_block_0c00 + 3        \ (volume high)
+    LDY #&01
+    LDA (tune_address),Y            \ Second byte of tune data specifies second pitch
+    STA sound_block_0c00 + 4        \ (pitch)
+    LDA #&00
+    STA sound_block_0c00 + 5        \ (pitch high)
+    LDA #&FF
+    STA sound_block_0c00 + 6        \ (duration)
+    LDA #&00
+    STA sound_block_0c00 + 7        \ (duration high)
+    LDX #LO(sound_block_0c00)
+    LDY #&0C
+    LDA #&07                        \ Generate a sound
+    JSR OSWORD                      \ OSWORD    Play second note in chord on channel two
+    LDY #&02
+    LDA (tune_address),Y            \ Third byte of tune data specifies duration
+    STA tune_cooldown
+    CLC
+    LDA tune_cooldown
+    ADC tune_cooldown
+    STA tune_cooldown
+    CLC
+    LDA tune_cooldown
+    ADC tune_cooldown
+    STA tune_cooldown
+    CLC
+    LDA tune_cooldown
+    ADC (tune_address),Y
+    STA tune_cooldown
+    CLC
+    LDA tune_cooldown
+    ADC (tune_address),Y
+    STA tune_cooldown
+    RTS
+
+\ ;     p1 p2  d
+.tune_data_4204
+    EQUB &75, &75, &03
+    EQUB &79, &79, &01
+    EQUB &81, &35, &02
+    EQUB &75, &51, &02
+    EQUB &65, &45, &02
+    EQUB &51, &51, &02
+    EQUB &35, &35, &02
+    EQUB &51, &51, &02
+    EQUB &81, &45, &02
+    EQUB &75, &51, &02
+    EQUB &89, &35, &02
+    EQUB &79, &59, &02
+    EQUB &65, &49, &02
+    EQUB &59, &59, &02
+    EQUB &35, &35, &02
+    EQUB &59, &59, &02
+    EQUB &79, &49, &02
+    EQUB &89, &59, &02
+    EQUB &89, &35, &02
+    EQUB &81, &51, &02
+    EQUB &79, &45, &02
+    EQUB &75, &51, &02
+    EQUB &75, &21, &02
+    EQUB &6D, &49, &02
+    EQUB &65, &3D, &02
+    EQUB &61, &49, &02
+    EQUB &61, &35, &02
+    EQUB &65, &45, &02
+    EQUB &51, &35, &02
+    EQUB &45, &45, &02
+    EQUB &31, &31, &02
+    EQUB &3D, &3D, &02
+    EQUB &81, &21, &02
+    EQUB &49, &49, &01
+    EQUB &81, &81, &01
+    EQUB &81, &35, &02
+    EQUB &89, &51, &01
+    EQUB &81, &81, &01
+    EQUB &79, &45, &02
+    EQUB &75, &51, &02
+    EQUB &75, &21, &02
+    EQUB &6D, &49, &02
+    EQUB &65, &3D, &02
+    EQUB &61, &49, &02
+    EQUB &61, &35, &02
+    EQUB &51, &51, &02
+    EQUB &65, &45, &02
+    EQUB &51, &51, &02
+    EQUB &35, &35, &02
+    EQUB &51, &51, &02
+    EQUB &65, &45, &02
+    EQUB &51, &51, &01
+    EQUB &6D, &6D, &01
+    EQUB &75, &35, &02
+    EQUB &65, &51, &02
+    EQUB &81, &45, &02
+    EQUB &75, &51, &02
+    EQUB &6D, &31, &02
+    EQUB &51, &51, &02
+    EQUB &3D, &3D, &02
+    EQUB &51, &51, &02
+    EQUB &6D, &29, &02
+    EQUB &65, &45, &02
+    EQUB &75, &35, &02
+    EQUB &65, &45, &02
+    EQUB &59, &1D, &02
+    EQUB &3D, &3D, &02
+    EQUB &29, &29, &02
+    EQUB &65, &3D, &02
+    EQUB &61, &21, &02
+    EQUB &9D, &3D, &02
+    EQUB &9D, &31, &02
+    EQUB &3D, &3D, &02
+    EQUB &31, &31, &02
+    EQUB &51, &51, &02
+    EQUB &95, &3D, &02
+    EQUB &91, &51, &02
+    EQUB &91, &35, &02
+    EQUB &89, &51, &02
+    EQUB &89, &45, &02
+    EQUB &51, &51, &02
+    EQUB &35, &35, &02
+    EQUB &51, &51, &02
+    EQUB &91, &39, &02
+    EQUB &81, &59, &02
+    EQUB &9D, &3D, &02
+    EQUB &59, &59, &02
+    EQUB &4D, &4D, &02
+    EQUB &59, &59, &02
+    EQUB &95, &41, &02
+    EQUB &8D, &69, &02
+    EQUB &89, &51, &02
+    EQUB &81, &69, &02
+    EQUB &9D, &3D, &02
+    EQUB &59, &59, &02
+    EQUB &4D, &4D, &02
+    EQUB &89, &59, &02
+    EQUB &95, &41, &02
+    EQUB &8D, &69, &02
+    EQUB &89, &51, &02
+    EQUB &81, &69, &02
+    EQUB &81, &3D, &02
+    EQUB &59, &59, &02
+    EQUB &7D, &4D, &02
+    EQUB &59, &59, &02
+    EQUB &35, &35, &02
+    EQUB &59, &59, &02
+    EQUB &6D, &4D, &02
+    EQUB &59, &59, &02
+    EQUB &9D, &31, &02
+    EQUB &51, &51, &02
+    EQUB &9D, &3D, &02
+    EQUB &51, &51, &01
+    EQUB &9D, &9D, &01
+    EQUB &A5, &31, &02
+    EQUB &9D, &51, &02
+    EQUB &95, &3D, &02
+    EQUB &91, &51, &02
+    EQUB &95, &3D, &02
+    EQUB &59, &59, &02
+    EQUB &95, &4D, &02
+    EQUB &59, &59, &01
+    EQUB &95, &95, &01
+    EQUB &95, &3D, &02
+    EQUB &59, &59, &02
+    EQUB &4D, &4D, &02
+    EQUB &59, &59, &02
+    EQUB &91, &3D, &02
+    EQUB &61, &61, &02
+    EQUB &89, &51, &02
+    EQUB &91, &61, &02
+    EQUB &95, &3D, &02
+    EQUB &91, &61, &02
+    EQUB &89, &51, &02
+    EQUB &81, &61, &02
+    EQUB &89, &3D, &02
+    EQUB &59, &59, &02
+    EQUB &6D, &4D, &02
+    EQUB &59, &59, &01
+    EQUB &6D, &6D, &01
+    EQUB &6D, &3D, &02
+    EQUB &35, &35, &02
+    EQUB &91, &31, &02
+    EQUB &29, &29, &01
+    EQUB &95, &95, &01
+    EQUB &9D, &21, &02
+    EQUB &3D, &3D, &02
+    EQUB &9D, &31, &02
+    EQUB &3D, &3D, &01
+    EQUB &9D, &9D, &01
+    EQUB &A5, &31, &02
+    EQUB &9D, &51, &02
+    EQUB &95, &3D, &02
+    EQUB &91, &51, &02
+    EQUB &95, &3D, &02
+    EQUB &59, &59, &02
+    EQUB &95, &4D, &02
+    EQUB &59, &59, &01
+    EQUB &95, &95, &01
+    EQUB &95, &3D, &02
+    EQUB &59, &59, &02
+    EQUB &4D, &4D, &02
+    EQUB &59, &59, &02
+    EQUB &91, &3D, &02
+    EQUB &61, &61, &02
+    EQUB &89, &51, &02
+    EQUB &91, &61, &02
+    EQUB &95, &3D, &02
+    EQUB &89, &4D, &02
+    EQUB &81, &35, &02
+    EQUB &7D, &59, &02
+    EQUB &7D, &51, &02
+    EQUB &6D, &6D, &02
+    EQUB &81, &3D, &02
+    EQUB &6D, &6D, &02
+    EQUB &61, &21, &02
+    EQUB &3D, &3D, &02
+    EQUB &61, &31, &02
+    EQUB &3D, &3D, &01
+    EQUB &65, &65, &01
+    EQUB &6D, &21, &02
+    EQUB &3D, &3D, &02
+    EQUB &65, &31, &02
+    EQUB &61, &3D, &02
+    EQUB &6D, &1D, &02
+    EQUB &65, &3D, &02
+    EQUB &61, &29, &02
+    EQUB &59, &3D, &02
+    EQUB &61, &21, &02
+    EQUB &81, &3D, &02
+    EQUB &81, &31, &02
+    EQUB &3D, &3D, &02
+    EQUB &21, &21, &02
+    EQUB &3D, &3D, &02
+    EQUB &61, &31, &02
+    EQUB &65, &3D, &02
+    EQUB &75, &21, &02
+    EQUB &6D, &3D, &02
+    EQUB &65, &31, &02
+    EQUB &61, &3D, &02
+    EQUB &65, &29, &02
+    EQUB &59, &3D, &02
+    EQUB &51, &35, &02
+    EQUB &4D, &3D, &02
+    EQUB &51, &21, &02
+    EQUB &3D, &3D, &02
+    EQUB &31, &31, &02
+    EQUB &61, &3D, &02
+    EQUB &6D, &1D, &02
+    EQUB &65, &3D, &02
+    EQUB &59, &35, &02
+    EQUB &4D, &3D, &02
+    EQUB &51, &21, &02
+    EQUB &3D, &3D, &02
+    EQUB &31, &31, &02
+    EQUB &61, &3D, &01
+    EQUB &6D, &6D, &01
+    EQUB &65, &1D, &02
+    EQUB &59, &3D, &02
+    EQUB &51, &35, &02
+    EQUB &4D, &3D, &02
+    EQUB &4D, &21, &02
+    EQUB &3D, &3D, &02
+    EQUB &51, &0D, &02
+    EQUB &3D, &3D, &02
+    EQUB &31, &21, &04
+    EQUB &00, &00, &00    \ end of tune data
+
+\ ;     p1 p2  d
+.unused_44ad    \ Unused notes, not a copy of any previous data
+    EQUB &65, &65, &01
+    EQUB &6D, &21, &02
+    EQUB &61, &3D, &02
+    EQUB &51, &31, &02
+    EQUB &3D, &3D, &02
+    EQUB &21, &21, &02
+    EQUB &3D, &3D, &02
+    EQUB &6D, &31, &02
+    EQUB &61, &3D, &02
+    EQUB &75, &21, &02
+    EQUB &65, &45, &02
+    EQUB &51, &35, &02
+    EQUB &45, &45, &02
+    EQUB &21, &21, &02
+    EQUB &45, &45, &02
+    EQUB &75, &35, &02
+    EQUB &65, &45, &02
+    EQUB &81, &21, &02
+    EQUB &79, &3D, &02
+    EQUB &75, &31, &02
+    EQUB &6D, &3D, &02
+    EQUB &79, &21, &02
+    EQUB &75, &45, &02
+    EQUB &6D, &35, &02
+    EQUB &65, &45, &02
+    EQUB &6D, &21, &02
+    EQUB &61, &3D, &02
+    EQUB &51, &31, &02
+    EQUB &3D, &3D, &02
+    EQUB &21, &21, &02
+    EQUB &3D, &3D, &02
+    EQUB &81, &1D, &02
+    EQUB &35, &35, &01
+    EQUB &89, &89, &01
+    EQUB &91, &21, &02
+    EQUB &81, &3D, &02
+    EQUB &51, &31, &02
+    EQUB &3D, &3D, &02
+    EQUB &21, &21, &02
+    EQUB &3D, &3D, &02
+    EQUB &91, &31, &02
+    EQUB &81, &3D, &02
+    EQUB &95, &21, &02
+    EQUB &81, &45, &02
+    EQUB &51, &35, &02
+    EQUB &45, &45, &02
+    EQUB &21, &21, &02
+    EQUB &45, &45, &02
+    EQUB &95, &35, &02
+    EQUB &81, &45, &02
+    EQUB &79, &31, &02
+    EQUB &6D, &51, &02
+    EQUB &3D, &3D, &02
+    EQUB &79, &51, &02
+    EQUB &75, &35, &02
+    EQUB &65, &51, &02
+    EQUB &45, &45, &02
+    EQUB &75, &51, &02
+    EQUB &6D, &21, &02
+    EQUB &65, &3D, &02
+    EQUB &61, &31, &02
+    EQUB &59, &3D, &02
+    EQUB &51, &21, &02
+    EQUB &49, &49, &02
+    EQUB &51, &45, &02
+    EQUB &3D, &3D, &02
+    EQUB &81, &35, &02
+    EQUB &51, &51, &02
+    EQUB &81, &45, &02
+    EQUB &51, &51, &01
+    EQUB &81, &81, &01
+    EQUB &89, &35, &02
+    EQUB &81, &51, &02
+
+.unused_4588    \ Unused code
+    LDA #&0D                        \ Disable event
+    LDX #&04                        \ v-sync event
+    LDY #&00
+    JSR OSBYTE                      \ OSBYTE
+    LDA #&16                        \ Change to MODE 7
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&07
+    JSR OSWRCH                      \ OSWRCH
+    JSR disable_cursor
+    LDY #&00
+    LDA #LO(screen_memory_7c00)
+    STA target_address_low_0072
+    LDA #&7C
+    STA target_address_high_0073
+    LDA #LO(alternative_title_screen_data)
+    STA source_address_low_0070
+    LDA #&14
+    STA source_address_high_0071
+    LDA (source_address),Y
+    STA (target_address),Y
+    CLC
+    LDA source_address_low_0070
+    ADC #&01
+    STA source_address_low_0070
+    LDA source_address_high_0071
+    ADC #&00
+
+.unused_45bf    \ Unused code
+    LDA #&0D                        \ Disable event
+    LDX #&04                        \ v-sync event
+    JSR OSBYTE                      \ OSBYTE
+    LDA #&0F                        \ Flush all buffers
+    LDX #&00                        \ all buffers
+    JSR OSBYTE                      \ OSBYTE
+    NOP
+    NOP
+
+.unused_45cf
+    EQUB &0D
+
+.unused_45d0    \ Unused code; possibly alternative title screen
+    LDX #&04                        \ Disable event
+    LDY #&00                        \ v-sync event
+    JSR OSBYTE                      \ OSBYTE
+    LDA #&0F                        \ Flush input buffer
+    JSR OSBYTE                      \ OSBYTE
+    LDA #&16                        \ Change to MODE 7
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&07
+    JSR OSWRCH                      \ OSWRCH
+    JSR disable_cursor
+    LDY #&00
+    LDA #LO(screen_memory_7c00)
+    STA target_address_low_0072
+    LDA #&7C
+    STA target_address_high_0073
+    LDA #LO(alternative_title_screen_data)
+    STA source_address_low_0070
+    LDA #&14
+    STA source_address_high_0071
+.unused_copy_screen_loop    \ Would copy &1450 - &2fff to &7c00 - &97af
+    LDA (source_address),Y
+    STA (target_address),Y
+    CLC
+    LDA source_address_low_0070
+    ADC #&01
+    STA source_address_low_0070
+    LDA source_address_high_0071
+    ADC #&00
+    STA source_address_high_0071
+    CLC
+    LDA target_address_low_0072
+    ADC #&01
+    STA target_address_low_0072
+    LDA target_address_high_0073
+    ADC #&00
+    STA target_address_high_0073
+    LDA source_address_high_0071
+    CMP #&30
+    BNE unused_copy_screen_loop
+    LDA #&1F                        \ TAB(&0b, &05)
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&0B
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&05
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&87                        \ TELETEXT_WHITE
+    JSR OSWRCH                      \ OSWRCH
+    LDX #&00
+.unused_write_wages_loop
+    LDA wages,X
+    JSR OSWRCH                      \ OSWRCH
+    INX
+    CPX #&06
+    BNE unused_write_wages_loop
+    JSR unused_218e
+    JSR unused_drop_gold + 3
+    JMP unused_137d + 81
+.unused_4649
+    RTS
+
+.unused_464a
+    EQUB &4A, &E0, &00, &00, &58, &14
+
+.unused_4650    \ Possibly unrelocated alternative_title_screen_data
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20    \ "                                        "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20    \ "..      .          ..7#4ws5ws5ws1       "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &91, &9D, &20, &20, &20, &20, &20, &20    \ "..... ...          . up%5 55)0up0       "
+    EQUB &9C, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &93, &92, &37, &23, &34    \ ".....    .Last Score         "
+    EQUB &77, &73, &35, &77, &73, &35, &77, &73, &31, &20, &20, &20, &20, &20, &20, &20
+    EQUB &81, &9D, &9D, &85, &9D, &20, &94, &9D, &9C, &20, &20, &20, &20, &20, &20, &20    \ Teletext graphics of top of player's head and "DARE"
+    EQUB &20, &20, &20, &92, &20, &75, &70, &25, &35, &20, &35, &35, &29, &30, &75, &70
+    EQUB &30, &20, &20, &20, &20, &20, &20, &20, &81, &9D, &85, &9D, &87, &20, &20, &20
+    EQUB &20, &9C, &4C, &61, &73, &74, &20, &53, &63, &6F, &72, &65, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20
+
+.loading_screen_data
+    EQUB &92, &92, &20, &20, &20, &87, &2E, &20, &9A, &91, &FF, &20, &35, &6B, &37, &6A    \ "..   .. ... 5k7j7#".!.#5.#5.#!. .       "
+    EQUB &37, &23, &22, &FF, &21, &FF, &23, &35, &FF, &23, &35, &FF, &23, &21, &87, &20    \ "  .     ... 5j5"#. . . 5. 5#k5.   ..    "
+    EQUB &2E, &20, &20, &20, &20, &20, &20, &20, &20, &20, &96, &20, &20, &20, &20, &20    \ " . .    ..+?!zu`p.`.0.p5. 5pz5. .       "
+    EQUB &9A, &91, &FF, &20, &35, &6A, &35, &22, &23, &FF, &20, &FF, &20, &FF, &20, &35    \ ". .       .                             "
+    EQUB &FF, &20, &35, &23, &6B, &35, &87, &20, &20, &20, &87, &2E, &20, &20, &20, &20    \ "    .    .. SOFTWARE FACTORY .    .     "
+    EQUB &20, &2E, &20, &96, &20, &20, &20, &20, &9A, &91, &2B, &3F, &21, &7A, &75, &60    \ "  .    .                                "
+    EQUB &70, &FF, &60, &FF, &30, &FF, &70, &35, &FF, &20, &35, &70, &7A, &35, &87, &20    \ "      .      .*.PRESENTS.*..  ..        "
+    EQUB &2E, &20, &20, &20, &20, &20, &20, &20, &96, &20, &9A, &20, &20, &20, &20, &20    \ "          .          .                  "
+    EQUB &20, &20, &97, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20    \ "               .                        "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20    \ ".   .".#4.#5.#4.#! ".#4.#!. 5k7".! ..   "
+    EQUB &20, &20, &20, &20, &2E, &20, &20, &20, &20, &87, &2E, &20, &53, &4F, &46, &54    \ "  . . . 5.#5.#4.#.... 5.# . 5j5 .       "
+    EQUB &57, &41, &52, &45, &20, &46, &41, &43, &54, &4F, &52, &59, &20, &2E, &20, &20    \ "... .`.p%. 5. 5.p0 `.p%.p0+?!zu`.px     "
+    EQUB &20, &20, &2E, &20, &20, &20, &20, &20, &20, &20, &9A, &20, &20, &20, &20, &97    \ "                                  .   . "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20    \ " .  .     .  ".#4.#!.#5k7j7#..          "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20    \ "  .  ..     ... 5.# . 5j5"#..  .        "
+    EQUB &20, &20, &20, &20, &20, &20, &2E, &20, &20, &20, &20, &20, &20, &83, &2A, &82    \ " .   . ..   .`.p%.p0. 5zu`p...    ..    "
+    EQUB &50, &52, &45, &53, &45, &4E, &54, &53, &83, &2A, &87, &2E, &20, &20, &87, &2E    \ "  . .     .. ppppppppppppppp0 . .       "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20    \ "          .  .,,,,,,,,,,,,,$ .      .   "
+    EQUB &20, &20, &2E, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &2E, &20, &20    \ "     . .. .Written by Simon Pick      . "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20    \ "  .    .  .Written by Simon Pick        "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &2E    \ "    .                                   "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20    \ "                                        "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &9A, &20, &20, &20, &97, &22, &FF, &23    \ "                                        "
+    EQUB &34, &FF, &23, &35, &FF, &23, &34, &FF, &23, &21, &20, &22, &FF, &23, &34, &FF    \ "                                        "
+    EQUB &23, &21, &FF, &20, &35, &6B, &37, &22, &FF, &21, &20, &87, &2E, &20, &20, &20    \ "                                        "
+    EQUB &20, &20, &9A, &20, &93, &20, &FF, &20, &35, &FF, &23, &35, &FF, &23, &34, &FF    \ "                         "
+    EQUB &23, &87, &2E, &93, &FF, &20, &35, &FF, &23, &20, &FF, &20, &35, &6A, &35, &20
+    EQUB &FF, &20, &20, &20, &20, &20, &20, &20, &9A, &82, &87, &20, &92, &60, &FF, &70
+    EQUB &25, &FF, &20, &35, &FF, &20, &35, &FF, &70, &30, &20, &60, &FF, &70, &25, &FF
+    EQUB &70, &30, &2B, &3F, &21, &7A, &75, &60, &FF, &70, &78, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &2E, &20, &20, &20, &2E, &20, &20, &82, &20, &20, &9A, &20, &20, &20
+    EQUB &20, &20, &97, &20, &20, &22, &FF, &23, &34, &FF, &23, &21, &FF, &23, &35, &6B
+    EQUB &37, &6A, &37, &23, &87, &86, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &2E, &20, &20, &9A, &2E, &20, &20, &20, &20, &20, &9A, &93, &FF, &20
+    EQUB &35, &FF, &23, &20, &FF, &20, &35, &6A, &35, &22, &23, &FF, &87, &20, &20, &2E
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &82, &20, &20, &20, &9A, &20, &87
+    EQUB &2E, &20, &20, &20, &92, &60, &FF, &70, &25, &FF, &70, &30, &FF, &20, &35, &7A
+    EQUB &75, &60, &70, &FF, &86, &86, &20, &20, &20, &20, &87, &2E, &20, &20, &20, &20
+    EQUB &20, &20, &84, &20, &2E, &20, &20, &20, &20, &20, &9A, &96, &20, &70, &70, &70
+    EQUB &70, &70, &70, &70, &70, &70, &70, &70, &70, &70, &70, &70, &30, &20, &87, &20
+    EQUB &2E, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &9A, &20, &20, &96, &2C, &2C, &2C, &2C, &2C, &2C, &2C, &2C, &2C, &2C
+    EQUB &2C, &2C, &2C, &24, &20, &87, &20, &20, &20, &20, &20, &20, &2E, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &2E, &20, &2E, &8D, &20, &82, &57, &72, &69, &74, &74
+    EQUB &65, &6E, &20, &62, &79, &20, &53, &69, &6D, &6F, &6E, &20, &50, &69, &63, &6B
+    EQUB &20, &20, &20, &20, &20, &20, &2E, &20, &20, &20, &83, &20, &20, &20, &20, &8D
+    EQUB &20, &20, &83, &57, &72, &69, &74, &74, &65, &6E, &20, &62, &79, &20, &53, &69
+    EQUB &6D, &6F, &6E, &20, &50, &69, &63, &6B, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &2E, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+
+.unused_4ae6
+    EQUB &00
+
+.unused_4ae7    \ Unused code; possibly alternative main game loop
+    BEQ loading_screen_data + 1014
+    JSR update_rotating_colour_and_enemies
+    JSR update_player
+    JSR check_for_collision
+    JSR disable_cursor
+    LDA player_collided
+    CMP #&00
+    BEQ loading_screen_data + 1001
+.unused_is_collision
+    JSR kill_player
+    EQUB &AD    \ LDA abs, cut off by the end of the file
+
+

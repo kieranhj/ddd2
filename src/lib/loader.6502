@@ -1,0 +1,329 @@
+\ ******************************************************************
+\ *	loader.6502 - OSFILE a packed stream into a staging area, unpack it out
+\ ******************************************************************
+\ *	beeb-port-kit, MIT, Kieran Connell 2026. Baron syntax, plain 6502.
+\ *
+\ *	WHAT IT IS. Edge's boot loader, generalised: every data file on the
+\ *	disc ships compressed with a catalogue load address the disc
+\ *	builder writes (py/make_disc.py), and none of them could be loaded
+\ *	straight to where it belongs even uncompressed - the filing system
+\ *	has the DFS ROM paged in at &8000 while it works, so a bank's bytes
+\ *	would land in the ROM socket, and on a Master HAZEL is the filing
+\ *	system's own workspace. So each stages in RAM and is unpacked from
+\ *	there. ALL OF IT RUNS BEFORE install_irq (irq.6502) - not because
+\ *	the DFS needs the MOS's interrupt (measured 2026-09-09: on a B it
+\ *	loads with IRQ1V taken, and with interrupts masked outright), but
+\ *	because a load costs whole frames. If you DO load after the
+\ *	takeover: mask with SEI, or chain to the MOS and change nothing -
+\ *	a handler that swallows its interrupts hangs a Master (irq.6502).
+\ *
+\ *	WHERE IT CAME FROM.
+\ *	  https://github.com/kieranhj/edge-beeb/blob/master/src/main.asm
+\ *	    (load_stream / unpack_to / load_bank / unpack_andy / load_hazel,
+\ *	    ~1712-1840)
+\ *	  https://github.com/kieranhj/edge-beeb/blob/master/src/tables.asm
+\ *	    (the OSFILE parameter block, ~33-47)
+\ *	  https://github.com/kieranhj/edge-beeb/blob/master/lib/disksys.asm
+\ *	    (the same block; Edge's boot uses OSFILE, not disksys)
+\ *	Paradroid loads by `*LOAD` through OSCLI instead (its ts_loads,
+\ *	main.asm ~2570-2600, and UnpackBankIn) - the same staging idea with
+\ *	a command string per file. It is NOT ported here: OSFILE takes a
+\ *	filename pointer and a block, which is the smaller thing to
+\ *	generalise, and Edge's is the later of the two.
+\ *
+\ *	WHAT WAS MEASURED, and when:
+\ *	  - OSFILE WRITES THE FILE'S CATALOGUE ADDRESSES BACK INTO ITS
+\ *	    PARAMETER BLOCK after a load, so the next call would honour the
+\ *	    LAST file's load address and land wherever that was. load_stream
+\ *	    resets load and exec before every call (Edge, 2026-09-03; it
+\ *	    was the second bank landing on the first).
+\ *	  - Sideways RAM is written through ROMSEL alone; a Solidisk-style
+\ *	    board needing its write-enable latches is refused, not driven
+\ *	    (Paradroid swram_probe.6502, KC 2026-08-29).
+\ *	  - Writing &F4 as well as &FE30 before the load matters: the DFS
+\ *	    pages its ROM in over the bank and the MOS restores ROMSEL from
+\ *	    &F4 afterwards, so the unpack lands in the bank named there.
+\ *	  - MASTER ONLY. ANDY is 4K at &8000-&8FFF, ROMSEL bit 7, overlaying
+\ *	    only that 4K of whichever bank is paged (Edge, jsbeeb
+\ *	    2026-09-04, from 6502 in main RAM: &AA to &8000 under bank 4 and
+\ *	    &55 under &84 read back separately; &9000 is the bank either
+\ *	    way). The test HAS to be machine code: BASIC is itself the ROM
+\ *	    at &8000. The loader cannot write into ANDY while the filing
+\ *	    system runs, so its stream is loaded early and unpacked last.
+\ *	    THE MOS WRITES THREE OF ITS PAGES (1942 port, jsbeeb Master
+\ *	    2026-09-11): &80 on *KEY, &8800-&882F on EVERY MODE CHANGE AND
+\ *	    SOFT BREAK, &8F on VDU 23. Loads, *CAT and the sound leave it
+\ *	    alone. So all 4K is yours only if the unpack follows the last
+\ *	    mode change and nothing issues *KEY or VDU 23 afterwards; else
+\ *	    use &8100-&87FF and &8900-&8EFF. docs/hardware-facts.md, ANDY,
+\ *	    has the page map.
+\ *	  - MASTER ONLY. HAZEL (&C000-&DFFF, ACCCON bit 3) is the filing
+\ *	    system's workspace, but not all of it is in use. load_hazel
+\ *	    unpacks into HAZEL_FREE-HAZEL_TOP (&C300-&DEFF, 7K), which
+\ *	    OSFILE loads, saves and deletes never write, so the disc stays
+\ *	    usable after it (jsbeeb Master, MOS 3.20, 1770 DFS,
+\ *	    2026-09-11). What does write into the window afterwards: any *
+\ *	    command (&DC), an open file (&C3, and a page each from &C4), a
+\ *	    soft BREAK (&C3 and &DA) - which does find the DFS again. Not
+\ *	    measured: MOS 3.5, MMFS, real hardware. docs/hardware-facts.md,
+\ *	    HAZEL, has the map.
+\ *	    Edge unpacked over all 8K from &C000 instead, DFS's own pages
+\ *	    included. A load like that must be the last disc access, and
+\ *	    BREAK must then be a power-on reset, because a soft break leaves
+\ *	    the wreckage in place - measured: no DFS banner, *CAT returns
+\ *	    nothing. OSBYTE 200, X = 3 at the top of main makes BREAK a
+\ *	    power-on reset (bit 1) and disables ESCAPE (bit 0):
+\ *	        lda #200 : ldx #3 : ldy #0 : jsr osbyte
+\ *	    Do it FIRST, before anything can be broken into.
+\ *
+\ *	THE INCLUDER DEFINES, before this file is included:
+\ *	  zxsrc, zxdst (ZP)   the depacker's pointers (zx02depack.6502)
+\ *	  zx_unpack           the depacker's entry, whichever depacker that
+\ *	                      is: zx02depack.6502 for a new port, zx0depack.6502
+\ *	                      for a ZX0 disc. It was called zx0_unpack before
+\ *	                      2026-09-07 and still is in the two shipping ports.
+\ *	  LOADER_STAGE        the page-aligned address streams stage at for
+\ *	                      load_bank / load_hazel. Edge: DEPK_STREAM =
+\ *	                      &3000, the SHADOW screen, 20K nobody displays
+\ *	                      while the loading picture is up in main.
+\ *	                      Paradroid: DEPK_STREAM = &3200 in the
+\ *	                      framebuffer, blanked. It must not overlap the
+\ *	                      output (the in-place rule, zx02depack.6502).
+\ *	  MASTER              0 or 1: assembles load_hazel and unpack_andy.
+\ *	The filenames are the includer's: CR-terminated strings, the
+\ *	address in A/Y.
+\ *
+\ *	Fork this into your project; keep this header.
+\ *	FORKED into beeb-port-kit/template 2026-09-07, unchanged.
+\ ******************************************************************
+
+\ ---- load_stream: A/Y = filename, X = the page it loads at ---------
+\ Leaves zxsrc pointing at it, ready for unpack_to. Clobbers A, X, Y.
+.load_stream
+{
+    stx stream_page
+    sta osfile_nameaddr
+    sty osfile_nameaddr+1
+
+    \\ OSFILE writes the file's catalogue addresses back into the block
+    \\ after a load, so the next call would honour the last file's load
+    \\ address and land wherever that was. Reset load and exec every call
+    \\ (exec low byte 0 = "use the block's load address").
+    \\ THE LOAD ADDRESS IS &FFFFxxxx, THE HOST'S. With a second processor
+    \\ attached, &0000xxxx means the PARASITE: the DFS sends the file over
+    \\ the Tube and the host hangs in the Tube code (measured, jsbeeb B +
+    \\ 65C02 and Master + 65C102, 2026-09-11: PC in &0400-&07FF, the game
+    \\ never past its first load). Without a Tube the top bytes are ignored.
+    lda #&ff
+    sta osfile_loadaddr+2
+    sta osfile_loadaddr+3
+    lda #0
+    sta osfile_loadaddr
+    sta osfile_execaddr
+    lda stream_page
+    sta osfile_loadaddr+1
+
+    ldx #LO(osfile_params)
+    ldy #HI(osfile_params)
+    lda #&FF                    ; OSFILE &FF: load, to the block's address
+    jsr osfile
+
+    \\ AFTER the call, not before: the depacker's zero page is borrowed
+    \\ from the game's, and the filing system may be running in it.
+    lda #0
+    sta zxsrc
+    lda stream_page
+    sta zxsrc+1
+    rts
+    .stream_page EQUB 0
+}
+
+\ ---- unpack_to: the stream at zxsrc to X:A ------------------------
+.unpack_to
+{
+    sta zxdst
+    stx zxdst+1
+    jmp zx_unpack
+}
+
+\ ---- load_bank: A/Y = filename, X = the ROMSEL value of the bank ---
+\ Stages the stream at LOADER_STAGE and unpacks it straight into the
+\ paged-in bank at &8000. Leaves the bank selected.
+.load_bank
+{
+    stx ROMSHAD                 ; both: the DFS pages its ROM in over
+    stx ROMSEL                  ; us and the MOS restores from ROMSHAD
+    ldx #HI(LOADER_STAGE)
+    jsr load_stream
+    lda #LO(SWRAM_BASE)
+    ldx #HI(SWRAM_BASE)
+    jmp unpack_to
+}
+
+IF MASTER
+\ ---- unpack_andy: the stream at zxsrc into ANDY at X:A -------------
+\ Called AFTER the last load, with zxsrc already pointing at a stream
+\ loaded earlier (the loader cannot write into ANDY while the filing
+\ system runs). With interrupts off and ROMSHAD set as well as ROMSEL:
+\ the MOS's IRQ handler is still installed here, and anything that
+\ pages a ROM restores ROMSEL from ROMSHAD - which would drop ANDY out
+\ from under the depacker half way through and put the rest of the
+\ stream into the bank underneath. Puts the bank back on the way out
+\ (Edge does not: its caller's next instruction does).
+.unpack_andy
+{
+    \\ THE DESTINATION SURVIVES THE PAGING. This used to page ANDY in
+    \\ through A and then `jsr unpack_to`, which reads A:X as the
+    \\ destination - by when A held ROMSHAD OR &80, so a stream for &8100
+    \\ landed at &8187. Nothing had called it until the 1942 port's in-play
+    \\ text (its BUGS.md #21), whose code then ran 135 bytes out.
+    \\ 1942 stores zxdst here and jumps to zx_unpack; this parks the low
+    \\ byte in Y instead, because a port that assembles unpack_andy but
+    \\ never calls it (the template's MASTER build) would otherwise get
+    \\ Baron's "ZA_AUTO used in code unreachable" warning on every build.
+    \\ lib/test/andy_test.6502 runs it.
+    tay
+    sei
+    lda ROMSHAD
+    pha
+    ora #ANDY_ROMSEL
+    sta ROMSHAD
+    sta ROMSEL
+    tya
+    jsr unpack_to
+    pla
+    sta ROMSHAD
+    sta ROMSEL
+    cli
+    rts
+}
+
+\ ---- load_hazel: A/Y = filename, unpacked into HAZEL at &C300 ------
+\ Stages at LOADER_STAGE and unpacks with ACCCON's Y bit set over the
+\ unpack, into the window the DFS leaves alone (HAZEL_FREE, &C300 up to
+\ HAZEL_TOP, &DF00). OSFILE loads may follow it; * commands and open
+\ files write into the window - see the header. The unpacked stream
+\ must end by HAZEL_TOP: nothing checks it at run time.
+.load_hazel
+{
+    ldx #HI(LOADER_STAGE)
+    jsr load_stream
+    lda ACCCON
+    ora #ACCCON_Y
+    sta ACCCON
+    lda #LO(HAZEL_FREE)
+    ldx #HI(HAZEL_FREE)
+    jsr unpack_to
+    lda ACCCON
+    and #255-ACCCON_Y
+    sta ACCCON
+    rts
+}
+ENDIF
+
+\ ---- the contract with the filing system ---------------------------
+\ hexwab, paradroid-beeb issue #18, 2026-09-13 - and the kit had this
+\ WRONG until then, so read it before using either routine below.
+\ TWO PROBLEMS, TWO ANSWERS, and the loader's answer does not do for
+\ the game:
+\   A LOADER still has to load, so it cannot shut the filing system
+\   down. It borrows the workspace (&0E00 up to OSHWM), and the price
+\   is that it must OWN THE MACHINE while it does: claim the NMI, and
+\   let NO OS code run at all - no OS call, no MOS interrupt handler.
+\   Regaining control is the only way the filing system could discover
+\   the theft, and the NMI is the one route it keeps.
+\   A GAME THAT HAS FINISHED LOADING asks the filing system to go away:
+\   release_fs (OSBYTE 140) has it detach every hook it holds and tell
+\   whatever hardware it was driving to stop raising NMIs. ONLY THEN is
+\   the workspace ours - &B0-&CF in the zero page and &0E00 to OSHWM -
+\   and only then is an OS call safe after taking it.
+\ A filing system is ENTITLED to hook OSBYTE, OSWORD and the vectors,
+\ and to find its workspace intact when one of them is called. Acorn's
+\ DFS hooks none of them, which is the only reason a game that skips
+\ OSBYTE 140 runs at all: Paradroid did, and hexwab's Opus 1770 with
+\ DDOS 3.45 hung at the deck plan (REAL HARDWARE, 2026-09-13). If the
+\ game makes any OS call after the workspace is buried - the usual ones
+\ are OSBYTE 229 for ESCAPE, OSBYTE &0F to flush the buffers, OSBYTE 19
+\ for VSync - it needs release_fs first.
+\ THE PRICE IS THAT NOTHING MAY LOAD AGAIN, AND THAT DECIDES WHICH OF
+\ THE TWO ANSWERS IS YOURS. OSBYTE 140 selects the TAPE filing system:
+\ it is only for a port that reads the disc ONCE, at boot, and never
+\ again - which is what both of the kit's ports do, and what the
+\ template does. A port that loads between levels, streams music or
+\ audio off the disc, saves a high-score table or writes a save game
+\ MUST NOT CALL IT: there is no safe way to put the previous filing
+\ system back. That port is the loader case for its whole life - it
+\ keeps the filing system, owns the machine, and makes NO OS call at
+\ all, which constrains the design, so settle it early rather than at
+\ the end. A port that loads once but has not decided yet: leave the
+\ call out and keep the NMI claim, and take the zero page and &0E00
+\ only when the decision is made.
+\ AND THE DISC MUST BOOT BY *RUN, NOT *EXEC, if the game lives in
+\ &1100-&1900: that is DFS's random-access buffer area, and running
+\ there works only because *LOAD - and *RUN, which is *LOAD plus a jump
+\ - never touch it. *EXEC does, and so does CLOSING an exec file, which
+\ is an implicit *EXEC. Paradroid's dev disc went black with the CPU
+\ inside the DNFS ROM at &ACB1 for exactly that reason, and closing the
+\ file politely first (OSBYTE 119) hung identically - the close was
+\ itself a write into the region it was meant to make safe.
+\ boot_stamp.6502 builds a *RUN !BOOT for that reason.
+
+\ ---- release_fs: the filing system detaches ------------------------
+\ ONLY FOR A PORT THAT NEVER TOUCHES THE DISC AGAIN. This selects the
+\ TAPE filing system and there is no safe way back: if the game loads
+\ between levels, streams off the disc, or saves anything, do not call
+\ this at all - own the machine instead (above).
+\ OSBYTE 140 is what *TAPE ends up calling, without the OSCLI in the
+\ middle - less to go wrong, and no command string to carry. Selecting
+\ tape is also why it is not rude to someone who booted from MMFS or
+\ ADFS: it is not a *DISC, and their filing system is back on the next
+\ BREAK.
+\ Call it AFTER THE LAST LOAD and BEFORE anything writes the filing
+\ system's workspace, then claim_nmi. Clobbers A, X, Y.
+.release_fs
+{
+    lda #140                    ; *TAPE, without the OSCLI
+    ldx #0
+    ldy #0
+    jmp osbyte
+}
+
+\ ---- claim_nmi: take the NMI as well -------------------------------
+\ OSBYTE 143 with X = 12 asks the paged ROMs to hand over the NMI,
+\ which the filing system gives up (its routine lives at NMI_CODE,
+\ &0D00); an RTI goes there so a stray NMI returns. After release_fs
+\ this is belt-and-braces, hexwab's own word for it: the filing system
+\ has already stood its NMI hardware down, so what is left is a STRAY
+\ NMI - noise, not an intentional interrupt - and eight bytes is a
+\ cheap answer to an unrecoverable jump through a page of stale 6502.
+\ Without release_fs - a loader that must keep the filing system - it
+\ is not optional: it is the whole of owning the machine.
+\ Paradroid, jsbeeb 2026-09-10: &0D00 reads &40 at the title and the
+\ game plays. Clobbers A, X, Y.
+NMI_CODE = &0D00
+.claim_nmi
+{
+    lda #143
+    ldx #12
+    ldy #&ff
+    jsr osbyte
+    lda #&40                    ; RTI
+    sta NMI_CODE
+    rts
+}
+
+\ ---- the OSFILE parameter block -----------------------------------
+\ Boot-only data in both ports: read while the disc is loading and never
+\ again. Edge keeps it above SPR_SAVE's base with the rest of the boot
+\ code, where the game walks over it once it starts.
+.osfile_params
+.osfile_nameaddr
+EQUW 0                          ; -> the CR-terminated filename
+.osfile_loadaddr
+EQUD 0                          ; rewritten by every load - see the header
+.osfile_execaddr
+EQUD 0                          ; low byte 0 = use loadaddr
+.osfile_length
+EQUD 0                          ; OSFILE fills these two in on the way
+.osfile_endaddr
+EQUD 0                          ; back; nothing here reads them

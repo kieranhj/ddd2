@@ -1,0 +1,3340 @@
+\ game.6502 - the game (DENIS3), &0E00-&348F, entered at entry_point (&3475)
+\
+\ Created once by tools/disasm2baron.py from Level7's disassembly,
+\ reference/dare-devil-denis-disassembly.txt (lines starting "\ " carry its annotations).
+\ Hand-maintained from here on. INCLUDEd inside its SECTION by src/main.6502.
+
+
+.scrolltext
+    EQUB &2E, &2E, &2E, &2E, &20, &57, &72, &69, &74, &74, &65, &6E, &20, &62, &79, &20    \ ".... Written by
+    EQUB &53, &69, &6D, &6F, &6E, &20, &50, &69, &63, &6B, &20, &2E, &2E, &2E, &2E, &2E    \ "Simon Pick .....
+    EQUB &2E, &2E, &2E, &2E, &2E, &20, &56, &49, &53, &49, &4F, &4E, &53, &20, &20, &50    \ "..... VISIONS  P
+    EQUB &72, &65, &73, &65, &6E, &74, &73, &2E, &2E, &2E, &2E, &2E, &2E, &2E, &2E, &2E    \ "resents.........
+    EQUB &2E, &2E, &2E, &2E, &44, &61, &72, &65, &20, &44, &65, &76, &69, &6C, &20, &44    \ "....Dare Devil D
+    EQUB &65, &6E, &69, &73, &20, &2E, &2E, &2E    \ "enis ..."
+
+.unused_0e58
+    EQUB &6E, &6E
+
+.highest_wages
+    EQUB &30, &30, &30, &30, &30, &30    \ "000000"
+    EQUB &0D
+
+.unused_0e61
+    EQUB &00, &28
+
+.start_screen_text
+    EQUB &82
+    EQUB &48, &6F, &77, &20, &67, &6F, &6F, &64, &20, &61, &72, &65, &20, &79, &6F, &75    \ "How good are you"
+    EQUB &0D
+
+    EQUB &4E, &6F, &76, &69, &63, &65    \ "Novice"
+    EQUB &0D
+
+    EQUB &45, &78, &70, &65, &72, &69, &65, &6E, &63, &65, &64    \ "Experienced"
+    EQUB &0D
+
+    EQUB &45, &78, &70, &65, &72, &74    \ "Expert"
+    EQUB &0D
+
+    EQUB &4F, &73, &63, &61, &72, &20, &4E, &6F, &6D, &69, &6E, &65, &65    \ "Oscar Nominee"
+    EQUB &0D
+
+    EQUB &4F, &73, &63, &61, &72, &20, &57, &69, &6E, &6E, &65, &72    \ "Oscar Winner"
+    EQUB &0D
+
+    EQUB &41, &63, &65    \ "Ace"
+    EQUB &0D
+
+    EQUB &82    \ TELETEXT_GREEN
+    EQUB &54, &6F, &20, &73, &74, &61, &72, &74, &20, &67, &61, &6D, &65, &20, &70, &72    \ "To start game press"
+    EQUB &65, &73, &73
+    EQUB &87    \ TELETEXT_WHITE
+    EQUB &41    \ "A"
+    EQUB &82    \ TELETEXT_GREEN
+    EQUB &74, &6F    \ "to"
+    EQUB &87    \ TELETEXT_WHITE
+    EQUB &46    \ "F"
+    EQUB &0D
+
+    EQUB &1F, &02, &02    \ TAB(&02, &02)
+    EQUB &86    \ TELETEXT_CYAN
+    EQUB &48, &69, &67, &68, &65, &73, &74, &20, &77, &61, &67, &65, &73, &20, &70, &61    \ "Highest wages paid today"
+    EQUB &69, &64, &20, &74, &6F, &64, &61, &79
+    EQUB &83    \ TELETEXT_YELLOW
+    EQUB &0D
+
+.unused_0ee8    \ Source code fragment
+    EQUB &3D, &53, &2B, &39, &0D    \ ... =S+9
+
+    EQUB &00, &50, &09    \ 80 ...
+
+\ ;      A  B  C  D  E  F                                             # B: Experienced   starts on level  7 (set 3)
+.starting_levels_table    \ A: Novice        starts on level  1 (set 1)
+    EQUB &01, &07, &0D, &13, &19, &1F    \ C: Expert        starts on level 13 (set 5)
+\ # D: Oscar Nominee starts on level 19 (set 7)
+\ # E: Oscar Winner  starts on level 25 (set 9)
+\ # F: Ace           starts on level 31 (set 11)
+
+.start_screen
+    LDA #&0F                        \ Flush all buffers
+    LDX #&00                        \ all buffers
+    JSR OSBYTE                      \ OSBYTE
+    LDA #&0D                        \ Disable event
+    LDX #&04                        \ v-sync event
+    JSR OSBYTE                      \ OSBYTE
+    LDY #&00
+    LDA #&DC                        \ Read/Write ASCII for ESCAPE
+    LDX #&FF                        \ Set Escape character to &ff
+    JSR OSBYTE                      \ OSBYTE
+    LDA #&16                        \ Change to MODE 7
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&07
+    JSR OSWRCH                      \ OSWRCH
+    JSR disable_cursor
+    LDX #&00
+    LDA #&1F                        \ TAB(&0a, &05)
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&0A
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&05
+    JSR OSWRCH                      \ OSWRCH
+.write_how_good_are_you_loop
+    LDA start_screen_text,X
+    CMP #&0D                        \ CR
+    BEQ write_skills
+    JSR OSWRCH                      \ OSWRCH    Write "How good are you"
+    INX
+    JMP write_how_good_are_you_loop
+.write_skills
+    INX
+    LDA #&41                        \ "A"
+    STA skill_letter
+    LDA #&07
+    STA skill_y
+.write_skills_loop
+    LDA #&1F                        \ TAB(&0c, skill_y)
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&0C
+    JSR OSWRCH                      \ OSWRCH
+    LDA skill_y
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&86                        \ TELETEXT_CYAN
+    JSR OSWRCH                      \ OSWRCH
+    LDA skill_letter
+    JSR OSWRCH                      \ OSWRCH    Write skill letter
+    LDA #&29                        \ ")"
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&83                        \ TELETEXT_YELLOW
+    JSR OSWRCH                      \ OSWRCH
+.write_skill_loop
+    LDA start_screen_text,X
+    CMP #&0D                        \ CR
+    BEQ consider_next_skill
+    JSR OSWRCH                      \ OSWRCH    Write skill description
+    INX
+    JMP write_skill_loop
+.consider_next_skill
+    INX
+    INC skill_y
+    INC skill_y
+    INC skill_letter
+    LDA skill_letter
+    CMP #&47                        \ "G"
+    BNE write_skills_loop
+.write_start_screen_text
+    LDA #&1F                        \ TAB(&04, &13)
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&04
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&13
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&02
+    STA lines_remaining
+.write_start_screen_text_loop
+    LDA start_screen_text,X
+    CMP #&0D                        \ CR
+    BEQ consider_next_line
+    JSR OSWRCH                      \ OSWRCH    Write "To start press A to F"
+    INX                             \ and "Highest wages paid today"
+    JMP write_start_screen_text_loop
+.consider_next_line
+    INX
+    DEC lines_remaining
+    BNE write_start_screen_text_loop
+.check_for_new_highest_wages
+    LDX #&00
+.check_for_new_highest_wages_loop
+    LDA highest_wages,X
+    CMP wages,X
+    BEQ consider_next_digit_0fb5
+    BCC is_new_highest_wages
+    JMP not_new_highest_wages
+.consider_next_digit_0fb5
+    INX
+    CPX #&06
+    BNE check_for_new_highest_wages_loop
+    JMP not_new_highest_wages
+.unused_0fbd
+    LDX #&00                        \ Unused code
+.is_new_highest_wages
+    LDX #&00
+.set_highest_wages_loop
+    LDA wages,X
+    STA highest_wages,X
+    INX
+    CPX #&06
+    BNE set_highest_wages_loop
+.not_new_highest_wages
+    LDA #&20                        \ " "
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&60                        \ "£"
+    JSR OSWRCH                      \ OSWRCH
+    LDX #&00
+    LDA #&01
+    STA suppress_leading_zeroes
+.write_highest_wages_loop
+    LDA highest_wages,X
+    CMP #&30                        \ "0"
+    BNE not_leading_zero
+    LDA suppress_leading_zeroes
+    CMP #&00
+    BEQ not_leading_zero
+    CPX #&05
+    BEQ not_leading_zero
+    JMP consider_next_digit_0ffa
+.not_leading_zero
+    LDA #&00
+    STA suppress_leading_zeroes
+    LDA highest_wages,X
+    JSR OSWRCH                      \ OSWRCH    Write highest wages
+.consider_next_digit_0ffa
+    INX
+    CPX #&06
+    BNE write_highest_wages_loop
+    LDX #&00
+    LDA #&07
+    STA start_screen_y
+    LDA #&00
+    STA start_screen_colour_one
+    LDA #&07
+    STA start_screen_colour_two
+    LDA #&04
+    STA scrolltext_cooldown
+.start_screen_loop
+    LDA #&81                        \ Wait for input character
+    LDX #&02
+    LDY #&00
+    JSR OSBYTE                      \ OSBYTE
+    TXA
+    SEC
+    SBC #&41                        \ "A"
+    STA skill
+    JMP skip_updating_bottom_colour
+.unused_1023    \ Unused code; would rotate colours in "To start press A to F"
+    LDX start_screen_colour_one
+    LDA #&1F                        \ TAB(&19, &13)
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&19                        \ Bug: should be LDA    &18 to set colour for "A"
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&13
+    JSR OSWRCH                      \ OSWRCH
+    LDA start_screen_colours_table,X
+    ADC #&80                        \ TELETEXT_TEXT_COLOUR
+    JSR OSWRCH                      \ OSWRCH
+    LDX start_screen_colour_two
+    LDA #&1F                        \ TAB(&1e, &13)
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&1E                        \ Bug: should be LDA    &1d to set colour for "F"
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&13
+    JSR OSWRCH                      \ OSWRCH
+    LDA start_screen_colours_table,X
+    ADC #&80                        \ TELETEXT_TEXT_COLOUR
+    JSR OSWRCH                      \ OSWRCH
+.skip_updating_bottom_colour
+    LDX start_screen_colour_one
+    LDA #&1F                        \ TAB(&0c, start_screen_y)
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&0C
+    JSR OSWRCH                      \ OSWRCH
+    LDA start_screen_y
+    JSR OSWRCH                      \ OSWRCH
+    LDA start_screen_colours_table,X
+    ADC #&80                        \ TELETEXT_TEXT_COLOUR
+    JSR OSWRCH                      \ OSWRCH
+    INC start_screen_colour_one
+    LDA start_screen_colour_one
+    CMP #&0B
+    BNE skip_wraparound_one
+    LDA #&00
+    STA start_screen_colour_one
+.skip_wraparound_one
+    INC start_screen_colour_two
+    LDA start_screen_colour_two
+    CMP #&0B
+    BNE skip_wraparound_two
+    LDA #&00
+    STA start_screen_colour_two
+    INC start_screen_y
+    LDA start_screen_y
+    CMP #&13
+    BNE skip_wraparound_two
+    LDA #&07
+    STA start_screen_y
+.skip_wraparound_two
+    DEC scrolltext_cooldown
+    BNE skip_updating_scrolltext
+.update_scrolltext
+    LDA #&07
+    STA scrolltext_cooldown
+    LDA #&1F                        \ TAB(&00, &16)
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&00
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&16
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&86                        \ TELETEXT_CYAN
+    JSR OSWRCH                      \ OSWRCH
+    LDX #&00
+.write_scrolltext_loop
+    LDA scrolltext,X
+    JSR OSWRCH                      \ OSWRCH    Write scrolltext
+    INX
+    CPX #&26
+    BNE write_scrolltext_loop
+.rotate_scrolltext
+    LDA scrolltext
+    STA first_character
+    LDX #&00
+.rotate_scrolltext_loop
+    INX
+    LDA scrolltext,X
+    DEX
+    STA scrolltext,X
+    INX
+    CPX #&56
+    BNE rotate_scrolltext_loop
+    LDA first_character
+    STA scrolltext,X
+.skip_updating_scrolltext
+    LDA skill
+    CMP #&06
+    BCC start_game
+    JMP start_screen_loop
+.start_game
+    LDX skill
+    LDA starting_levels_table,X
+    STA starting_level
+    LDX #&00
+    LDA #&30                        \ "0"
+.initialise_wages_loop
+    STA wages,X
+    INX
+    CPX #&06
+    BNE initialise_wages_loop
+    LDA #&01
+    STA next_gold_position_offset
+    LDA starting_level
+    STA level
+    LDA #&FF
+    STA gold_state                  \ Set to &ff to indicate gold not falling
+    LDA #&4C
+    STA helicopter_x
+    LDA #&CA
+    STA helicopter_y
+    LDA #&80
+    STA spider_direction            \ Set to &80 to indicate spider moving down
+    LDA #&01
+    STA spider_y
+    LDA #&01
+    STA player_can_brake            \ Set to &01 to indicate player can brake
+    JSR play_tune
+    JSR play_game
+    JMP start_screen
+.unused_1121
+    RTS
+
+.update_gold
+    LDA gold_state                  \ &ff if gold not falling
+    CMP #&FF
+    BEQ consider_dropping_gold_112c
+    JMP update_falling_gold
+.consider_dropping_gold_112c
+    LDA helicopter_x
+    LDX next_gold_position_offset
+    CMP x_positions_table,X         \ Is the helicopter where the next gold is due?
+    BEQ drop_gold
+    RTS
+.drop_gold
+    LDA helicopter_y
+    STA gold_y
+    STA screen_y
+    CLC
+    LDA helicopter_x
+    ADC #&04
+    STA gold_x
+    STA screen_x
+    CLC
+    LDA screen_y
+    ADC #&20                        \ Consider surface of ground underneath helicopter
+    STA screen_y
+    CLC
+    LDA screen_x
+    ADC #&02
+    STA screen_x
+    JSR calculate_screen_address
+    LDY row_in_group
+    LDA (screen_address),Y
+    CMP #&00                        \ Is there anything there?
+    BNE is_hole                     \ If so, don't drop gold
+    LDA helicopter_y
+    CMP #&5F                        \ Is the helicopter on the second ground, where there
+    BEQ is_hole                     \ is a horizontal enemy? If so, don't drop gold
+    LDA helicopter_y
+    STA gold_y
+    STA screen_y
+    CLC
+    LDA helicopter_x
+    ADC #&06
+    STA screen_x
+    CLC
+    LDA helicopter_y
+    ADC #&21                        \ Consider ground underneath helicopter
+    STA screen_y
+    JSR calculate_screen_address
+    LDY row_in_group
+highest_wages_1194 = * + 1
+    LDA (screen_address),Y
+    CMP #&00                        \ Is there a hole there?
+    BEQ is_hole                     \ If so, don't drop gold
+    JMP is_ground
+.is_hole
+start_screen_text_119d = * + 1
+    LDA #&FF
+    STA gold_state                  \ Set to &ff to indicate gold not falling
+    RTS
+.is_ground
+    LDA helicopter_x
+    CLC
+    ADC #&04
+    STA gold_x
+    LDA helicopter_y
+    STA gold_y
+.update_falling_gold
+    LDA gold_x
+    STA screen_x
+    LDA gold_y
+    STA screen_y
+    JSR calculate_screen_address
+    LDA #LO(sprite_gold)
+    STA sprite_address_low
+    LDA #&17
+    STA sprite_address_high
+    JSR plot_sprite                 \ Plot gold
+    INC gold_y
+    INC gold_state
+    LDA gold_state
+    CMP #&11
+    BNE not_on_ground
+    LDA #&FF
+    STA gold_state                  \ Set to &ff to indicate gold not falling
+    INC next_gold_position_offset
+    LDA next_gold_position_offset
+    CMP #&28
+    BNE skip_wraparound_11ec
+    LDA #&01
+    STA next_gold_position_offset
+.skip_wraparound_11ec
+.not_on_ground
+    RTS
+
+.unused_11ed
+    EQUB &73, &74, &61, &72, &74, &20, &67, &61, &6D, &65, &20, &63, &68, &6F, &6F, &73    \ "start game choose"
+    EQUB &65
+    EQUB &87    \ TELETEXT_WHITE
+    EQUB &41    \ "A"
+    EQUB &82    \ TELETEXT_GREEN
+    EQUB &74, &6F    \ "to"
+    EQUB &87    \ TELETEXT_WHITE
+    EQUB &46    \ "F"
+    EQUB &0D
+    EQUB &1F, &00, &02    \ TAB(&00, &02)
+    EQUB &86    \ TELETEXT_CYAN
+    EQUB &48, &69, &67, &68, &65, &73, &74, &20, &77, &61, &67, &65, &73, &20, &70, &61    \ "Highest wages paid today "
+    EQUB &69, &64, &20, &74, &6F, &64, &61, &79, &20
+    EQUB &0D
+
+.unused_1224    \ Source code fragment
+    EQUB &58, &3A, &4A, &4D, &50, &20, &4C, &39    \ ... X:JMP L9 ...
+
+.unused_122c    \ &122c - 71231 is a copy of &0ef0 - &0ef5
+starting_levels_table_122c = *
+    EQUB &01, &07, &0D, &13, &19, &1F
+
+.unused_start_screen    \ &1232 - &137c is similar to &0f04 - &1121,
+    LDY #&00                        \ start_screen, but omits colour changes and scrolltext
+    LDA #&DC                        \ Read/Write ASCII for ESCAPE
+    LDX #&FF                        \ Set Escape character to &ff
+    JSR OSBYTE                      \ OSBYTE
+    LDA #&16
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&07
+    JSR OSWRCH                      \ OSWRCH
+    JSR disable_cursor
+    LDX #&00
+    LDA #&1F
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&00                        \ &0f21 a9 0a    LDA    &0a
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&05
+    JSR OSWRCH                      \ OSWRCH
+.unused_write_how_good_are_you_loop
+    LDA start_screen_text_119d,X    \ &0f2b bd 63 0e LDA &0e63,X ; start_screen_text
+    CMP #&0D                        \ CR
+    BEQ unused_write_skills
+    JSR OSWRCH                      \ OSWRCH
+    INX
+    JMP unused_write_how_good_are_you_loop
+.unused_write_skills
+    INX
+    LDA #&41                        \ "A"
+    STA skill_letter
+    LDA #&07
+    STA skill_y
+.unused_write_skills_loop
+    LDA #&1F
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&0C
+    JSR OSWRCH                      \ OSWRCH
+    LDA skill_y
+    JSR OSWRCH                      \ OSWRCH
+\ ;                                                                   # &0f51 a9 86    LDA #&86 ; TELETEXT_CYAN
+\ ;                                                                   # &0f53 20 ee ff JSR &ffee ; OSWRCH
+    LDA skill_letter
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&29                        \ ")"
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&83                        \ TELETEXT_YELLOW
+    JSR OSWRCH                      \ OSWRCH
+.unused_write_skill_loop
+    LDA start_screen_text_119d,X    \ &0f65 bd 63 0e LDA &0e63,X ; start_screen_text
+    CMP #&0D                        \ CR
+    BEQ unused_consider_next_skill
+    JSR OSWRCH                      \ OSWRCH
+    INX
+    JMP unused_write_skill_loop
+.unused_consider_next_skill
+    INX
+    INC skill_y
+    INC skill_y
+    INC skill_letter
+    LDA skill_letter
+    CMP #&47                        \ "G"
+    BNE unused_write_skills_loop
+.unused_write_start_screen_text
+    LDA #&1F
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&00                        \ &0f85 a9 04    LDA    &04
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&13
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&02
+    STA lines_remaining
+.unused_write_start_screen_text_loop
+    LDA start_screen_text_119d,X    \ &0f93 bd 63 0e LDA &0e63,X ; start_screen_text
+    CMP #&0D                        \ CR
+    BEQ unused_consider_next_line
+    JSR OSWRCH                      \ OSWRCH
+    INX
+    JMP unused_write_start_screen_text_loop
+.unused_consider_next_line
+    INX
+    DEC lines_remaining
+    BNE unused_write_start_screen_text_loop
+.unused_check_for_new_highest_wages
+    LDX #&00
+.unused_check_for_new_highest_wages_loop
+    LDA highest_wages_1194,X        \ &0fa8 bd 5a 0e LDA &0e5a,X ; highest_wages
+    CMP wages,X
+    BEQ unused_consider_next_digit_12db
+    BCC unused_is_new_highest_wages
+\ ;                                                                   # &0fb2 4c cc 0f JMP &0fcc ; not_new_highest_wages
+.unused_consider_next_digit_12db
+    INX
+    CPX #&06
+    BNE unused_check_for_new_highest_wages_loop
+    JMP unused_not_new_highest_wages
+.unused_12e3
+    LDX #&00                        \ Unused even in the unused code!
+\ ;                                                                   # &0fbf a2 00    LDX #&00
+.unused_is_new_highest_wages
+.unused_set_highest_wages_loop
+    LDA wages,X
+    STA highest_wages_1194,X        \ &0fc4 9d 5a 0e STA &0e5a,X ; highest_wages
+    INX
+    CPX #&06
+    BNE unused_set_highest_wages_loop
+.unused_not_new_highest_wages
+    LDA #&20                        \ " "
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&60                        \ "£"
+    JSR OSWRCH                      \ OSWRCH
+    LDX #&00
+    LDA #&01
+    STA suppress_leading_zeroes
+.unused_write_highest_wages_loop
+    LDA highest_wages_1194,X        \ &0fdc bd 5a 0e LDA &0e5a,X ; highest_wages
+    CMP #&30                        \ "0"
+    BNE unused_not_leading_zero
+    LDA suppress_leading_zeroes
+    CMP #&00
+    BEQ unused_not_leading_zero
+    CPX #&05
+    BEQ unused_not_leading_zero
+    JMP unused_consider_next_digit_131e
+.unused_not_leading_zero
+    LDA #&00
+    STA suppress_leading_zeroes
+    LDA highest_wages_1194,X        \ &0ff4 bd 5a 0e LDA &0e5a,X ; highest_wages
+    JSR OSWRCH                      \ OSWRCH
+.unused_consider_next_digit_131e
+    INX
+    CPX #&06
+    BNE unused_write_highest_wages_loop
+\ ;                                                                   # &0fff - &100f is omitted
+.unused_start_screen_loop
+    LDA #&81                        \ Wait for input character
+    LDX #&FF                        \ &1013 a2 02    LDX    &02
+    LDY #&78                        \ &1015 a0 00    LDY    &00
+    JSR OSBYTE                      \ OSBYTE
+    TXA
+    SEC
+    SBC #&41                        \ "A"
+    STA skill
+\ ;                                                                   # &1020 - &10d4 is omitted
+    LDA skill
+    CMP #&06
+    BCS unused_start_screen_loop    \ &10d8 90 03    BCC &10dd ; start_game
+\ ;                                                                   # &10da 4c 11 10 JMP &1011 ; start_screen_loop
+.unused_start_game
+    LDX skill
+    LDA starting_levels_table_122c,X\ &10df bd f0 0e LDA &0ef0,X ; starting_levels_table
+    STA starting_level
+    LDX #&00
+    LDA #&30                        \ "0"
+.unused_initialise_wages_loop_1343
+    STA wages,X
+    INX
+    CPX #&06
+    BNE unused_initialise_wages_loop_1343
+    LDA #&01
+    STA next_gold_position_offset
+    LDA starting_level
+    STA level
+    LDA #&FF
+    STA gold_state
+    LDA #&4C
+    STA helicopter_x
+    LDA #&CA
+    STA helicopter_y
+    LDA #&80
+    STA spider_direction
+    LDA #&01
+    STA spider_y
+    LDA #&01
+    STA player_can_brake
+    JSR play_tune
+    JSR play_game
+    JMP unused_start_screen
+.unused_137c
+    RTS
+
+.unused_137d
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &60, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &FF, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+alternative_title_screen_data = * + 3
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00
+
+.you_are_fired_string
+    EQUB &14    \ restore default logical colours
+    EQUB &1F, &03, &11    \ TAB(&03, &11)
+    EQUB &11, &08    \ COLOUR 8
+    EQUB &59, &4F, &55, &20, &41, &52, &45, &20, &46, &49, &52, &45, &44    \ "YOU ARE FIRED"
+    EQUB &0D
+
+.play_game
+    LDA #&01
+    STA take
+    LDA #&FF
+    STA previous_level
+    LDA #&CF
+    STA helicopter_y
+    LDA #&4C
+    STA helicopter_x
+    LDA #&01
+    STA next_gold_position_offset
+    LDA #&FF
+    STA gold_state                  \ Set to &ff to indicate gold not falling
+    LDA #&80
+    STA spider_direction            \ Set to &80 to indicate spider moving down
+    LDA #&01
+    STA spider_y
+    JSR clapperboard_screen
+.new_take
+    JSR initialise_level
+    LDA #&08
+    STA screen_x
+    LDA #&38
+    STA screen_y
+    LDA #LO(sprite_blank)
+    STA sprite_address_low
+    LDA #&27
+    STA sprite_address_high
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Clear any obstacle immediately in front of player
+    JSR clear_paths_of_enemies
+    JSR consider_plotting_holes
+    JSR disable_cursor
+.main_game_loop
+    JSR update_rotating_colour_and_enemies
+    JSR update_helicopter
+    JSR update_spider
+    JSR update_player
+    LDA right_edge
+    CMP #&1F                        \ YW
+    BNE skip_collecting_gold        \ Is the player touching gold?
+    JSR collect_gold
+.skip_collecting_gold
+    CLC
+    LDA player_x
+    ADC #&04
+    STA screen_x
+    SEC
+    LDX player_jump_state
+    LDA player_ground_y
+    SBC jump_offsets_table,X
+    STA screen_y
+    CLC
+    LDA screen_y
+    ADC #&08
+    STA screen_y
+    JSR calculate_screen_address
+    LDY row_in_group
+    LDA (screen_address),Y          \ Check for collision at middle right
+    CMP #&00
+    BNE is_collision
+    JSR check_for_collision         \ Returns non-zero if collision
+    CMP #&00
+    BEQ main_game_loop
+.is_collision
+    JSR kill_player
+    LDA #&CF
+    STA helicopter_y
+    LDA #&4C
+    STA helicopter_x
+    LDA #&FF
+    STA gold_state                  \ Set to &ff to indicate gold not falling
+    LDA take
+    CMP #&04
+    BEQ game_over
+    JSR clapperboard_screen
+    LDA #&01
+    STA player_can_brake            \ Set to &01 to indicate player can brake
+    JMP new_take
+.game_over
+    LDX #&00
+.write_you_are_fired_loop
+    LDA you_are_fired_string,X
+    JSR OSWRCH                      \ OSWRCH
+    INX
+    CPX #&13
+    BNE write_you_are_fired_loop
+    LDA #&00
+    STA game_over_count
+.game_over_loop
+    JSR update_rotating_colour_and_enemies
+    JSR update_spider
+    INC game_over_count
+    LDA game_over_count
+    CMP #&3C
+    BNE game_over_loop
+    RTS
+
+.consider_gaining_extra_take    \ Called with A = level ground colour
+    STA level_ground_colour
+    LDA #&80                        \ COLOUR 128 + 0
+    JSR OSWRCH                      \ OSWRCH    First byte was written at &2427
+    JSR disable_cursor
+    LDA #&11                        \ COLOUR
+    JSR OSWRCH                      \ OSWRCH    Second byte will be written at &2464
+    LDA level
+    CMP #&01
+    BEQ skip_gaining_extra_take
+    LDA level_type
+    CMP #&01
+    BNE skip_gaining_extra_take
+    LDA previous_level
+    CMP level
+    BEQ skip_gaining_extra_take     \ Is this a new set of levels?
+    LDA level
+    STA previous_level
+    LDA take
+    CMP #&01
+    BEQ skip_gaining_extra_take     \ If so, and not already on take one,
+.gain_extra_take
+    DEC take                        \ Gain extra take
+    LDA #&12                        \ Play immediately on channel 2
+    STA sound_block_0c30            \ (channel)    Bug: this overwrites level_ground_colour, but
+    LDA #&00                        \ COLOUR &12 is green, which works for land level
+    STA sound_block_0c30 + 1        \ (channel high)
+    LDA #&03
+    STA sound_block_0c30 + 2        \ (volume)
+    LDA #&00
+    STA sound_block_0c30 + 3        \ (volume high)
+    LDA #&30
+    STA sound_block_0c30 + 4        \ (pitch)
+    LDA #&00
+    STA sound_block_0c30 + 5        \ (pitch high)
+    LDA #&01
+    STA sound_block_0c30 + 6        \ (duration)
+    LDA #&00
+    STA sound_block_0c30 + 7        \ (duration high)
+    LDX #LO(sound_block_0c30)
+    LDY #&0C
+    LDA #&07                        \ Generate a sound
+    JSR OSWORD                      \ OSWORD    Play sound for gaining extra take
+    LDA #&00
+    STA count_0070
+.gain_extra_take_delay_loop
+    LDA #&13                        \ Wait for vertical retrace
+    JSR OSBYTE                      \ OSBYTE
+    INC count_0070
+    LDA count_0070
+    CMP #&2C                        \ 44
+    BNE gain_extra_take_delay_loop
+.skip_gaining_extra_take
+    LDA #&01
+    STA spider_y
+    LDA #&80
+    STA spider_direction            \ Set to &80 to indicate spider moving down
+    LDA level_ground_colour
+    RTS                             \ Leave with A = level ground colour
+
+.unused_161d
+    EQUB &00, &00, &00, &4F, &00, &8D, &00, &00, &83, &00, &00, &00
+
+.sprite_spider
+    EQUB &00, &05, &00, &00, &00, &05, &00, &00, &00, &05, &00, &00, &00, &05, &00, &00
+    EQUB &00, &05, &00, &00, &00, &03, &02, &00, &01, &03, &03, &00, &03, &03, &03, &02
+    EQUB &07, &0B, &0F, &02, &47, &A1, &DA, &02, &03, &03, &03, &02, &01, &03, &03, &00
+    EQUB &14, &14, &14, &00, &28, &28, &28, &28, &28, &28, &28, &28, &00, &00, &00, &00
+
+.unused_1669
+    EQUB &00, &8D, &00, &6F, &6C, &64
+
+.spider_direction
+    EQUB &80
+
+.spider_y
+    EQUB &01
+
+.update_spider
+    LDA level
+    CMP #&04
+    BCC is_present_1679             \ Spider only on first set of levels
+    RTS
+.is_present_1679
+    LDA spider_direction            \ &00 if moving up, &80 if moving down
+    CMP #&80
+    BNE is_moving_up
+.is_moving_down
+    INC spider_y                    \ Move spider down
+    LDA spider_y
+    CMP #&1A
+    BNE replot_spider
+    LDA #&00
+    STA spider_direction            \ Set to &00 to indicate spider moving up
+    JMP replot_spider
+.is_moving_up
+    DEC spider_y                    \ Move spider up
+    LDA spider_y
+    CMP #&01
+    BNE replot_spider
+    LDA #&80
+    STA spider_direction            \ Set to &80 to indicate spider moving down
+.replot_spider
+    LDA #LO(sprite_spider)
+    STA sprite_address_low
+    LDA #&16
+    STA sprite_address_high
+    LDA #&28
+    STA screen_x
+    LDA #&BB                        \ Fourth ground
+    STA screen_y
+    CLC
+    LDA screen_y
+    ADC spider_y
+    STA screen_y
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Plot spider
+    RTS
+
+.unused_16c4
+    EQUB &00, &00, &D0, &16, &31
+
+.collect_gold
+    LDA player_x
+    STA screen_x
+    SEC
+    LDA player_ground_y
+    SBC #&20
+    STA screen_y
+    LDA #LO(sprite_eighty)
+    STA sprite_address_low
+    LDA #&17
+    STA sprite_address_high
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Plot 80
+    LDA #&08
+    STA count_0070
+.add_eighty_to_wages_loop
+    JSR add_to_wages                \ Earn 80 (10 * 8) for collecting gold
+    DEC count_0070
+    BNE add_eighty_to_wages_loop
+    LDA #LO(sprite_blank)
+    STA sprite_address_low
+    LDA #&27
+    STA sprite_address_high
+    LDA player_x
+    STA screen_x
+    INC screen_x
+    INC screen_x
+    LDA player_ground_y
+    STA screen_y
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Unplot gold
+    LDA #&12                        \ Play immediately on channel 2
+    STA sound_block_0c30            \ (channel)
+    LDA #&00
+    STA sound_block_0c30 + 1        \ (channel high)
+    LDA #&02
+    STA sound_block_0c30 + 2        \ (volume)
+    LDA #&00
+    STA sound_block_0c30 + 3        \ (volume high)
+    LDA #&C8
+    STA sound_block_0c30 + 4        \ (pitch)
+    LDA #&00
+    STA sound_block_0c30 + 5        \ (pitch high)
+    LDA #&01
+    STA sound_block_0c30 + 6        \ (duration)
+    LDA #&00
+    STA sound_block_0c30 + 7        \ (duration high)
+    LDX #LO(sound_block_0c30)
+    LDY #&0C
+    LDA #&07                        \ Generate a sound
+    JSR OSWORD                      \ OSWORD    Play sound for collecting gold
+    RTS
+
+.unused_1743
+helicopter_x = * + 8
+helicopter_y = * + 9
+    EQUB &4D, &17, &49, &4E, &00, &8D, &1E, &40, &4C, &CA
+
+.sprite_helicopter
+    EQUB &00, &15, &2A, &00, &49, &CD, &F1, &AC, &00, &15, &2A, &00, &00, &03, &03, &00
+    EQUB &15, &3E, &03, &00, &15, &38, &21, &00, &3E, &30, &21, &15, &3E, &30, &21, &03
+    EQUB &3E, &30, &21, &03, &16, &30, &03, &47, &03, &03, &03, &00, &01, &03, &02, &00
+    EQUB &00, &08, &08, &00, &04, &00, &08, &0A, &0F, &0F, &0F, &00, &00, &00, &00, &00
+
+.unused_178d
+    EQUB &00, &00, &99
+
+.sprite_gold
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &1F, &1F, &00, &00, &1F, &1F, &00, &00, &1F, &1F, &00
+
+.unused_17d0
+    EQUB &00, &D0, &00, &00, &1B
+
+.sprite_eighty
+    EQUB &00, &00, &00, &00, &C0, &80, &C0, &80, &80, &80, &80, &80, &80, &80, &80, &80
+    EQUB &80, &80, &80, &80, &C0, &80, &80, &80, &80, &80, &80, &80, &80, &80, &80, &80
+    EQUB &80, &80, &80, &80, &C0, &80, &C0, &80, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+
+.unused_1815
+    EQUB &00, &83, &00, &00
+
+.gold_x
+    EQUB &14
+
+.gold_y
+    EQUB &A9
+
+.gold_state
+    EQUB &FF
+
+.next_gold_position_offset
+    EQUB &01
+
+.update_helicopter
+    LDA level
+    CMP #&04
+    BCS is_present_1825             \ No helicopter on first set of levels
+    RTS
+.is_present_1825
+    LDA helicopter_x
+    STA screen_x
+    LDA helicopter_y
+    STA screen_y
+    JSR calculate_screen_address
+    LDA screen_address_low
+    PHA
+    LDA screen_address_high
+    PHA
+    LDA row_in_group
+    PHA
+    DEC helicopter_x
+    LDA helicopter_x
+    CMP #&00
+    BNE skip_changing_helicopter_ground
+    LDA #&4C
+    STA helicopter_x                \ Move to right of screen
+    SEC
+    LDA helicopter_y
+    SBC #&38                        \ Move up a ground
+    STA helicopter_y
+    LDA helicopter_y
+    CMP #&EF
+    BNE skip_ground_wraparound      \ If above first ground,
+    LDA #&CF                        \ Move to fourth ground
+    STA helicopter_y
+    LDA level
+    STA next_gold_position_offset
+.skip_ground_wraparound
+.skip_changing_helicopter_ground
+    LDA #LO(sprite_blank)
+    STA sprite_address_low
+    LDA #&27
+    STA sprite_address_high
+    PLA
+    STA row_in_group
+    PLA
+    STA screen_address_high
+    PLA
+    STA screen_address_low
+    JSR plot_sprite                 \ Unplot previous helicopter
+    LDA helicopter_x
+    STA screen_x
+    LDA helicopter_y
+    STA screen_y
+    LDA #LO(sprite_helicopter)
+    STA sprite_address_low
+    LDA #&17
+    STA sprite_address_high
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Plot helicopter
+    JMP update_gold
+
+\ ;                                                                   # &1122 ad 1b 18 LDA &181b ; gold_state
+.unused_update_gold    \ &189a - &18ac is identical to &1125 - &1137
+    CMP #&FF
+    BEQ consider_dropping_gold_18a1
+    JMP unused_update_falling_gold
+.consider_dropping_gold_18a1
+    LDA helicopter_x
+    LDX next_gold_position_offset
+    CMP x_positions_table,X
+    BEQ unused_drop_gold
+    RTS
+.unused_drop_gold    \ &18ad - &1907 is different to &1138 - &11ec
+    LDA helicopter_x
+    STA gold_x
+    CLC
+    LDA gold_x
+    ADC #&04
+    STA gold_x
+    LDA helicopter_y
+    STA gold_y
+    CLC
+    LDA gold_y
+    ADC #&04
+    STA gold_y
+.unused_update_falling_gold
+    INC gold_state
+    INC gold_y
+    LDA gold_state
+    CMP #&0D                        \ &11d4 c9 11    CMP    &11
+    BNE unused_not_on_ground
+    INC next_gold_position_offset
+    LDA next_gold_position_offset
+    CMP #&27                        \ &11e3 c9 28    CMP    &28
+    BNE unused_skip_wraparound
+    LDA #&01
+    STA next_gold_position_offset
+.unused_skip_wraparound
+    LDA #&FF
+    STA gold_state
+    RTS
+.unused_not_on_ground
+    LDA gold_x
+    STA screen_x
+    LDA gold_y
+    STA screen_y
+    LDA #&91                        \ &1791    &11c0 a9 90    LDA    &90 ; &1790 = sprite_gold
+    STA sprite_address_low
+    LDA #&17
+    STA sprite_address_high
+    JSR calculate_screen_address
+    JSR plot_sprite
+    RTS
+
+.unused_1908
+    EQUB &20, &4C, &C3, &18, &60
+
+.disable_cursor
+    LDA #&17
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&00                        \ set CRTC register
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&0A                        \ R10: Cursor start register
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&20                        \ disable cursor
+    JSR OSWRCH                      \ OSWRCH
+    LDY #&08
+.write_nulls_loop
+    LDA #&00
+    JSR OSWRCH                      \ OSWRCH
+    DEY
+    BNE write_nulls_loop
+    RTS
+
+.play_tune
+    LDA #&12
+    STA tune_notes_remaining
+    LDA #LO(tune_data_2f68)
+    STA tune_data_address_low
+    LDA #&2F
+    STA tune_data_address_high
+.play_tune_loop
+    LDY #&02
+    LDA (tune_data_address),Y       \ Third byte of tune data specifies duration
+    STA duration
+    CLC
+    LDA duration
+    ADC duration
+    STA duration
+    CLC
+    LDA duration
+    LDY #&02
+    ADC (tune_data_address),Y       \ Third byte of tune data specifies duration
+    STA duration                    \ Multiply by three
+    LDY #&01
+    LDA (tune_data_address),Y       \ Second byte of tune data specifies pitch
+    CMP #&00                        \ Zero if delay
+    BNE is_note
+.is_delay
+    LDA #&2D                        \ 45
+    STA tune_delay
+.tune_delay_loop
+    LDA #&13                        \ Wait for vertical retrace
+    JSR OSBYTE                      \ OSBYTE
+    DEC tune_delay
+    BNE tune_delay_loop
+    JMP move_to_next_note
+.is_note
+    LDA #&01
+    STA sound_block_0c30            \ (channel)
+    LDA #&00
+    STA sound_block_0c30 + 1        \ (channel high)
+    LDA #&F1
+    STA sound_block_0c30 + 2        \ (volume)
+    LDA #&FF
+    STA sound_block_0c30 + 3        \ (volume high)
+    LDY #&00
+    LDA (tune_data_address),Y       \ First byte of tune data specifies first pitch
+    STA sound_block_0c30 + 4        \ (pitch)
+    LDA #&00
+    STA sound_block_0c30 + 5        \ (pitch high)
+    LDA duration
+    STA sound_block_0c30 + 6        \ (duration)
+    LDA #&00
+    STA sound_block_0c30 + 7        \ (duration high)
+    LDX #LO(sound_block_0c30)
+    LDY #&0C
+    LDA #&07                        \ Generate a sound
+    JSR OSWORD                      \ OSWORD    Play first note in chord on channel one
+    LDA #&02
+    STA sound_block_0c30            \ (channel)
+    LDA #&00
+    STA sound_block_0c30 + 1        \ (channel high)
+    LDA #&F1
+    STA sound_block_0c30 + 2        \ (volume)
+    LDA #&FF
+    STA sound_block_0c30 + 3        \ (volume high)
+    LDY #&01
+    LDA (tune_data_address),Y       \ Second byte of tune data specifies second pitch
+    STA sound_block_0c30 + 4        \ (pitch)
+    LDA #&00
+    STA sound_block_0c30 + 5        \ (pitch high)
+    LDA duration
+    STA sound_block_0c30 + 6        \ (duration)
+    LDA #&00
+    STA sound_block_0c30 + 7        \ (duration high)
+    LDX #LO(sound_block_0c30)
+    LDY #&0C
+    LDA #&07                        \ Generate a sound
+    JSR OSWORD                      \ OSWORD    Play second note in chord on channel two
+.move_to_next_note
+    CLC
+    LDA tune_data_address_low
+    ADC #&03
+    STA tune_data_address_low
+    LDA tune_data_address_high
+    ADC #&00
+    STA tune_data_address_high
+    DEC tune_notes_remaining
+    BEQ end_of_tune
+    JMP play_tune_loop
+.end_of_tune
+    LDA #&32                        \ 50
+    STA tune_delay
+.end_of_tune_delay_loop
+    LDA #&13                        \ Wait for vertical retrace
+    JSR OSBYTE                      \ OSBYTE
+    DEC tune_delay
+    BNE end_of_tune_delay_loop
+    RTS
+
+.unused_19f4    \ &19f4 - &1a03 is a copy of &1e08 - &1e17
+    LDA screen_address_low
+    STA player_screen_address_low
+    LDA screen_address_high
+    STA player_screen_address_high
+    LDA row_in_group
+    STA player_row_in_group
+
+.kill_player
+    LDA #&10                        \ Play immediately on channel 0
+    STA sound_block_0c30            \ (channel)
+    LDA #&00
+    STA sound_block_0c30 + 1        \ (channel high)
+    LDA #&01
+    STA sound_block_0c30 + 2        \ (volume)
+    LDA #&00
+    STA sound_block_0c30 + 3        \ (volume high)
+    LDA #&06                        \ Low frequency white noise
+    STA sound_block_0c30 + 4        \ (pitch)
+    LDA #&00
+    STA sound_block_0c30 + 5        \ (pitch high)
+    LDA #&05
+    STA sound_block_0c30 + 6        \ (duration)
+    LDA #&00
+    STA sound_block_0c30 + 7        \ (duration high)
+    LDX #LO(sound_block_0c30)
+    LDY #&0C
+    LDA #&07                        \ Generate a sound
+    JSR OSWORD                      \ OSWORD    Play sound for player dying
+    LDA #&9A                        \ &009a    Unnecessary code; values overwritten at &1a57
+    STA player_sprite_address_low
+    LDA #&00
+    STA player_sprite_address_high
+    LDA player_x
+    STA screen_x
+    LDA player_ground_y
+    STA screen_y
+    LDX player_jump_state
+    LDA screen_y
+    SBC jump_offsets_table,X
+    STA screen_y
+    LDA #LO(sprite_explosion)
+    STA sprite_address_low
+    LDA #&27
+    STA sprite_address_high
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Plot explosion
+    CLC
+    LDA player_x
+    ADC #&04
+    STA player_x
+    LDA #&12
+    STA player_jump_state           \ Set player starting to fall
+.animate_flying_dead_player_loop
+    JSR update_rotating_colour_and_enemies
+    LDA #&13                        \ Wait for vertical retrace
+    JSR OSBYTE                      \ OSBYTE
+    LDA player_x
+    STA screen_x
+    LDA player_ground_y
+    STA screen_y
+    LDX player_jump_state
+    LDA screen_y
+    SBC jump_offsets_table,X
+    STA screen_y
+    LDA #LO(sprite_blank)           \ Unnecessary code
+    STA sprite_address_low
+    LDA #&27
+    STA sprite_address_high
+    JSR calculate_screen_address
+    LDA #LO(sprite_blank)
+    STA sprite_address_low
+    LDA #&27
+    STA sprite_address_high
+    JSR plot_sprite                 \ Unplot previous flying dead player
+    INC player_x
+    LDA player_x
+    CMP #&4A
+    BNE skip_ceiling_1ab8
+    LDA #&49
+    STA player_x
+.skip_ceiling_1ab8
+    INC player_jump_state
+    LDA player_x
+    STA screen_x
+    LDA player_ground_y
+    STA screen_y
+    LDX player_jump_state
+    LDA screen_y
+    SBC jump_offsets_table,X
+    STA screen_y
+    LDA player_sprite_address_low
+    STA sprite_address_low
+    LDA player_sprite_address_high
+    STA sprite_address_high
+    JSR calculate_screen_address
+    LDA #LO(sprite_dead_player_one)
+    STA sprite_address_low
+    LDA #&28
+    STA sprite_address_high
+    JSR plot_sprite                 \ Plot flying dead player
+    LDA player_jump_state
+    CMP #&20
+    BEQ animate_dead_player
+    JMP animate_flying_dead_player_loop
+.animate_dead_player
+    LDA #&07
+    STA dead_player_count
+.animate_dead_player_loop
+    LDA #LO(sprite_dead_player_one)
+    STA sprite_address_low
+    LDA #&28
+    STA sprite_address_high
+    LDA player_x
+    STA screen_x
+    LDA player_ground_y
+    STA screen_y
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Plot dead player frame one
+    LDA #&0A                        \ 10
+    STA death_delay
+.death_delay_one_loop
+    LDA #&13                        \ Wait for vertical retrace
+    JSR OSBYTE                      \ OSBYTE
+    DEC death_delay
+    BNE death_delay_one_loop
+    LDA #LO(sprite_dead_player_two)
+    STA sprite_address_low
+    LDA #&28
+    STA sprite_address_high
+    LDA player_x
+    STA screen_x
+    LDA player_ground_y
+    STA screen_y
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Plot dead player frame two
+    LDA #&0A
+    STA death_delay
+.death_delay_two_loop
+    LDA #&13                        \ Wait for vertical retrace
+    JSR OSBYTE                      \ OSBYTE
+    DEC death_delay
+    BNE death_delay_two_loop
+    DEC dead_player_count
+    BNE animate_dead_player_loop
+    INC take
+    RTS
+
+.unused_1b55    \ Unused code
+    BEQ leave_1b5a
+    JMP skip_ceiling_1ab8 + 32
+.leave_1b5a
+    RTS
+.unused_1b5b
+    RTS
+
+.unused_1b5c    \ &1b5c - &1b61 is a copy of &1e0b - &1e10
+    EQUB &16, &0C    \ ... &0c16
+    LDA &71
+    EQUB &8D, &17    \ STA &0C17, cut off: the copy (of &1E0B-&1E10) ends here
+
+.check_for_collision
+    LDA #&00
+    STA player_collided             \ Set to zero to indicate no collision (unused)
+    LDA right_edge
+    CMP #&00
+    BEQ no_collision_on_right_edge
+    LDA #&01                        \ Leave with non-zero to indicate collision
+    STA player_collided             \ Unused variable
+    RTS
+.no_collision_on_right_edge
+    LDA player_x                    \ Unnecessary code
+    CLC
+    ADC #&01
+    CLC
+    ADC #&01
+    LDA player_ground_y
+    STA screen_y
+    LDX player_jump_state
+    SEC
+    LDA screen_y
+    SBC jump_offsets_table,X
+    STA screen_y
+    DEC screen_y
+    JSR calculate_screen_address    \ screen_x = player_x + 4 here (&1524)
+    LDY row_in_group
+    LDA (screen_address),Y          \ Check for collision at top right
+    CMP #&00
+    BEQ no_collision_top_right
+    LDA #&01                        \ Leave with non-zero to indicate collision
+    STA player_collided             \ Unused variable
+    RTS
+.no_collision_top_right
+    LDA player_jump_state
+    CMP #&00
+    BNE is_jumping_1bad
+    RTS
+.is_jumping_1bad
+    LDA player_x
+    STA screen_x
+    LDA player_ground_y
+    STA screen_y
+    LDX player_jump_state
+    SEC
+    LDA screen_y
+    SBC jump_offsets_table,X
+    STA screen_y
+    CLC
+    LDA screen_y
+    ADC #&10
+    STA screen_y
+    JSR calculate_screen_address
+    LDY row_in_group
+    LDA (screen_address),Y          \ Check for collision below
+    CMP #&00
+    BEQ no_collision_below
+    LDA #&01                        \ Leave with non-zero to indicate collision
+    STA player_collided             \ Unused variable
+    RTS
+.no_collision_below
+    RTS                             \ Leave with zero to indicate no collision
+
+.unused_1be2
+    EQUB &10, &0C
+
+.update_player
+    JSR calculate_player_screen_address
+    CLC
+    LDA player_x_fraction           \ player_x += player_x_velocity * 3
+    ADC player_x_velocity
+    STA player_x_fraction
+    LDA player_x
+    ADC #&00
+    STA player_x
+    CLC
+    LDA player_x_fraction
+    ADC player_x_velocity
+    STA player_x_fraction
+    LDA player_x
+    ADC #&00
+    STA player_x
+    CLC
+    LDA player_x_fraction
+    ADC player_x_velocity
+    STA player_x_fraction
+    LDA player_x
+    ADC #&00
+    STA player_x
+    LDA #&11                        \ Play immediately on channel 1
+    STA sound_block_0c30            \ (channel)
+    LDA #&00
+    STA sound_block_0c30 + 1        \ (channel high)
+    LDA #&00
+    STA sound_block_0c30 + 2        \ (volume)
+    LDA #&00
+    STA sound_block_0c30 + 3        \ (volume high)
+    LDA player_x_velocity
+    STA sound_block_0c30 + 4        \ (pitch)
+    LSR sound_block_0c30 + 4        \ (pitch)
+    LDA #&00
+    STA sound_block_0c30 + 5        \ (pitch high)
+    LDA #&01
+    STA sound_block_0c30 + 6        \ (duration)
+    LDA #&00
+    STA sound_block_0c30 + 7        \ (duration high)
+    LDX #LO(sound_block_0c30)
+    LDY #&0C
+    LDA #&07                        \ Generate a sound
+    JSR OSWORD                      \ OSWORD    Play sound to set pitch for channel 0
+    LDA #&03                        \ Unnecessary code
+    STA sound_block_0c30 + 4        \ (pitch)
+    LDA player_sprite_address_high
+    CMP #&2B
+    BEQ is_snow
+.not_snow
+    LDA #&10                        \ Play immediately on channel 0
+    STA sound_block_0c30            \ (channel)
+    LDA #&00
+    STA sound_block_0c30 + 1        \ (channel high)
+    LDA #&F1
+    STA sound_block_0c30 + 2        \ (volume)
+    LDA #&FF
+    STA sound_block_0c30 + 3        \ (volume high)
+    LDA #&03                        \ Periodic noise, pitch from channel 1
+    STA sound_block_0c30 + 4        \ (pitch)
+    LDA #&00
+    STA sound_block_0c30 + 5        \ (pitch high)
+    LDA #&02
+    STA sound_block_0c30 + 6        \ (duration)
+    LDA #&00
+    STA sound_block_0c30 + 7        \ (duration high)
+    LDX #LO(sound_block_0c30)
+    LDY #&0C
+    LDA #&07                        \ Generate a sound
+    JSR OSWORD                      \ OSWORD    Play sound for player moving on land or sea
+    JMP skip_snow_sound
+.is_snow
+    LDA player_jump_state
+    CMP #&00
+    BNE skip_snow_sound             \ If on snow, don't play sound if jumping
+    LDA player_x_velocity
+    CMP #&00
+    BEQ skip_snow_sound             \ or stationary
+    LDA #&10                        \ Play immediately on channel 0
+    STA sound_block_0c30            \ (channel)
+    LDA #&00
+    STA sound_block_0c30 + 1        \ (channel high)
+    LDA #&F9
+    STA sound_block_0c30 + 2        \ (volume)
+    LDA #&FF
+    STA sound_block_0c30 + 3        \ (volume high)
+    LDA #&04                        \ High frequency white noise
+    STA sound_block_0c30 + 4        \ (pitch)
+    LDA #&00
+    STA sound_block_0c30 + 5        \ (pitch high)
+    LDA #&02
+    STA sound_block_0c30 + 6        \ (duration)
+    LDA #&00
+    STA sound_block_0c30 + 7        \ (duration high)
+    LDX #LO(sound_block_0c30)
+    LDY #&0C
+    LDA #&07                        \ Generate a sound
+    JSR OSWORD                      \ OSWORD    Play sound for player moving on snow
+.skip_snow_sound
+    LDX #&FF                        \ SHIFT
+    LDY #&FF
+    LDA #&81                        \ Scan for a particular key
+    JSR OSBYTE                      \ OSBYTE
+    CPX #&00
+    BEQ shift_not_pressed
+.shift_pressed    \ If SHIFT pressed,
+    INC player_x_velocity           \ player_x_velocity += 3
+    INC player_x_velocity
+    INC player_x_velocity
+    LDA player_x_velocity
+    CMP #&FA                        \ 250
+    BCC skip_ceiling_1cf3
+    LDA #&FA                        \ 250
+    STA player_x_velocity
+.skip_ceiling_1cf3
+.shift_not_pressed
+    LDA player_x
+    CMP #&4D
+    BEQ is_end_of_ground
+    LDA player_x
+    CMP #&4C
+    BEQ is_end_of_ground
+    LDA player_x
+    CMP #&4B
+    BEQ is_end_of_ground
+    JMP not_end_of_ground
+.is_end_of_ground
+    LDY level
+.score_for_reaching_end_of_ground_loop
+    JSR add_to_wages                \ Earn 10 * level for reaching end of ground
+    DEY
+    BNE score_for_reaching_end_of_ground_loop
+    CLC
+    LDA player_ground_y
+    ADC #&38                        \ Move to next ground
+    STA player_ground_y
+    LDA #&00
+    STA player_x
+    LDA player_ground_y
+    CMP #&18
+    BNE not_end_of_level
+    INC level
+    LDA level
+    CMP #&24                        \ 36    Level 36, set 12 snow
+    BNE skip_wraparound_1d38
+    LDA #&21                        \ 33    Level 33, set 11 snow
+    STA level
+.skip_wraparound_1d38
+    JSR initialise_level
+    JSR consider_plotting_holes
+    JSR clear_paths_of_enemies
+    LDA #&01
+    STA player_can_brake            \ Set to non-zero to allow player to brake
+.not_end_of_level
+.not_end_of_ground
+    LDX #&9D                        \ SPACE
+    LDY #&FF
+    LDA #&81                        \ Scan for a particular key
+    JSR OSBYTE                      \ OSBYTE
+    CPX #&00
+    BEQ space_not_pressed
+.space_pressed    \ If SPACE pressed,
+    LDA player_jump_state
+    CMP #&00
+    BNE skip_starting_jump          \ and player not already jumping,
+    LDA #&01
+    STA player_jump_state           \ start jump
+.skip_starting_jump
+.space_not_pressed
+    LDA player_jump_state
+    CMP #&00
+    BEQ not_jumping
+.is_jumping_1d66
+    INC player_jump_state
+    LDA player_jump_state
+    CMP #&1E                        \ 30
+    BNE not_end_of_jump
+    LDA #&00
+    STA player_jump_state           \ Set to zero to indicate player isn't jumping
+.not_end_of_jump
+.not_jumping
+    JSR replot_player
+    LDA player_jump_state
+    CMP #&00
+    BNE not_falling                 \ If the player isn't jumping,
+    LDA player_x
+    STA screen_x
+    LDA player_ground_y
+    STA screen_y
+    CLC
+    LDA screen_y
+    ADC #&10
+    STA screen_y
+    LDX player_jump_state
+    LDA screen_y
+    SEC
+    SBC jump_offsets_table,X
+    STA screen_y
+    JSR calculate_screen_address
+    LDY row_in_group
+    LDA (screen_address),Y
+    CMP #&00                        \ Is there a hole beneath the player?
+    BNE not_falling
+    JSR update_falling_player + 1   \ Bug: should be JSR &1e71 ; update_falling_player
+    LDA #&00
+    STA player_x_velocity           \ Player stops after fall
+    LDA #&00
+    STA player_jump_state           \ Set to zero to indicate player isn't jumping
+.not_falling
+    LDX #&B6                        \ RETURN
+    LDY #&FF
+    LDA #&81                        \ Scan for a particular key
+    JSR OSBYTE                      \ OSBYTE
+    CPX #&00
+    BEQ return_not_pressed          \ If RETURN pressed,
+.return_pressed
+    LDA player_can_brake            \ &01 if player can brake, &00 if already braked
+    CMP #&01
+    BNE skip_braking                \ and player hasn't already braked,
+    LDA #&00
+    STA player_can_brake            \ Set to &00 to indicate player has already braked
+    LDA #&00
+    STA player_x_velocity           \ Stop player
+.skip_braking
+.return_not_pressed
+    RTS
+
+.unused_1dd9
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00
+
+.calculate_player_screen_address
+    LDA player_x
+    STA screen_x
+    LDA player_ground_y
+    STA screen_y
+    LDX player_jump_state
+    SEC
+    LDA screen_y
+    SBC jump_offsets_table,X
+    STA screen_y
+    JSR calculate_screen_address
+    LDA screen_address_low
+    STA player_screen_address_low
+    LDA screen_address_high
+    STA player_screen_address_high
+    LDA row_in_group
+    STA player_row_in_group
+    RTS
+
+.replot_player
+    LDA player_x
+    STA screen_x
+    LDA player_ground_y
+    STA screen_y
+    LDX player_jump_state
+    SEC
+    LDA screen_y
+    SBC jump_offsets_table,X
+    STA screen_y
+    LDA #LO(sprite_blank)
+    STA sprite_address_low
+    LDA #&27
+    STA sprite_address_high
+    LDA #&13                        \ Wait for vertical retrace
+    JSR OSBYTE                      \ OSBYTE
+    LDA player_screen_address_low
+    STA screen_address_x
+    LDA player_screen_address_high
+    STA screen_address_y
+    LDA player_row_in_group
+    STA row_in_group
+    JSR plot_sprite                 \ Unplot previous player
+    JSR calculate_screen_address
+    LDA player_sprite_address_low
+    STA sprite_address_low
+    LDA player_sprite_address_high
+    STA sprite_address_high
+    JSR plot_sprite                 \ Plot player
+    RTS
+
+.unused_1e63
+    EQUB &00, &00, &31, &00, &32, &00
+
+.update_falling_player_if_not_jumping    \ Unused entry point
+    LDA player_jump_state
+    CMP #&00
+    BEQ update_falling_player
+    RTS
+.update_falling_player    \ Unused entry point (see bug at &1dad)
+    LDA bottom_edge
+    CMP #&00
+\ ; update_falling_player + 1                                         # Called at &1dad with A = 0
+\ #1e72 d8       CLD
+\ #1e73 2f c9 00 RLA &00c9                                            # Unofficial opcode; equivalent to ROL &00c9; AND &00c9
+    BEQ not_supported_to_left       \ Always branches
+    RTS
+.not_supported_to_left
+    LDA bottom_edge + 3
+    CMP #&00
+    BEQ not_supported_to_right
+    RTS
+.not_supported_to_right
+    LDA #&0F                        \ Flush buffers
+    JSR OSBYTE                      \ OSBYTE
+    LDA #&38
+    STA falling_timer
+.update_falling_player_loop
+    LDA #LO(sprite_blank)
+    STA sprite_address_low
+    LDA #&27
+    STA sprite_address_high
+    LDA player_x
+    STA screen_x
+    LDA player_ground_y
+    STA screen_y
+    LDA #&13                        \ Wait for vertical retrace
+    JSR OSBYTE                      \ OSBYTE
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Unplot previous falling player
+    INC player_ground_y
+    LDA player_sprite_address_low
+    STA sprite_address_low
+    LDA player_sprite_address_high
+    STA sprite_address_high
+    LDA player_x
+    STA screen_x
+    LDA player_ground_y
+    STA screen_y
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Plot falling player
+    LDA #LO(sprite_blank)
+    STA sprite_address_low
+    LDA #&27
+    STA sprite_address_high
+    LDA player_x
+    STA screen_x
+    LDA player_ground_y
+    STA screen_y
+    SEC
+    LDA screen_y
+    SBC #&12
+    STA screen_y
+    LDA #&13                        \ Wait for vertical retrace
+    JSR OSBYTE                      \ OSBYTE
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Unplot previous balloon
+    LDA player_x
+    STA screen_x
+    LDA player_ground_y
+    STA screen_y
+    SEC
+    LDA screen_y
+    SBC #&12
+    STA screen_y
+    INC screen_y
+    LDA #LO(sprite_balloon)
+    STA sprite_address_low
+    LDA #&27
+    STA sprite_address_high
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Plot balloon
+    DEC falling_timer
+    BEQ end_of_fall
+    JMP update_falling_player_loop
+.end_of_fall
+    LDA #LO(sprite_blank)
+    STA sprite_address_low
+    LDA #&27
+    STA sprite_address_high
+    LDA player_x
+    STA screen_x
+    LDA player_ground_y
+    STA screen_y
+    SEC
+    LDA screen_y
+    SBC #&12
+    STA screen_y
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Unplot balloon
+    RTS
+
+.unused_1f43
+    EQUB &00, &00, &00, &00, &00, &32, &00
+
+.clear_paths_of_enemies
+    LDA #&00
+    STA wipe_x
+    LDA #&70
+    STA wipe_y
+.clear_horizontal_enemy_path_loop
+    LDA #LO(sprite_blank)
+    STA sprite_address_low
+    LDA #&27
+    STA sprite_address_high
+    LDA wipe_x
+    STA screen_x
+    LDA wipe_y
+    STA screen_y
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Unplot obstacles in path of horizontal enemy
+    CLC
+    LDA wipe_x
+    ADC #&04
+    STA wipe_x
+    LDA wipe_x
+    CMP #&50
+    BNE clear_horizontal_enemy_path_loop
+    LDX #&00
+    LDY number_of_vertical_enemies
+    LDX #&00
+    CPY #&00
+    BEQ leave_1fad
+.clear_vertical_enemies_path_loop
+    LDA vertical_enemies_x,X
+    STA screen_x
+    LDA vertical_enemies_y_2fa8,X
+    STA screen_y
+    STX vertical_enemy_offset
+    STY enemies_remaining_to_unplot
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Unplot obstacles in path of vertical enemy
+    LDX vertical_enemy_offset
+    LDY enemies_remaining_to_unplot
+    INX                             \ Move to next vertical enemy
+    INX
+    INX
+    DEY
+    BNE clear_vertical_enemies_path_loop
+.leave_1fad
+    RTS
+
+.unused_1fae
+    EQUB &00, &00, &00, &00, &00, &00, &32, &00, &00, &00
+
+.consider_plotting_holes
+    LDA level
+    CMP #&05
+    BCS has_holes                   \ Holes start on set two, sea
+    RTS
+.has_holes
+    SEC
+    LDA level
+    SBC #&01
+    STA holes_remaining
+    LSR holes_remaining             \ number of holes = (level - 1) DIV 4
+    LSR holes_remaining
+    LDA number_of_vertical_enemies  \ Unnecessary code
+    LDX holes_remaining
+    LDY #&01
+.find_hole_position_loop
+    LDA variables_for_hole_position - 1,Y\ Unclear; probably not what was intended
+    INY
+    CMP #&28
+    BCC find_hole_position_loop     \ Leave loop with either:
+    LDA #&38
+    STA hole_y
+    LDA variables_for_hole_position - 1,Y\ Y = 7, so A = sprite_table_offset, i.e. 1 - 3
+    STA position_table_offset       \ or Y = 4, so A = hole_width, i.e. 0
+    LDX holes_remaining             \ depending on value of last hole_x from previous take.
+    LDY #&01                        \ This means holes sometimes move between takes.
+.plot_holes_loop
+    LDX position_table_offset
+    LDA x_positions_table,X
+    STA hole_x
+    INC position_table_offset
+    LDA position_table_offset
+    CMP #&28
+    BNE skip_wraparound_2007
+    LDA #&01
+    STA position_table_offset
+.skip_wraparound_2007
+    LDY number_of_vertical_enemies
+    LDX #&00
+    LDA number_of_vertical_enemies
+    CMP #&00
+    BEQ skip_checking_vertical_enemies\ If the level has vertical enemies,
+.check_for_overlap_with_vertical_enemies_loop
+    LDA vertical_enemies_x,X
+    CMP hole_x
+    BEQ plot_holes_loop             \ don't place a hole overlapping them
+    LDA hole_x
+    CLC
+    ADC #&04
+    CMP vertical_enemies_x,X
+    BEQ plot_holes_loop
+    INX                             \ Move to next vertical enemy
+    INX
+    INX
+    DEY
+    BNE check_for_overlap_with_vertical_enemies_loop
+.skip_checking_vertical_enemies
+    LDA #LO(sprite_blank)
+    STA sprite_address_low
+    LDA #&27
+    STA sprite_address_high
+    LDA #&02
+    STA hole_width                  \ Starting with left of hole,
+.plot_hole_loop
+    LDA hole_x
+    STA screen_x
+    LDA hole_y
+    STA screen_y
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Plot top of hole
+    CLC
+    LDA hole_y
+    ADC #&10
+    STA hole_y
+    LDA hole_x
+    STA screen_x
+    LDA hole_y
+    STA screen_y
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Plot bottom of hole
+    CLC
+    LDA hole_x
+    ADC #&04
+    STA hole_x
+    SEC
+    LDA hole_y
+    SBC #&10
+    STA hole_y
+    DEC hole_width
+    BNE plot_hole_loop              \ Repeat for right of hole
+    CLC
+    LDA hole_y
+    ADC #&70                        \ Move down two grounds
+    STA hole_y
+    LDA hole_y
+    CMP #&18
+    BNE skip_wraparound_2092
+    LDA #&38
+    STA hole_y
+.skip_wraparound_2092
+    DEC holes_remaining
+    BEQ leave_209a
+    JMP plot_holes_loop
+.leave_209a
+    RTS
+
+.unused_209b
+    EQUB &00, &00, &00, &32, &00, &00, &00
+
+.clapperboard_screen
+    LDA #&16                        \ Change to MODE 2
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&02
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&11                        \ COLOUR 3
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&03
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&1F                        \ TAB(&06, &0f)
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&06
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&0F
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&54                        \ "T"    Write "TAKE "
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&41                        \ "A"
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&4B                        \ "K"
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&45                        \ "E"
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&20                        \ " "
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&05
+    JSR OSWRCH                      \ OSWRCH
+    LDA #LO(sprite_open_clapperboard_one + 64)
+    STA sprite_address_low
+    LDA #&2A
+    STA sprite_address_high
+    LDX #&00
+.calculate_clapperboard_sprite_address_loop
+    SEC
+    LDA sprite_address_low
+    SBC take
+    STA sprite_address_low
+    LDA sprite_address_high
+    SBC #&00
+    STA sprite_address_high
+    INX
+    CPX #&40
+    BNE calculate_clapperboard_sprite_address_loop
+    LDA #&2C
+    STA screen_x
+    LDA #&70
+    STA screen_y
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Plot open clapperboard
+    LDA #&32                        \ 50
+    STA count_0070
+.wait_fifty_frames_loop
+    LDA #&13                        \ Wait for vertical retrace
+    JSR OSBYTE                      \ OSBYTE
+    DEC count_0070
+    BNE wait_fifty_frames_loop
+    LDA #&2C
+    STA screen_x
+    LDA #&67
+    STA screen_y
+    LDA #LO(sprite_closed_clapperboard_top)
+    STA sprite_address_low
+    LDA #&29
+    STA sprite_address_high
+    JSR calculate_screen_address    \ Plot closed clapperboard top
+    JSR plot_sprite
+    LDA #&00
+    STA clapperboard_sound          \ (channel)
+    LDA #&00
+    STA clapperboard_sound + 1      \ (channel high)
+    LDA #&F1
+    STA clapperboard_sound + 2      \ (volume)
+    LDA #&FF
+    STA clapperboard_sound + 3      \ (volume high)
+    LDA #&04                        \ High frequency white noise
+    STA clapperboard_sound + 4      \ (pitch)
+    LDA #&00
+    STA clapperboard_sound + 5      \ (pitch high)
+    LDA #&01
+    STA clapperboard_sound + 6      \ (duration)
+    LDA #&00
+    STA clapperboard_sound + 7      \ (duration high)
+    LDX #LO(clapperboard_sound)
+    LDY #&2F
+    LDA #&07                        \ Generate a sound
+    JSR OSWORD                      \ OSWORD    Play sound for clapperboard
+    LDA #&1E                        \ 30
+    STA count_0070
+.wait_thirty_frames_loop
+    LDA #&13                        \ Wait for vertical retrace
+    JSR OSBYTE                      \ OSBYTE
+    DEC count_0070
+    BNE wait_thirty_frames_loop
+    LDA #&16                        \ Change to MODE 2
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&02
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&00
+    STA player_jump_state           \ Set to zero to indicate player isn't jumping
+    LDA #&00
+    STA player_x_velocity
+    LDA #&00
+    STA player_x_fraction
+    RTS
+
+.unused_218d
+    EQUB &00
+
+.unused_218e
+    EQUB &59, &4F, &55, &27, &52, &45, &20, &46, &49, &52, &45, &44, &20, &21    \ "YOU'RE FIRED !"
+    EQUB &0D
+
+.unused_219d    \ Unused code
+    EQUB &E3, &2F    \ ... &2fe3
+    LDA #&01
+    STA player_x_velocity
+    LDA #&1F                        \ TAB(&00, &17)
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&00
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&17
+    JSR OSWRCH                      \ OSWRCH
+    LDY #&00
+.unused_write_press_space_bar_to_start_loop
+    INY
+    LDA unused_press_space_bar_to_start_string_21d0,Y
+    JSR OSWRCH                      \ OSWRCH    Write "Press space bar to start"
+    LDA unused_press_space_bar_to_start_string_21d0,Y
+    CMP #&0D
+    BNE unused_write_press_space_bar_to_start_loop
+.unused_wait_for_space_loop
+    LDY #&FF
+    LDX #&9D                        \ SPACE
+    LDA #&81                        \ Scan for a particular key
+    JSR OSBYTE                      \ OSBYTE
+    CPX #&00
+    BEQ unused_wait_for_space_loop
+unused_press_space_bar_to_start_string_21d0 = *
+    RTS
+
+.unused_press_space_bar_to_start_string    \ Unused
+    EQUB &94, &9D
+    EQUB &3E, &20, &20, &20, &20, &20    \ ">     "
+    EQUB &83    \ TELETEXT_YELLOW
+    EQUB &50, &72, &65, &73, &73    \ "Press"
+    EQUB &82    \ TELETEXT_GREEN
+    EQUB &73, &70, &61, &63, &65, &20, &62, &61, &72    \ "space bar"
+    EQUB &83    \ TELETEXT_YELLOW
+    EQUB &74, &6F, &20, &73, &74, &61, &72, &74    \ "to start"
+    EQUB &0D
+
+.unused_21f3
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00
+
+.unused_21fc    \ Unused code
+    LDY #&00
+    LDA #&30                        \ "0"
+.unused_initialise_wages_loop_2200
+    STA wages,Y
+    INY
+    CPY #&06
+    BNE unused_initialise_wages_loop_2200
+    LDA #&01
+    STA level
+    LDA #&01
+    STA player_x_velocity
+    LDA #&1F                        \ TAB
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&00
+    EQUB &20    \ a JSR cut off by add_to_wages: unreachable, after the JMP above
+
+.add_to_wages
+    LDX #&04
+.add_to_wages_loop
+    INC wages,X
+    LDA wages,X
+    CMP #&3A                        \ "9" + 1
+    BNE skip_overflow
+    LDA #&30                        \ "0"
+    STA wages,X
+    DEX
+    CMP #&FF
+    BNE add_to_wages_loop
+.skip_overflow
+    LDA #&1F                        \ TAB(&07, &01)
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&07
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&01
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&11                        \ COLOUR 3
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&03
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&11                        \ COLOUR 128 + 4
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&84
+    JSR OSWRCH                      \ OSWRCH
+    LDX #&00
+.write_wages_loop_2255
+    LDA wages,X
+    JSR OSWRCH                      \ OSWRCH    Write wages
+    INX
+    CPX #&06
+    BNE write_wages_loop_2255
+    RTS
+
+.unused_2261
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00
+
+.update_rotating_colour_and_enemies
+    LDX rotating_colour_state
+    LDA #&13                        \ define logical colour    Set colour 8
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&08
+    JSR OSWRCH                      \ OSWRCH
+    LDA rotating_colour_table,X     \ start_screen_colours_table - 1
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&00
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&00
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&00
+    JSR OSWRCH                      \ OSWRCH
+    INC rotating_colour_state
+    LDA rotating_colour_state
+    CMP #&0E
+    BCC skip_wraparound_229b
+    LDA #&00
+    STA rotating_colour_state
+.skip_wraparound_229b
+    LDA horizontal_enemy_y
+    CMP #&00
+    BNE update_horizontal_enemy
+    RTS
+.update_horizontal_enemy
+    LDA #&13                        \ Wait for vertical retrace
+    JSR OSBYTE                      \ OSBYTE
+    LDA #LO(sprite_blank)
+    STA sprite_address_low
+    LDA #&27
+    STA sprite_address_high
+    LDA horizontal_enemy_x
+    STA screen_x
+    LDA horizontal_enemy_y
+    STA screen_y
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Unplot previous horizontal enemy
+    INC horizontal_enemy_x
+    LDA horizontal_enemy_x
+    CMP #&4B
+    BNE skip_wraparound_22d1
+    LDA #&00
+    STA horizontal_enemy_x
+.skip_wraparound_22d1
+    LDA horizontal_enemy_sprite_address_low
+    STA sprite_address_low
+    LDA horizontal_enemy_sprite_address_high
+    STA sprite_address_high
+    LDA horizontal_enemy_x
+    STA screen_x
+    LDA horizontal_enemy_y
+    STA screen_y
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Plot horizontal enemy
+    LDA #&13                        \ Wait for vertical retrace
+    JSR OSBYTE                      \ OSBYTE
+    JSR update_vertical_enemies
+    RTS
+
+.unused_22f6
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00
+
+.update_vertical_enemies
+    LDX #&00
+    LDA number_of_vertical_enemies
+    STA enemies_remaining_to_update
+    LDA number_of_vertical_enemies
+    CMP #&00
+    BNE update_vertical_enemies_loop
+    RTS
+.update_vertical_enemies_loop
+    LDA vertical_enemies_x,X
+    STA screen_x
+    LDA vertical_enemies_y_2fa8,X
+    STA screen_y
+    LDY vertical_enemies_state_2fa9,X
+    SEC
+    LDA screen_y
+    SBC jump_offsets_table,Y
+    STA screen_y
+    STX vertical_enemy_offset
+    JSR calculate_screen_address
+    LDA #LO(sprite_blank)
+    STA sprite_address_low
+    LDA #&27
+    STA sprite_address_high
+    JSR plot_sprite                 \ Unplot previous vertical enemy
+    LDX vertical_enemy_offset
+    INC vertical_enemies_state_2fa9,X
+    LDA vertical_enemies_state_2fa9,X
+    CMP #&20
+    BNE skip_wraparound_234b
+    LDA #&01
+    STA vertical_enemies_state_2fa9,X
+.skip_wraparound_234b
+    LDA vertical_enemy_sprite_address_low
+    STA sprite_address_low
+    LDA vertical_enemy_sprite_address_high
+    STA sprite_address_high
+    LDA vertical_enemies_x,X
+    STA screen_x
+    LDA vertical_enemies_y_2fa8,X
+    STA screen_y
+    LDY vertical_enemies_state_2fa9,X
+    SEC
+    LDA screen_y
+    SBC jump_offsets_table,Y
+    STA screen_y
+    STX vertical_enemy_offset
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Plot vertical enemy
+    LDX vertical_enemy_offset
+    INX                             \ Move to next vertical enemy
+    INX
+    INX
+    CPX #&0F
+    BNE consider_next_enemy
+    RTS
+.consider_next_enemy
+    DEC enemies_remaining_to_update
+    BNE update_vertical_enemies_loop
+    RTS
+
+.unused_2388
+    EQUB &2F, &D0, &84, &60, &00, &00, &00, &00, &00, &00
+
+.initialise_level
+    LDA #&16                        \ Change to MODE 2
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&02
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&00
+    STA player_x
+    LDA #&38
+    STA player_ground_y             \ Player starts on first ground
+    LDA #&00
+    STA player_jump_state           \ Set to zero to indicate player isn't jumping
+    LDA #&00
+    STA player_x_velocity
+    LDA #&00
+    STA player_x_fraction
+.plot_box
+    LDA #&11                        \ COLOUR 128 + 4
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&84
+    JSR OSWRCH                      \ OSWRCH
+    LDX #&00
+.plot_box_x_loop
+    LDY #&00
+.plot_box_y_loop
+    LDA #&1F                        \ TAB(X, Y)
+    JSR OSWRCH                      \ OSWRCH
+    TXA
+    JSR OSWRCH                      \ OSWRCH
+    TYA
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&20                        \ " "
+    JSR OSWRCH                      \ OSWRCH    Plot status box
+    INY
+    CPY #&03
+    BNE plot_box_y_loop
+    INX
+    CPX #&14
+    BNE plot_box_x_loop
+    LDX #&0F
+    LDA #&1F                        \ TAB(&01, &01)
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&01
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&01
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&57                        \ "W"    Write "WAGES "
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&41                        \ "A"
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&47                        \ "G"
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&45                        \ "E"
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&53                        \ "S"
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&20                        \ " "
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&11                        \ COLOUR 3
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&03
+    JSR OSWRCH                      \ OSWRCH
+    LDX #&00
+.write_wages_loop_241a
+    LDA wages,X
+    JSR OSWRCH                      \ OSWRCH    Write wages
+    INX
+    CPX #&06
+    BNE write_wages_loop_241a
+    LDA #&11                        \ COLOUR
+    JSR OSWRCH                      \ OSWRCH    Second byte will be written in consider_gaining_extra_take at &159c
+    LDA level
+    STA tmp_2fe4
+.calculate_level_type_loop    \ Calculate ((level - 1) MOD 3) + 1
+    LDA tmp_2fe4
+    CMP #&01
+    BEQ set_level_type
+    LDA tmp_2fe4
+    CMP #&02
+    BEQ set_level_type
+    LDA tmp_2fe4
+    CMP #&03
+    BEQ set_level_type
+    SEC
+    LDA tmp_2fe4
+    SBC #&03
+    STA tmp_2fe4
+    LDA #&01
+    CMP #&01
+    BEQ calculate_level_type_loop   \ Always branches
+.set_level_type
+    LDA tmp_2fe4
+    STA level_type
+    LDA tmp_2fe4
+    TAX
+    LDA ground_colours_table - 1,X
+    JSR consider_gaining_extra_take \ Returns A = level ground colour
+    JSR OSWRCH                      \ OSWRCH    First byte was written in consider_gaining_extra_take at &15a4
+.plot_ground
+    LDX #&09
+    LDY #&04
+.plot_ground_y_loop
+    LDA #&1F                        \ TAB(&00, X)
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&00
+    JSR OSWRCH                      \ OSWRCH
+    TXA
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&14
+    STA count
+.plot_ground_x_loop
+    LDA #&FA                        \ CHARACTER_GROUND    Defined at line 190 of DDDenis1
+    JSR OSWRCH                      \ OSWRCH    Plot ground
+    DEC count
+    BNE plot_ground_x_loop
+    CLC
+    TXA
+    ADC #&07                        \ Move to next ground
+    TAX
+    DEY
+    CPY #&00
+    BNE plot_ground_y_loop
+    LDA #&14                        \ restore default logical colours
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&00
+    STA level_set
+    LDA level
+    STA tmp_2fe5
+.calculate_level_set_loop    \ Calculate (level - 1) DIV 3
+    LDA tmp_2fe5
+    CMP #&01
+    BEQ set_level_set
+    LDA tmp_2fe5
+    CMP #&02
+    BEQ set_level_set
+    LDA tmp_2fe5
+    CMP #&03
+    BEQ set_level_set
+    SEC
+    LDA tmp_2fe5
+    SBC #&03
+    STA tmp_2fe5
+    INC level_set
+    LDA #&01
+    CMP #&01
+    BEQ calculate_level_set_loop    \ Always branches
+.set_level_set
+    LDX level_set
+    TXA
+    CLC
+    ADC level_set
+    TAX
+    TXA
+    CLC
+    ADC level_set
+    TAX
+    STX level_set_times_three
+.plot_obstacles
+    LDA level_set_data,X            \ First byte of set data specifies number of obstacles
+    STA obstacles_remaining
+    LDA level
+    STA position_table_offset_2fec
+    LDA #&01
+    STA sprite_table_offset
+    LDA #&38
+    STA ground_y
+    LDA #&01                        \ Unnecessary code
+    STA sprite_table_offset
+.plot_obstacles_loop
+    LDA ground_y
+    STA screen_y
+    LDX position_table_offset_2fec
+    LDA x_positions_table,X
+    INC position_table_offset_2fec
+    LDA position_table_offset_2fec
+    CMP #&28
+    BNE skip_wraparound_2511
+    LDA #&00
+    STA position_table_offset_2fec
+.skip_wraparound_2511
+    LDA x_positions_table,X
+    STA screen_x
+    LDA #LO(level_type_data_addresses_table - 12)
+    STA level_type_data_addresses_address_low
+    LDA #&2F
+    STA level_type_data_addresses_address_high
+    LDX level_type
+.calculate_level_type_data_address
+    CLC
+    LDA level_type_data_addresses_address_low
+    ADC #&0C
+    STA level_type_data_addresses_address_low
+    LDA level_type_data_addresses_address_high
+    ADC #&00
+    STA level_type_data_addresses_address_high
+    DEX
+    BNE calculate_level_type_data_address
+    LDY #&00
+    LDA (level_type_data_addresses_address),Y\ First and second bytes specify player sprite
+    STA player_sprite_address_low
+    LDY #&01
+    LDA (level_type_data_addresses_address),Y
+    STA player_sprite_address_high
+    LDY #&0A                        \ Eleventh and twelfth bytes specify vertical enemy sprite
+    LDA (level_type_data_addresses_address),Y
+    STA vertical_enemy_sprite_address_low
+    LDY #&0B
+    LDA (level_type_data_addresses_address),Y
+    STA vertical_enemy_sprite_address_high
+    LDY #&08                        \ Ninth and tenth bytes specify horizontal enemy sprite
+    LDA (level_type_data_addresses_address),Y
+    STA horizontal_enemy_sprite_address_low
+    LDY #&09
+    LDA (level_type_data_addresses_address),Y
+    STA horizontal_enemy_sprite_address_high
+    CLC
+    LDA level_type_data_addresses_address_low
+    ADC sprite_table_offset         \ Third to eighth bytes specify three obstacle sprites
+    STA level_type_data_addresses_address_low
+    LDA level_type_data_addresses_address_high
+    ADC #&00
+    STA level_type_data_addresses_address_high
+    CLC
+    LDA level_type_data_addresses_address_low
+    ADC sprite_table_offset
+    STA level_type_data_addresses_address_low
+    LDA level_type_data_addresses_address_high
+    ADC #&00
+    STA level_type_data_addresses_address_high
+    LDY #&00
+    LDA (level_type_data_addresses_address),Y
+    STA sprite_address_low
+    LDY #&01
+    LDA (level_type_data_addresses_address),Y
+    STA sprite_address_high
+    JSR calculate_screen_address
+    JSR plot_sprite                 \ Plot obstacle
+    INC sprite_table_offset
+    LDA sprite_table_offset
+    CMP #&04
+    BNE skip_wraparound_2599
+    LDA #&01
+    STA sprite_table_offset
+.skip_wraparound_2599
+    CLC
+    LDA ground_y
+    ADC #&38                        \ Move down one ground
+    STA ground_y
+    LDA ground_y
+    CMP #&18
+    BNE skip_wraparound_25ae
+    LDA #&38
+    STA ground_y
+.skip_wraparound_25ae
+    DEC obstacles_remaining
+    BEQ consider_initialising_vertical_enemies
+    JMP plot_obstacles_loop
+.consider_initialising_vertical_enemies
+    LDA #&38
+    STA vertical_enemy_y
+    LDX level_set_times_three
+    INX
+    INX
+    LDA level_set_data,X            \ Third byte of level set data
+    STA number_of_vertical_enemies
+    LDA number_of_vertical_enemies
+    CMP #&00
+    BEQ skip_initialising_vertical_enemies
+.initialise_vertical_enemies
+    LDX #&00
+    LDA number_of_vertical_enemies
+    STA vertical_enemies_remaining
+.initialise_vertical_enemies_loop
+    LDY position_table_offset_2fec
+    LDA x_positions_table,Y
+    INC position_table_offset_2fec
+    STA vertical_enemies_x,X
+    INX                             \ +1
+    LDA position_table_offset_2fec
+    CMP #&28
+    BNE skip_wraparound_25ee
+    LDA #&00
+    STA position_table_offset_2fec
+.skip_wraparound_25ee
+    LDA vertical_enemy_y
+    STA vertical_enemies_y_2fa8 - 1,X
+    INX                             \ +2
+    CLC
+    LDA vertical_enemy_y
+    ADC #&38                        \ Move down one ground
+    STA vertical_enemy_y
+    LDA vertical_enemy_y
+    CMP #&18
+    BNE skip_wraparound_260a
+    LDA #&38
+    STA vertical_enemy_y
+.skip_wraparound_260a
+    LDY position_table_offset_2fec
+    LDA x_positions_table,Y
+    STA vertical_enemies_state_2fa9 - 2,X\ state = x / 4, i.e. between &02 and &12
+    LSR vertical_enemies_state_2fa9 - 2,X
+    LSR vertical_enemies_state_2fa9 - 2,X
+    INX                             \ Move to next vertical enemy
+    DEC vertical_enemies_remaining
+    BNE initialise_vertical_enemies_loop
+.skip_initialising_vertical_enemies
+    LDX level_set_times_three
+    INX
+    LDA level_set_data,X            \ Second byte of level set data
+    STA horizontal_enemy_x
+    STA horizontal_enemy_y
+    LDA level_set_data,X
+    CMP #&00
+    BEQ skip_initialising_horizontal_enemy
+.initialise_horizontal_enemy
+    LDA #&4A
+    STA horizontal_enemy_x
+    LDA #&70
+    STA horizontal_enemy_y
+.skip_initialising_horizontal_enemy
+    RTS
+
+.unused_263e
+    EQUB &00, &00, &00, &00
+
+.calculate_screen_address
+    LDA #LO(screen_memory_3000)
+    STA screen_address_low
+    LDA #&30
+    STA screen_address_high
+    LDX #&02
+.add_columns_loop
+    CLC
+    LDA screen_address_low
+    ADC screen_x                    \ screen_address += screen_x * 8
+    STA screen_address_low
+    LDA screen_address_high
+    ADC #&00
+    STA screen_address_high
+    CLC
+    LDA screen_address_low
+    ADC screen_x
+    STA screen_address_low
+    LDA screen_address_high
+    ADC #&00
+    STA screen_address_high
+    CLC
+    LDA screen_address_low
+    ADC screen_x
+    STA screen_address_low
+    LDA screen_address_high
+    ADC #&00
+    STA screen_address_high
+    CLC
+    LDA screen_address_low
+    ADC screen_x
+    STA screen_address_low
+    LDA screen_address_high
+    ADC #&00
+    STA screen_address_high
+    DEX
+    BNE add_columns_loop
+    LDA screen_y
+    AND #&07
+    STA row_in_group
+    LSR screen_y
+    LSR screen_y
+    LSR screen_y
+    LDX screen_y
+    CPX #&00
+    BEQ skip_adding_groups
+.add_groups_loop
+    CLC
+    LDA screen_address_low
+    ADC #&80
+    STA screen_address_low
+    LDA screen_address_high
+    ADC #&02
+    STA screen_address_high
+    DEX
+    BNE add_groups_loop
+.skip_adding_groups
+    RTS
+
+.plot_sprite
+    LDA #&00
+    STA sprite_offset
+    STA rows_plotted
+    CLC
+    LDA screen_address_low
+    ADC row_in_group
+    STA screen_address_low
+    LDA screen_address_high
+    ADC #&00
+    STA screen_address_high
+.plot_sprite_row_loop
+    LDY sprite_offset
+    LDA (sprite_address),Y
+    LDY #&00
+    STA (screen_address),Y
+    INC sprite_offset
+    LDY sprite_offset
+    LDA (sprite_address),Y
+    LDY #&08
+    STA (screen_address),Y
+    INC sprite_offset
+    LDY sprite_offset
+    LDA (sprite_address),Y
+    LDY #&10
+    STA (screen_address),Y
+    INC sprite_offset
+    LDY sprite_offset
+    LDA (sprite_address),Y
+    LDY #&18
+    STA (screen_address),Y
+    INC sprite_offset
+    INC row_in_group
+    LDY #&20
+    LDA (screen_address),Y
+    STA right_edge
+    CLC
+    LDA screen_address_low
+    ADC #&01                        \ Move down a row
+    STA screen_address_low
+    LDA screen_address_high
+    ADC #&00
+    STA screen_address_high
+    INC rows_plotted
+    LDA #&10
+    CMP rows_plotted
+    BNE not_end_of_sprite
+    LDA #&01
+    CMP #&01
+    BEQ leave_after_storing_bottom_edge\ Always branches
+.not_end_of_sprite
+    LDA row_in_group
+    CMP #&08
+    BNE plot_sprite_row_loop
+.next_group
+    CLC
+    LDA screen_address_low
+    ADC #&78                        \ Move down a group
+    STA screen_address_low
+    LDA screen_address_high
+    ADC #&02
+    STA screen_address_high
+    LDA #&00
+    STA row_in_group
+    LDA #&01
+    CMP #&01
+    BEQ plot_sprite_row_loop        \ Always branches
+.leave_after_storing_bottom_edge
+    LDY #&00
+    LDA (screen_address),Y
+    STA bottom_edge
+    LDY #&08
+    LDA (screen_address),Y
+    STA bottom_edge + 1             \ Unused variable
+    LDY #&10
+    LDA (screen_address),Y
+    STA bottom_edge + 2             \ Unused variable
+    LDY #&18
+    LDA (screen_address),Y
+    STA bottom_edge + 3
+    RTS
+
+.unused_2759
+    EQUB &3D
+
+.sprite_blank
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+
+.sprite_explosion
+    EQUB &01, &01, &00, &00, &00, &01, &02, &02, &00, &07, &02, &02, &00, &07, &02, &00
+    EQUB &00, &07, &02, &00, &01, &1A, &0B, &02, &00, &07, &25, &02, &01, &1A, &0B, &02
+    EQUB &01, &1E, &0B, &02, &07, &34, &2D, &02, &07, &35, &2D, &03, &07, &35, &3A, &0B
+    EQUB &01, &1E, &2D, &03, &00, &07, &0B, &02, &00, &01, &03, &00, &00, &00, &00, &00
+
+.sprite_balloon
+    EQUB &00, &0F, &0C, &00, &15, &0F, &0C, &08, &15, &0E, &0C, &0C, &2F, &0E, &0C, &0C
+    EQUB &2F, &0E, &0C, &0C, &2F, &0E, &0C, &0C, &2F, &0E, &0C, &0C, &2F, &0E, &0C, &0C
+    EQUB &2F, &0F, &0C, &0C, &15, &0F, &0F, &08, &15, &0F, &0F, &08, &00, &3F, &3F, &00
+    EQUB &00, &04, &08, &00, &00, &04, &08, &00, &00, &00, &2A, &00, &00, &00, &00, &00
+
+.unused_281a
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+
+.sprite_dead_player_two
+    EQUB &00, &00, &00, &00, &00, &00, &03, &02, &03, &00, &0C, &00, &0C, &00, &0C, &00
+    EQUB &0C, &00, &0C, &00, &04, &08, &0C, &00, &00, &0F, &2D, &00, &11, &0C, &0C, &22
+    EQUB &0A, &0C, &0C, &05, &0F, &0C, &0C, &0F, &05, &0E, &0D, &0A, &00, &0C, &0C, &00
+    EQUB &00, &13, &33, &00, &00, &13, &33, &22, &00, &03, &36, &00, &00, &03, &03, &00
+
+.sprite_dead_player_one
+    EQUB &00, &00, &00, &00, &01, &03, &00, &00, &00, &0C, &00, &03, &00, &0C, &00, &0C
+    EQUB &00, &0C, &00, &0C, &00, &0C, &04, &08, &22, &0F, &2D, &11, &0A, &0C, &0C, &05
+    EQUB &0A, &0C, &0C, &05, &0F, &0C, &0C, &0F, &05, &0E, &0D, &0A, &00, &0C, &0C, &00
+    EQUB &00, &13, &33, &00, &00, &13, &33, &22, &00, &03, &32, &00, &00, &03, &03, &00
+
+.unused_28da
+    EQUB &00, &01, &02, &03, &04, &05, &06, &07, &08, &09, &0A, &0B, &0C, &0D, &0E, &0F
+    EQUB &10, &11, &12, &13, &14, &15, &16, &17, &18, &19, &1A, &1B, &1C, &1D, &1E, &1F
+    EQUB &20, &21, &22, &23, &24, &25, &26, &27, &28, &29, &2A, &2B, &2C, &2D, &2E, &2F
+    EQUB &30, &31, &32, &33, &34, &35, &36, &37, &38, &39, &3A, &3B, &3C, &3D, &3E, &3F
+
+.sprite_closed_clapperboard_top
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &0F, &0F, &0F, &0F, &0F, &0F, &0F, &0F, &0F, &0F, &0F, &0F, &00, &00, &00, &00
+
+.sprite_open_clapperboard_three
+    EQUB &00, &00, &00, &0F, &00, &00, &00, &0F, &00, &00, &00, &0F, &00, &00, &00, &0F
+    EQUB &00, &00, &00, &0F, &00, &00, &00, &0F, &00, &00, &00, &00, &0F, &0F, &0F, &0F
+    EQUB &0F, &03, &03, &0F, &0B, &07, &0B, &07, &0F, &0F, &0B, &07, &0F, &0B, &03, &0F
+    EQUB &0F, &0F, &0B, &07, &0B, &07, &0B, &07, &0F, &03, &03, &0F, &0F, &0F, &0F, &0F
+
+.sprite_open_clapperboard_two
+    EQUB &00, &00, &00, &0F, &00, &00, &00, &0F, &00, &00, &00, &0F, &00, &00, &00, &0F
+    EQUB &00, &00, &00, &0F, &00, &00, &00, &0F, &00, &00, &00, &00, &0F, &0F, &0F, &0F
+    EQUB &0F, &03, &03, &0F, &0B, &03, &03, &07, &0B, &07, &0B, &07, &0F, &0F, &03, &0F
+    EQUB &0F, &0B, &07, &0F, &0F, &03, &03, &07, &0B, &03, &03, &07, &0F, &0F, &0F, &0F
+
+.sprite_open_clapperboard_one
+    EQUB &00, &00, &00, &0F, &00, &00, &00, &0F, &00, &00, &00, &0F, &00, &00, &00, &0F
+    EQUB &00, &00, &00, &0F, &00, &00, &00, &0F, &00, &00, &00, &00, &0F, &0F, &0F, &0F
+    EQUB &0F, &0B, &07, &0F, &0F, &03, &07, &0F, &0F, &03, &07, &0F, &0F, &0B, &07, &0F
+    EQUB &0F, &0B, &07, &0F, &0F, &03, &03, &0F, &0F, &03, &03, &0F, &0F, &0F, &0F, &0F
+
+.sprite_snow_vertical_enemy    \ Skull
+    EQUB &00, &3F, &3F, &00, &15, &3F, &3F, &2A, &15, &3F, &3F, &3F, &3F, &3F, &3F, &3F
+    EQUB &6A, &95, &6A, &95, &6A, &95, &6A, &95, &3F, &95, &6A, &3F, &15, &3F, &3F, &2A
+    EQUB &15, &2A, &15, &2A, &15, &2A, &15, &2A, &15, &3F, &3F, &2A, &01, &2B, &2B, &2A
+    EQUB &01, &03, &03, &02, &15, &17, &17, &02, &15, &3F, &3F, &2A, &00, &3F, &3F, &00
+
+.sprite_snow_horizontal_enemy    \ Snowball
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &3C, &3C, &00, &15, &3F, &3C, &28, &15, &3F, &3E, &28, &3F, &3F, &3E, &3C
+    EQUB &3F, &3F, &3E, &3C, &3F, &3F, &3E, &3C, &3F, &3F, &3E, &3C, &3F, &3F, &3E, &3C
+    EQUB &3F, &3F, &3E, &3C, &15, &3F, &3E, &28, &15, &3F, &3C, &28, &00, &3C, &3C, &00
+
+.sprite_snow_obstacle_three    \ Snowman
+    EQUB &00, &0F, &0C, &00, &00, &0F, &0C, &00, &0F, &0F, &0C, &0C, &15, &35, &2A, &2A
+    EQUB &15, &35, &2A, &2A, &15, &3F, &3F, &2A, &00, &2B, &17, &00, &15, &3F, &3F, &2A
+    EQUB &15, &3A, &15, &2A, &3F, &3A, &15, &3F, &3F, &3F, &3F, &3F, &3F, &3A, &15, &3F
+    EQUB &3F, &3A, &15, &3F, &15, &3F, &3F, &2A, &15, &3F, &3F, &2A, &15, &3F, &3F, &2A
+
+.sprite_snow_obstacle_two    \ Tree
+    EQUB &00, &04, &2A, &00, &00, &04, &2A, &00, &00, &04, &08, &00, &00, &2E, &2E, &00
+    EQUB &00, &2E, &1D, &00, &00, &0C, &1D, &00, &00, &0C, &0C, &00, &00, &0C, &0C, &00
+    EQUB &15, &0C, &0C, &2A, &15, &09, &0C, &2A, &04, &09, &06, &08, &04, &09, &06, &08
+    EQUB &04, &01, &02, &08, &00, &01, &02, &00, &15, &01, &02, &15, &3F, &2B, &03, &15
+
+.sprite_snow_obstacle_one    \ Cabin
+    EQUB &00, &15, &2A, &00, &00, &15, &02, &00, &00, &2B, &17, &00, &00, &03, &17, &00
+    EQUB &15, &03, &03, &2A, &15, &03, &03, &02, &2B, &03, &03, &03, &03, &03, &03, &03
+    EQUB &0F, &0F, &0F, &0F, &03, &03, &03, &03, &0F, &0F, &0F, &0F, &02, &01, &00, &01
+    EQUB &0A, &05, &00, &05, &02, &01, &00, &2B, &0A, &05, &0F, &3F, &2A, &01, &3F, &3F
+
+.sprite_snow_player    \ Player on skis
+    EQUB &03, &03, &00, &00, &03, &12, &00, &00, &03, &33, &22, &00, &03, &33, &00, &00
+    EQUB &04, &0C, &00, &00, &04, &0E, &00, &00, &04, &0E, &00, &00, &15, &0E, &00, &00
+    EQUB &3F, &1F, &3F, &00, &15, &0C, &00, &00, &00, &04, &08, &00, &00, &04, &08, &00
+    EQUB &00, &0C, &00, &00, &00, &03, &02, &00, &2A, &03, &02, &15, &15, &3F, &3F, &2A
+
+.sprite_sea_vertical_enemy    \ Red ball
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &03, &03, &00, &01, &17, &03, &02, &01, &2B, &03, &02, &03, &2B, &03, &03
+    EQUB &03, &2B, &03, &03, &03, &03, &03, &03, &03, &03, &03, &03, &03, &03, &03, &03
+    EQUB &03, &03, &03, &03, &01, &03, &03, &02, &01, &03, &03, &02, &00, &03, &03, &00
+
+.sprite_sea_horizontal_enemy    \ Yacht
+    EQUB &00, &00, &00, &00, &00, &08, &0A, &00, &04, &04, &0A, &00, &00, &00, &0A, &00
+    EQUB &00, &00, &1E, &00, &00, &15, &14, &00, &00, &15, &14, &00, &00, &3F, &14, &28
+    EQUB &00, &3F, &14, &28, &15, &3F, &14, &3C, &15, &3F, &14, &3C, &00, &00, &0A, &00
+    EQUB &3F, &3F, &3F, &3F, &03, &03, &03, &03, &15, &3F, &3F, &2A, &00, &3F, &3F, &00
+
+.sprite_sea_obstacle_three    \ Whale
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &15, &15, &00, &00, &2A, &2A, &2A, &00, &00, &2A, &00, &00, &00, &2A, &00, &00
+    EQUB &00, &00, &00, &00, &14, &3C, &28, &14, &3C, &3C, &3C, &14, &3D, &34, &3C, &3C
+    EQUB &3D, &3E, &3C, &3C, &3C, &3C, &3C, &3C, &00, &14, &3C, &3C, &3C, &3C, &3C, &28
+
+.sprite_sea_obstacle_two    \ Castle
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &2A, &2A, &28, &00, &2A, &2A, &28
+    EQUB &00, &3F, &3E, &28, &00, &3F, &3E, &28, &00, &3F, &3E, &28, &00, &3F, &3E, &28
+    EQUB &00, &3F, &3E, &28, &00, &3F, &3E, &28, &00, &2A, &3E, &28, &00, &2A, &3E, &28
+    EQUB &00, &2A, &3E, &08, &05, &0F, &0C, &08, &0F, &0E, &0C, &0C, &0F, &0C, &0C, &0C
+
+.sprite_sea_obstacle_one    \ Lighthouse
+    EQUB &00, &3F, &0F, &00, &00, &6A, &85, &00, &00, &6A, &85, &00, &00, &6A, &85, &00
+    EQUB &00, &3F, &0F, &00, &00, &3C, &30, &00, &00, &3C, &30, &00, &00, &3F, &0F, &00
+    EQUB &00, &3F, &0F, &00, &00, &3C, &30, &00, &00, &3C, &30, &00, &00, &3F, &0F, &08
+    EQUB &00, &1D, &0E, &08, &04, &0C, &0C, &08, &04, &0C, &0C, &0C, &0C, &0C, &0C, &0C
+
+.sprite_sea_player    \ Player on speedboat
+    EQUB &03, &03, &00, &00, &03, &12, &00, &00, &03, &33, &22, &00, &03, &33, &00, &00
+    EQUB &04, &0C, &00, &00, &04, &0F, &0F, &1B, &04, &0F, &0F, &1B, &04, &0C, &00, &14
+    EQUB &05, &0F, &00, &3F, &04, &0C, &09, &3F, &04, &0C, &3F, &3F, &03, &03, &03, &03
+    EQUB &3F, &3F, &3F, &3F, &35, &3D, &3F, &3F, &3C, &34, &3F, &2A, &34, &3C, &3C, &00
+
+.sprite_land_vertical_enemy    \ Policeman
+    EQUB &00, &15, &30, &00, &00, &10, &30, &00, &00, &14, &0F, &00, &00, &33, &0F, &00
+    EQUB &00, &11, &27, &00, &22, &30, &3A, &20, &32, &30, &30, &30, &00, &10, &3A, &10
+    EQUB &00, &10, &30, &10, &00, &10, &3A, &10, &00, &10, &30, &11, &00, &10, &10, &00
+    EQUB &00, &10, &10, &00, &00, &10, &10, &00, &00, &10, &10, &00, &00, &30, &10, &20
+
+.sprite_land_horizontal_enemy    \ Ambulance
+    EQUB &00, &C0, &00, &00, &00, &C0, &00, &00, &3F, &3F, &2A, &00, &3F, &3F, &2A, &00
+    EQUB &3F, &17, &3F, &2A, &3F, &17, &3E, &28, &2B, &03, &3E, &28, &2B, &03, &3E, &28
+    EQUB &3F, &17, &3E, &28, &3F, &17, &3E, &28, &3F, &3F, &3F, &2F, &3F, &3F, &3F, &2F
+    EQUB &3C, &3C, &3C, &28, &3A, &2A, &3A, &2A, &3A, &2A, &3A, &2A, &3F, &2A, &3F, &2A
+
+.sprite_land_obstacle_three    \ Tree
+    EQUB &00, &05, &08, &00, &00, &0F, &0C, &00, &00, &0E, &0C, &08, &05, &0E, &0E, &0C
+    EQUB &0D, &0E, &0C, &0C, &0F, &0C, &0C, &0E, &0E, &0E, &06, &0C, &0B, &0F, &06, &0C
+    EQUB &05, &07, &07, &08, &00, &01, &03, &00, &00, &01, &02, &00, &00, &01, &02, &00
+    EQUB &00, &01, &02, &00, &00, &01, &02, &00, &00, &01, &02, &00, &00, &03, &03, &00
+
+.sprite_land_obstacle_two    \ Grave
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00, &15, &00, &00, &00, &15, &00, &00, &00, &3F, &2A, &00, &00, &15, &00, &00
+    EQUB &00, &15, &00, &00, &00, &15, &00, &00, &00, &0C, &0C, &00, &0C, &0C, &0C, &0C
+
+.sprite_land_obstacle_one    \ House
+    EQUB &00, &01, &02, &00, &00, &01, &02, &2A, &00, &03, &03, &2A, &00, &03, &03, &2A
+    EQUB &01, &03, &03, &02, &01, &03, &03, &02, &03, &03, &03, &03, &03, &03, &03, &03
+    EQUB &3F, &3F, &3F, &3F, &2A, &15, &08, &1D, &2A, &15, &08, &1D, &3F, &3F, &3F, &3F
+    EQUB &3A, &35, &08, &1D, &3A, &35, &08, &1D, &3A, &3D, &3F, &3F, &3A, &35, &3F, &3F
+
+.sprite_land_player    \ Player on motorbike
+    EQUB &03, &03, &00, &00, &03, &03, &00, &00, &03, &32, &00, &00, &13, &33, &22, &00
+    EQUB &13, &33, &00, &00, &04, &0C, &00, &00, &04, &0C, &15, &2A, &04, &0F, &0F, &22
+    EQUB &04, &0F, &0F, &22, &04, &0C, &00, &2A, &04, &0C, &08, &2A, &3C, &0C, &1C, &2A
+    EQUB &3C, &2C, &03, &3D, &3A, &2B, &03, &35, &3A, &2A, &15, &35, &3F, &2A, &15, &3F
+
+.unused_2e9a    \ Source code fragment
+    EQUB &38, &39, &2C, &38, &39, &2C, &32, &2C, &35, &33    \ ... 89,89,2,53 ...
+
+.unused_2ea4
+    EQUB &DE
+
+.unused_2ea5
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+    EQUB &00
+
+\ ;      0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+.x_positions_table
+    EQUB &2C, &30, &18, &14, &0C, &10, &3C, &10, &28, &34, &38, &08, &3C, &38, &1C, &34    \ &00
+    EQUB &18, &34, &2C, &34, &08, &0C, &48, &18, &48, &1C, &18, &0C, &1C, &08, &44, &2C    \ &10
+    EQUB &28, &14, &3C, &48, &0C, &38, &38, &24    \ &20
+
+
+\ ;      0  1  2  3  4  5  6  7  8  9  a  b  c  d
+.rotating_colour_table    \ Uses &2ede - &2eeb
+    EQUB &10
+\ ;         0  1  2  3  4  5  6  7  8  9  a
+.start_screen_colours_table
+    EQUB &04, &05, &01, &06, &03, &07, &07, &07, &03, &06, &01, &05, &04
+
+.unused_2eec
+    EQUB &00
+
+\ ;      0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+.jump_offsets_table
+    EQUB &00, &01, &03, &06, &08, &0B, &0D, &0E, &10, &11, &12, &13, &13, &14, &14, &14    \ &00
+    EQUB &14, &14, &14, &13, &13, &12, &11, &10, &0E, &0D, &0B, &08, &06, &03, &01, &00    \ &10
+    EQUB &00    \ &20
+
+.unused_2f0e
+    EQUB &00
+
+.level_type_data_addresses_table
+.land
+    EQUB &5A, &2E    \ &2e5a = sprite_land_player
+    EQUB &1A, &2E    \ &2e1a = sprite_land_obstacle_one
+    EQUB &DA, &2D    \ &2dda = sprite_land_obstacle_two
+    EQUB &9A, &2D    \ &2d9a = sprite_land_obstacle_three
+    EQUB &5A, &2D    \ &2d5a = sprite_land_horizontal_enemy
+    EQUB &1A, &2D    \ &2d1a = sprite_land_vertical_enemy
+
+.sea
+    EQUB &DA, &2C    \ &2cda = sprite_sea_player
+    EQUB &9A, &2C    \ &2c9a = sprite_sea_obstacle_one
+    EQUB &5A, &2C    \ &2c5a = sprite_sea_obstacle_two
+    EQUB &1A, &2C    \ &2c1a = sprite_sea_obstacle_three
+    EQUB &DA, &2B    \ &2bda = sprite_sea_horizontal_enemy
+    EQUB &9A, &2B    \ &2b9a = sprite_sea_vertical_enemy
+
+.snow
+    EQUB &5A, &2B    \ &2b5a = sprite_snow_player
+    EQUB &1A, &2B    \ &2b1a = sprite_snow_obstacle_one
+    EQUB &DA, &2A    \ &2ada = sprite_snow_obstacle_two
+    EQUB &9A, &2A    \ &2a9a = sprite_snow_obstacle_three
+    EQUB &5A, &2A    \ &2a5a = sprite_snow_horizontal_enemy
+    EQUB &1A, &2A    \ &2a1a = sprite_snow_vertical_enemy
+
+.unused_2f33
+    EQUB &DA, &29    \ &29da = sprite_open_clapperboard_one
+    EQUB &9A, &29    \ &299a = sprite_open_clapperboard_two
+
+.ground_colours_table
+    EQUB &02    \ land : G
+    EQUB &04    \ sea  : B
+    EQUB &07    \ snow : W
+
+.wages
+    EQUB &30, &30, &30, &30, &30, &30    \ "000000"
+
+\ ;      o he ve
+.level_set_data
+    EQUB &03, &01, &00    \ Levels  1 -  3
+    EQUB &04, &01, &00    \ Levels  4 -  6
+    EQUB &05, &01, &01    \ Levels  7 -  9
+    EQUB &06, &01, &02    \ Levels 10 - 12
+    EQUB &07, &01, &02    \ Levels 13 - 15
+    EQUB &08, &01, &03    \ Levels 16 - 18
+    EQUB &04, &01, &04    \ Levels 19 - 21
+    EQUB &04, &01, &03    \ Levels 22 - 24
+    EQUB &0B, &01, &03    \ Levels 25 - 27
+    EQUB &0C, &01, &06    \ Levels 28 - 30
+    EQUB &0C, &01, &07    \ Levels 31 - 33
+    EQUB &0C, &01, &08    \ Levels 34 - 36
+
+.unused_2f64
+    EQUB &00, &00, &00, &00
+
+\ ;     p1 p2  d
+.tune_data_2f68
+    EQUB &59, &1D, &02
+    EQUB &4D, &4D, &01
+    EQUB &6D, &3D, &02
+    EQUB &00, &00, &01
+    EQUB &61, &21, &02
+    EQUB &51, &51, &01
+    EQUB &75, &45, &02
+    EQUB &00, &00, &01
+    EQUB &6D, &29, &01
+    EQUB &69, &69, &01
+    EQUB &61, &61, &01
+    EQUB &59, &45, &01
+    EQUB &89, &89, &01
+    EQUB &69, &69, &01
+    EQUB &6D, &3D, &01
+    EQUB &4D, &4D, &01
+    EQUB &59, &59, &01
+    EQUB &6D, &6D, &01
+
+.unused_2f9e
+    EQUB &00, &00, &00, &00, &00, &00
+
+.horizontal_enemy_x
+    EQUB &21
+
+.horizontal_enemy_y
+    EQUB &70
+
+.number_of_vertical_enemies
+    EQUB &04
+
+\ ;      x  y  s
+.vertical_enemies_x
+.vertical_enemies_y
+.vertical_enemies_state
+vertical_enemies_y_2fa8 = * + 1
+vertical_enemies_state_2fa9 = * + 2
+    EQUB &18, &38, &1D
+    EQUB &48, &70, &12
+    EQUB &1C, &A8, &11
+    EQUB &18, &E0, &0E
+    EQUB &10, &38, &0A
+
+.unused_2fb6
+    EQUB &28, &70, &0D, &34, &A8, &0E, &05, &E0, &01, &04, &38, &00, &00, &70, &00, &00
+    EQUB &A8, &00, &01, &E0, &00, &03, &38, &01, &06, &70, &02, &08, &A8, &02, &0B, &E0
+    EQUB &03, &0D
+
+.bottom_edge    \ Uses &2fd8 - &2fdb
+    EQUB &0F, &0F
+
+.clapperboard_sound    \ Uses &2fda - &2fe1
+    EQUB &00, &00
+
+.right_edge
+    EQUB &F1
+
+.sprite_offset
+    EQUB &FF
+
+.rows_plotted
+    EQUB &04
+
+    EQUB &00
+
+.screen_x
+    EQUB &01
+
+.screen_y
+    EQUB &00
+
+.row_in_group
+    EQUB &07
+
+.level
+    EQUB &01
+
+.tune_notes_remaining
+.dead_player_count
+.falling_timer
+.wipe_x
+.vertical_enemy_offset
+.holes_remaining
+.tmp_2fe4
+.count
+.level_set
+.level_set_times_three
+    EQUB &0B
+
+.variables_for_hole_position
+.tune_delay
+.wipe_y
+.enemies_remaining_to_unplot
+.hole_y
+.tmp_2fe5
+.vertical_enemy_y
+    EQUB &29
+
+.death_delay
+.position_table_offset
+.vertical_enemies_remaining
+    EQUB &00
+
+.hole_x
+    EQUB &18
+
+.hole_width
+    EQUB &00
+
+.obstacles_remaining
+    EQUB &00
+
+.enemies_remaining_to_update
+.ground_y
+    EQUB &00
+
+.sprite_table_offset
+    EQUB &02
+
+.x_offset
+position_table_offset_2fec = *
+    EQUB &1B
+
+.level_type
+    EQUB &01
+
+.unused_2fee
+    EQUB &02, &08, &AC, &03, &0C, &E4, &12, &48, &05, &8D, &54, &14, &00, &00, &E4, &1B
+    EQUB &00, &00
+
+.unused_3000
+screen_memory_3000 = *
+    EQUB &30, &30    \ "00"
+
+.title_screen_data
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20    \ "                                        "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20    \ "      .   .VISIONS.PRESENTS      . .    "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &82, &20    \ "          .________________     .. .    "
+    EQUB &20, &20, &83, &56, &49, &53, &49, &4F, &4E, &53, &82, &50, &52, &45, &53, &45    \ "         ..DARE DEVIL.DENIS             "
+    EQUB &4E, &54, &53, &20, &20, &20, &20, &20, &20, &0D, &20, &0D, &20, &20, &20, &20    \ "         ..DARE DEVIL.DENIS             "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &83, &5F, &5F, &5F, &5F, &5F    \ "          .````````````````             "
+    EQUB &5F, &5F, &5F, &5F, &5F, &5F, &5F, &5F, &5F, &5F, &5F, &20, &20, &20, &20, &20    \ "       .Written by  Simon Pick          "
+    EQUB &0D, &0D, &20, &0D, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20    \ "                                        "
+    EQUB &20, &83, &8D, &44, &41, &52, &45, &20, &44, &45, &56, &49, &4C, &83, &44, &45    \ ".. Dare Devil.Denis is making his debut "
+    EQUB &4E, &49, &53, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20    \ ".in a new film as a stuntman.He must    "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &83, &8D, &44, &41, &52, &45, &20    \ ".pick up gold.and avoid any obstacles   "
+    EQUB &44, &45, &56, &49, &4C, &83, &44, &45, &4E, &49, &53, &20, &20, &20, &20, &20    \ ".in his way !                           "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20    \ ".  The director will fire Denis if he   "
+    EQUB &20, &20, &83, &60, &60, &60, &60, &60, &60, &60, &60, &60, &60, &60, &60, &60    \ ".needs more than 3 'Takes'.However,     "
+    EQUB &60, &60, &60, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20    \ ".Denis' contract is extended if the     "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &82, &57, &72, &69, &74, &74, &65, &6E, &20    \ ".director is impressed !               ."
+    EQUB &62, &79, &20, &20, &53, &69, &6D, &6F, &6E, &20, &50, &69, &63, &6B, &20, &20    \ "                                        "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20    \ "             Controls:                  "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20    \ "                                        "
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20    \ "       .Space Bar.........Jump          "
+    EQUB &85, &85, &20, &44, &61, &72, &65, &20, &44, &65, &76, &69, &6C, &85, &44, &65    \ "       .Shift.......Accelerate          "
+    EQUB &6E, &69, &73, &20, &69, &73, &20, &6D, &61, &6B, &69, &6E, &67, &20, &68, &69    \ "       .Return............Stop          "
+    EQUB &73, &20, &64, &65, &62, &75, &74, &20, &85, &69, &6E, &20, &61, &20, &6E, &65    \ "                                        "
+    EQUB &77, &20, &66, &69, &6C, &6D, &20, &61, &73, &20, &61, &20, &73, &74, &75, &6E    \ "     ..Press.Space Bar.to start         "
+    EQUB &74, &6D, &61, &6E, &2E, &48, &65, &20, &6D, &75, &73, &74, &20, &20, &20, &20    \ "                                        "
+    EQUB &85, &70, &69, &63, &6B, &20, &75, &70, &20, &67, &6F, &6C, &64, &85, &61, &6E    \ "                        "
+    EQUB &64, &20, &61, &76, &6F, &69, &64, &20, &61, &6E, &79, &20, &6F, &62, &73, &74
+    EQUB &61, &63, &6C, &65, &73, &20, &20, &20, &85, &69, &6E, &20, &68, &69, &73, &20
+    EQUB &77, &61, &79, &20, &21, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &85, &20, &20, &54, &68, &65, &20, &64, &69, &72, &65, &63, &74, &6F, &72, &20
+    EQUB &77, &69, &6C, &6C, &20, &66, &69, &72, &65, &20, &44, &65, &6E, &69, &73, &20
+    EQUB &69, &66, &20, &68, &65, &20, &20, &20, &85, &6E, &65, &65, &64, &73, &20, &6D
+    EQUB &6F, &72, &65, &20, &74, &68, &61, &6E, &20, &33, &20, &27, &54, &61, &6B, &65
+    EQUB &73, &27, &2E, &48, &6F, &77, &65, &76, &65, &72, &2C, &20, &20, &20, &20, &20
+    EQUB &85, &44, &65, &6E, &69, &73, &27, &20, &63, &6F, &6E, &74, &72, &61, &63, &74
+    EQUB &20, &69, &73, &20, &65, &78, &74, &65, &6E, &64, &65, &64, &20, &69, &66, &20
+    EQUB &74, &68, &65, &20, &20, &20, &20, &20, &85, &64, &69, &72, &65, &63, &74, &6F
+    EQUB &72, &20, &69, &73, &20, &69, &6D, &70, &72, &65, &73, &73, &65, &64, &20, &21
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &86
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &43, &6F, &6E, &74, &72, &6F, &6C, &73, &3A, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &86
+    EQUB &53, &70, &61, &63, &65, &20, &42, &61, &72, &87, &2E, &2E, &2E, &2E, &2E, &2E
+    EQUB &2E, &86, &4A, &75, &6D, &70, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &86, &53, &68, &69, &66, &74, &87, &2E, &2E
+    EQUB &2E, &2E, &2E, &86, &41, &63, &63, &65, &6C, &65, &72, &61, &74, &65, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &86
+    EQUB &52, &65, &74, &75, &72, &6E, &87, &2E, &2E, &2E, &2E, &2E, &2E, &2E, &2E, &2E
+    EQUB &2E, &86, &53, &74, &6F, &70, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &81, &82, &50
+    EQUB &72, &65, &73, &73, &83, &53, &70, &61, &63, &65, &20, &42, &61, &72, &82, &74
+    EQUB &6F, &20, &73, &74, &61, &72, &74, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+    EQUB &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20, &20
+
+.unused_3402
+    EQUB &25, &25, &25, &25, &30, &30    \ "%%%%00"
+
+.title_screen
+    LDA #&16                        \ Change to MODE 7
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&07
+    JSR OSWRCH                      \ OSWRCH
+    JSR disable_cursor
+    LDA #LO(screen_memory_7c00)
+    STA target_address_low_0070
+    LDA #&7C
+    STA target_address_high_0071
+    LDA #LO(title_screen_data)
+    STA source_address_low_0072
+    LDA #&30
+    STA source_address_high_0073
+    LDY #&00
+.copy_title_screen_loop
+    LDA (target_address),Y
+    STA (source_address),Y
+    INY
+    BNE copy_title_screen_loop
+    INC source_address_high_0073
+    INC target_address_high_0071
+    LDA target_address_high_0071
+    CMP #&80
+    BNE copy_title_screen_loop
+    LDX #&00
+.title_screen_loop
+    STX title_screen_colour
+    LDX #&02
+    LDY #&00
+    LDA #&81                        \ Wait for input character
+    JSR OSBYTE                      \ OSBYTE
+    CPX #&20                        \ " "
+    BEQ to_start_screen
+    LDA #&13                        \ Wait for vertical retrace
+    JSR OSBYTE                      \ OSBYTE
+    LDX title_screen_colour
+    LDA #&1F                        \ TAB(&0c, &17)
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&0C
+    JSR OSWRCH                      \ OSWRCH
+    LDA #&17
+    JSR OSWRCH                      \ OSWRCH
+    CLC
+    LDA start_screen_colours_table,X
+    ADC #&80                        \ TELETEXT_TEXT_COLOUR
+    JSR OSWRCH                      \ OSWRCH
+    INX
+    CPX #&0B
+    BNE title_screen_loop
+    LDX #&00
+    JMP title_screen_loop
+
+.to_start_screen
+    JSR start_screen
+
+.entry_point
+    LDA #&0D                        \ Disable event
+    LDX #&04                        \ v-sync event
+    JSR OSBYTE                      \ OSBYTE
+    LDA #&0F                        \ Flush all buffers
+    LDX #&00                        \ all buffers
+    JSR OSBYTE                      \ OSBYTE
+    JMP title_screen
+
+.unused_3486
+    EQUB &00, &00, &00, &00, &00, &00, &00, &00, &00, &00
+
+
