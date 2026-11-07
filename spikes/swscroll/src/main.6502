@@ -1,0 +1,357 @@
+\ main.6502 - SPIKE: can a Model B scroll four Dare Devil Denis strips independently in software?
+\
+\ The question (PLAN.md step 3, the owner 2026-11-07: "Model B would be preferable. Can we spike
+\ the software scrolling idea"). Hardware scroll needs a doubled buffer per strip (4 x 8,960 bytes),
+\ which a Model B cannot hold. But the original's scene is sparse: black sky, a ground row that is
+\ uniform across its width (VDU 23,250,255,255,255,255,0,0,0,0 - top four lines solid), and a few
+\ 8x16-pixel sprites plotted with STA. Scrolling a strip by d columns then only means redrawing each
+\ visible obstacle d columns left and clearing the d columns it uncovers, and opening d columns at a
+\ hole's leading edge and closing d at its trailing edge. The ground itself never moves.
+\
+\ This measures what that costs: four strips, each at its own speed, on the original's MODE 2 layout
+\ (strip k's obstacle rows are character rows 7+7k and 8+7k, its ground row 9+7k), each with a
+\ rider at a fixed column. The MOS stays in (VDU 22, OSBYTE 19). Not the game: no jumping, no
+\ collisions, a stand-in course (make_data.py).
+\
+\   frame_start .. frame_end    the four strips' update, for a cycle-count breakpoint pair
+\   speed_lo/speed_hi           8.8 columns a frame per strip - poke for the worst case
+
+OSWRCH = &FFEE
+OSBYTE = &FFF4
+
+SCREEN     = &3000
+ROW        = 640                \ bytes in a MODE 2 character row
+GROUND     = &0C                \ logical colour 2 (green) in both pixels: the land levels' ground
+PLAYER_COL = 12                 \ the rider's fixed screen column (of 80)
+STOP_HI    = &1F                \ a strip stops when its scroll reaches &1F00 (the course ends ~8000)
+
+\ zero page: &70-&8F is the user's under the MOS
+src    = &70                    \ 2: sprite column
+dst0   = &72                    \ 2: top character row of the column
+dst1   = &74                    \ 2: the row below, minus 8 (indexed with Y = 8..15)
+bas    = &76                    \ 2: this strip's obstacle or ground row base
+spr    = &78                    \ 2: the object's sprite
+strip  = &7A
+obj    = &7B
+col    = &7C                    \ object's screen column, signed
+right  = &7D                    \ its right edge now, signed
+oright = &7E                    \ its right edge last frame, signed
+delta  = &7F                    \ columns scrolled this frame
+c0     = &80
+c1     = &81
+cx     = &82
+old_lo = &83
+
+SECTION spike, org = &1900, load = &1900, exec = start, filename = "SPIKE"
+
+.start
+    LDA #22 : JSR OSWRCH
+    LDA #2  : JSR OSWRCH
+    LDA #23 : JSR OSWRCH        \ VDU 23,1,0;0;0;0; - cursor off
+    LDA #1  : JSR OSWRCH
+    LDX #8
+.cursor_loop
+    LDA #0 : JSR OSWRCH
+    DEX
+    BNE cursor_loop
+
+    LDX #3                      \ the four ground rows, full width
+.ground_strip
+    STX strip
+    LDA gbase_lo,X : STA dst0
+    LDA gbase_hi,X : STA dst0+1
+    LDX #80
+.ground_col
+    LDY #3
+    LDA #GROUND
+.ground_line
+    STA (dst0),Y
+    DEY
+    BPL ground_line
+    CLC
+    LDA dst0 : ADC #8 : STA dst0
+    BCC ground_nc
+    INC dst0+1
+.ground_nc
+    DEX
+    BNE ground_col
+    LDX strip
+    DEX
+    BPL ground_strip
+
+    LDX #3
+.player_init
+    JSR draw_player
+    DEX
+    BPL player_init
+
+.loop
+    LDA #19 : JSR OSBYTE        \ wait for vertical sync
+.frame_start
+    LDX #0
+.strip_loop
+    STX strip
+    JSR update_strip
+    LDX strip
+    INX
+    CPX #4
+    BNE strip_loop
+.frame_end
+    INC frames
+    BNE loop
+    INC frames+1
+    JMP loop
+
+\ ---------------------------------------------------------------------------------------------
+\ update_strip: X = strip. Advance its scroll by its speed; redraw what moved.
+\ ---------------------------------------------------------------------------------------------
+.update_strip
+    LDA scroll_hi,X
+    CMP #STOP_HI
+    BCC us_go
+    RTS
+.us_go
+    LDA scroll_lo,X : STA old_lo
+    CLC
+    LDA scroll_frac,X : ADC speed_lo,X : STA scroll_frac,X
+    LDA scroll_lo,X   : ADC speed_hi,X : STA scroll_lo,X
+    LDA scroll_hi,X   : ADC #0         : STA scroll_hi,X
+    SEC
+    LDA scroll_lo,X
+    SBC old_lo
+    STA delta
+    BNE us_moved
+    RTS                         \ under a column: nothing on screen moves
+.us_moved
+    LDA first,X : STA obj
+.us_obj
+    LDX strip
+    LDY obj
+    SEC
+    LDA obj_x_lo,Y : SBC scroll_lo,X : STA col
+    LDA obj_x_hi,Y : SBC scroll_hi,X
+    BEQ us_pos
+    CMP #&FF
+    BNE us_far
+    LDA col
+    CMP #&F0
+    BCS us_near                 \ -16..-1: may still show, or have columns to clear
+.us_gone                        \ off the left edge for good (X = strip, Y = obj)
+    INY
+    TYA
+    STA first,X
+    STA obj
+    JMP us_obj
+.us_far
+    BMI us_gone                 \ far left
+    JMP draw_player             \ far right: nothing further along is on screen
+.us_pos
+    LDA col
+    CMP #80
+    BCC us_near
+    JMP draw_player
+.us_near
+    LDA obj_type,Y
+    BMI us_hole
+
+    \ an obstacle, 4 columns wide, on the two rows above the ground
+    LDA col : CLC : ADC #4 : STA right
+    CLC : ADC delta : STA oright
+    BEQ us_gone
+    BMI us_gone
+    LDA obj_type,Y : TAX
+    LDA spr_lo,X : STA spr
+    LDA spr_hi,X : STA spr+1
+    LDX strip
+    LDA obase_lo,X : STA bas
+    LDA obase_hi,X : STA bas+1
+    LDA col : LDX right : JSR clip
+    BCS us_ob_clear
+    LDX c0
+.us_ob_draw
+    TXA                         \ src = spr + (column - col) * 16
+    SEC
+    SBC col
+    ASL A : ASL A : ASL A : ASL A
+    CLC
+    ADC spr : STA src
+    LDA spr+1 : ADC #0 : STA src+1
+    STX cx
+    JSR plot_column
+    LDX cx
+    INX
+    CPX c1
+    BCC us_ob_draw
+.us_ob_clear                    \ clear the columns it has moved off
+    LDA right : LDX oright : JSR clip
+    BCS us_next
+    LDX c0
+.us_ob_clear_loop
+    STX cx
+    JSR clear_column
+    LDX cx
+    INX
+    CPX c1
+    BCC us_ob_clear_loop
+.us_next
+    INC obj
+    JMP us_obj
+
+    \ a hole, 8 columns wide, cut out of the ground row's four lit lines
+.us_hole
+    LDA col : CLC : ADC #8 : STA right
+    CLC : ADC delta : STA oright
+    BEQ us_hole_gone
+    BMI us_hole_gone
+    LDA gbase_lo,X : STA bas
+    LDA gbase_hi,X : STA bas+1
+    LDA col : CLC : ADC delta : TAX
+    LDA col : JSR clip          \ open [col, col + delta)
+    BCS us_hole_close
+    LDX c0
+.us_hole_open
+    STX cx
+    LDA #0
+    JSR ground_column
+    LDX cx
+    INX
+    CPX c1
+    BCC us_hole_open
+.us_hole_close                  \ close [right, oright)
+    LDA right : LDX oright : JSR clip
+    BCS us_next
+    LDX c0
+.us_hole_close_loop
+    STX cx
+    LDA #GROUND
+    JSR ground_column
+    LDX cx
+    INX
+    CPX c1
+    BCC us_hole_close_loop
+    JMP us_next
+.us_hole_gone
+    JMP us_gone
+
+\ draw_player: X = strip, kept. The rider at PLAYER_COL, over whatever passed under it.
+.draw_player
+    STX strip
+    LDA obase_lo,X : STA bas
+    LDA obase_hi,X : STA bas+1
+    LDA #LO(spr_player) : STA src
+    LDA #HI(spr_player) : STA src+1
+    LDX #PLAYER_COL
+.dp_loop
+    STX cx
+    JSR plot_column
+    LDX cx
+    CLC
+    LDA src : ADC #16 : STA src
+    BCC dp_nc
+    INC src+1
+.dp_nc
+    INX
+    CPX #PLAYER_COL + 4
+    BCC dp_loop
+    LDX strip
+    RTS
+
+\ clip: A = a, X = b (signed). c0 = max(a, 0), c1 = min(b, 80). C set if empty.
+.clip
+    STX c1
+    CMP #0
+    BPL clip_a
+    LDA #0
+.clip_a
+    STA c0
+    LDA c1
+    BPL clip_b
+    LDA #0
+.clip_b
+    CMP #80
+    BCC clip_c
+    LDA #80
+.clip_c
+    STA c1
+    LDA c0
+    CMP c1
+    RTS
+
+\ set_dst: X = screen column. dst0 = bas + column * 8; dst1 = dst0 + ROW - 8.
+.set_dst
+    CLC
+    LDA col8_lo,X : ADC bas   : STA dst0
+    LDA col8_hi,X : ADC bas+1 : STA dst0+1
+    CLC
+    LDA dst0   : ADC #LO(ROW - 8) : STA dst1
+    LDA dst0+1 : ADC #HI(ROW - 8) : STA dst1+1
+    RTS
+
+\ plot_column: X = screen column; 16 bytes from src down two character rows.
+.plot_column
+    JSR set_dst
+    LDY #7
+.pc_top
+    LDA (src),Y
+    STA (dst0),Y
+    DEY
+    BPL pc_top
+    LDY #15
+.pc_bottom
+    LDA (src),Y
+    STA (dst1),Y
+    DEY
+    CPY #8
+    BCS pc_bottom
+    RTS
+
+\ clear_column: X = screen column; 16 zero bytes down two character rows.
+.clear_column
+    JSR set_dst
+    LDA #0
+    LDY #7
+.cc_top
+    STA (dst0),Y
+    DEY
+    BPL cc_top
+    LDY #15
+.cc_bottom
+    STA (dst1),Y
+    DEY
+    CPY #8
+    BCS cc_bottom
+    RTS
+
+\ ground_column: X = screen column, A = the byte for the ground's four lit lines (0 = a hole).
+.ground_column
+    PHA
+    JSR set_dst
+    PLA
+    LDY #3
+.gc_loop
+    STA (dst0),Y
+    DEY
+    BPL gc_loop
+    RTS
+
+\ ---------------------------------------------------------------------------------------------
+\ per-strip state and constants
+\ ---------------------------------------------------------------------------------------------
+.obase_lo   EQUB LO(SCREEN +  7 * ROW), LO(SCREEN + 14 * ROW), LO(SCREEN + 21 * ROW), LO(SCREEN + 28 * ROW)
+.obase_hi   EQUB HI(SCREEN +  7 * ROW), HI(SCREEN + 14 * ROW), HI(SCREEN + 21 * ROW), HI(SCREEN + 28 * ROW)
+.gbase_lo   EQUB LO(SCREEN +  9 * ROW), LO(SCREEN + 16 * ROW), LO(SCREEN + 23 * ROW), LO(SCREEN + 30 * ROW)
+.gbase_hi   EQUB HI(SCREEN +  9 * ROW), HI(SCREEN + 16 * ROW), HI(SCREEN + 23 * ROW), HI(SCREEN + 30 * ROW)
+.speed_lo   EQUB &00, &80, &40, &EE    \ 1.00, 1.50, 2.25, 2.93 columns a frame: the original's
+.speed_hi   EQUB &01, &01, &02, &02    \ top speed is 3 * 250 / 256 = 2.93 (update_player)
+.scroll_frac EQUB 0, 0, 0, 0
+.scroll_lo  EQUB 0, 0, 0, 0
+.scroll_hi  EQUB 0, 0, 0, 0
+.first      EQUB 0, 0, 0, 0
+.frames     EQUW 0
+.spr_lo     EQUB LO(spr_obstacle_one), LO(spr_obstacle_two), LO(spr_obstacle_three)
+.spr_hi     EQUB HI(spr_obstacle_one), HI(spr_obstacle_two), HI(spr_obstacle_three)
+
+    INCLUDE "../build/data.6502"
+.end
+    ASSERT end <= SCREEN
+ENDSECTION

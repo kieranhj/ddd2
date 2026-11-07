@@ -4,6 +4,20 @@ What has landed, with the number that says it landed. `PLAN.md` is what is left.
 
 ---
 
+## The sequel's brief, and the software-scroll spike (2026-11-07)
+
+The owner's brief: a four-player endless runner, one strip of the original each, with the course
+made of the original's levels end to end. It is recorded as decisions 4-10, with the design in
+`docs/sequel.md`. The rebuild was pushed to github.com/kieranhj/ddd2 with its tag.
+
+**Spike** (MEASURED, jsbeeb `B-DFS1.2`, `spikes/swscroll/`, `docs/spike-swscroll.md`). Four MODE 2
+strips scrolled in software at independent speeds on a Model B.
+- **Rate:** 100 loop passes in 100 fields, both at mixed speeds and with all four at the
+  original's top speed of 2.93 columns.
+- **Cost:** 25,158-27,328 cycles a field at the worst case, before any optimisation.
+
+---
+
 ## Step 1 - the original rebuilt byte for byte (2026-11-07)
 
 **Specification proved** (MEASURED, `tools/check_disasm.py`). Level7's disassembly

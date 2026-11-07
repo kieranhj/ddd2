@@ -22,7 +22,7 @@ this kind of job; Stryker's Run at `..\strykers` is the worked example); its ski
 
 | | |
 |---|---|
-| Machine | BBC Model B, DFS (the original's). The sequel's target is decision-to-come |
+| Machine | BBC Model B, DFS (the original's). The sequel: Model B too, strips scrolled in software (decision 9, PROPOSED; `docs/spike-swscroll.md`) |
 | Reference | Stairway to Hell disc, `reference/sth/DareDevilDenis.ssd` (decision 1; gitignored - not ours to publish; `compare.py` skips when it is absent) |
 | Specification | `reference/dare-devil-denis-disassembly.txt` (Level7; of the TAPE release - `tools/check_disasm.py`) |
 | Disc | `!BOOT` (*EXEC) -> `LOAD` (STH banner, PAGE=&1900) -> `DENIS` (envelopes, VDU 23,250) -> `DENIS2` (BASIC at &4000: loading screen, v-sync tune, `*L.DENIS3 1100`, copy down, `CALL &3475`) -> `DENIS3` (the game, &0E00-&348F) |
@@ -51,6 +51,9 @@ from there (`python tools/listing.py symbols build/ddd.symbols.json NAME`).
 | `zp.6502` | zero page names (one address, many names: each routine's own) and workspace (&0Cxx, the screen) |
 | `os.6502` | MOS entry points |
 | `lib/` | the kit's shared includes (IRQ owner, keyboard, loader, ZX02), not yet used |
+
+The sequel's design is `docs/sequel.md`. `spikes/swscroll/` is the software-scroll spike (its own
+`build.ps1`, after the main build: it takes the sprites from `build/ddd.ssd`).
 
 `game.6502`, `denis2.6502` and `zp.6502` were made once by `tools/disasm2baron.py` and are
 hand-maintained now (it refuses to overwrite them without `--force`). Lines starting `\ ` carry
