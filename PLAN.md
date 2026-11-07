@@ -8,8 +8,6 @@ decisions are `docs/decisions.md` (4-15).
 ## Step 2 - measure the original (what the sequel must match)
 
 - [ ] Owner agrees decisions 1-3.
-- [ ] Its update rate: game loop passes per 100 fields, at rest and at top speed (`beeb-frame-drops`).
-      Fixes what "top speed" means in columns a second.
 - [ ] The jump: the arc, how long it lasts, and what it clears, read from `game.6502` and confirmed
       in jsbeeb.
 - [ ] A short recording of the original being played, as the behavioural reference.
@@ -28,7 +26,8 @@ decisions are `docs/decisions.md` (4-15).
 ## Step 4 - the sequel, one layer at a time (each visible in jsbeeb before the next)
 
 1. [ ] One strip on the real course: the scroll from the spike, optimised (unrolled column copy;
-       redraw the rider only when something passes under it). The accelerate key drives the
+       redraw the rider only when something passes under it; target: the four strips well under
+       the spike's 22-23.5K cycles at the real top speed). The accelerate key drives the
        original's velocity rules. Measure the worst case.
 2. [ ] Four strips and eight keys, at 50 Hz (decision 11). Measure the key numbers and check
        for ghosting (`beeb-key-numbers`). The cycle budget. No tearing (decision 12): each strip

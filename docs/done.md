@@ -4,6 +4,22 @@ What has landed, with the number that says it landed. `PLAN.md` is what is left.
 
 ---
 
+## Step 2: the original's update rate (2026-11-07)
+
+**MEASURED** (jsbeeb MCP, `B-DFS1.2`, `build/ddd.ssd`, skill A, level 1): cycles between passes of
+`main_game_loop` (`&1508`).
+- **At rest:** 114,904 (the first sample), 119,992 and 120,064.
+- **With SHIFT held:** 119,996 and 120,004, while velocity (`&0C13`) rose from 60 to 66.
+
+So one pass every 3 fields, 16.7 Hz, whatever the speed. Top speed 2.93 columns a pass = 48.8
+columns a second = 0.98 columns per field. Velocity rises 2 a pass, so it takes 7.5 s to reach the
+cap.
+
+**The spike at that speed** (all four at 0.98 columns a field): 21,987-23,510 cycles a field, against
+25,158-27,328 at 2.93. The distance moved hardly matters; the per-object redraw does.
+
+---
+
 ## The sequel's brief, and the software-scroll spike (2026-11-07)
 
 The owner's brief: a four-player endless runner, one strip of the original each, with the course

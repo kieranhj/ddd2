@@ -53,7 +53,8 @@ Nothing else is touched.
 | Picture | obstacles and holes move in step with each strip's speed. Holes open and close cleanly, and the rider is drawn over a passing grave (screenshot, frame 185) |
 | Rate, mixed speeds | **100 loop passes in 100 fields** (`frames` 91 to 191) |
 | Rate, all four at 2.93 | **100 in 100** (`frames` 191 to 291) |
-| Update cost, all four at 2.93 | **25,158 - 27,328 cycles** from `frame_start` to `frame_end`, over four frames. That includes the MOS interrupts that land inside it, and is 63-68% of a 40,000-cycle field |
+| Update cost, all four at 0.98 - the original's real top speed per field (step 2) | **21,987 - 23,510 cycles** over four frames: hardly less. The cost is redrawing every visible object each time its strip moves, not the distance |
+| Update cost, all four at 2.93 (3x the real top speed; see step 2) | **25,158 - 27,328 cycles** from `frame_start` to `frame_end`, over four frames. That includes the MOS interrupts that land inside it, and is 63-68% of a 40,000-cycle field |
 
 ## What it says
 

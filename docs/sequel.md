@@ -43,12 +43,15 @@ After level 36 the original goes back to level 33.
   ground; a zero byte means a hole.
 
 **Speed.** `update_player` adds velocity x 3/256 to `player_x`, which counts in 2-pixel columns.
-Velocity is capped at 250, so the top speed is 2.93 columns per update. How many updates a second
-the original runs has not been measured yet (step 2).
+Velocity is capped at 250, so the top speed is 2.93 columns per update. **The original updates
+once every 3 fields (16.7 Hz)**, so its top speed is 48.8 columns a second, **0.98 columns per
+50 Hz field** (measured, step 2). SHIFT adds 2 to velocity per update, so 0 to 250 takes 125
+updates, 7.5 seconds. At 50 Hz the sequel moves in steps of at most one column (2 pixels) where
+the original jumped up to 3 columns at a time. Decision 16 keeps the speeds the same.
 
 **Course length.** A ground is about 76 columns, from `player_x` 0 to &4B. That makes 36 levels x 4
-grounds, about 11,000 columns. At 2.93 columns a frame and 50 frames a second, that is about 75
-seconds of flat-out riding, so the endless part (looping the last sets, then a generator or an
+grounds, about 11,000 columns. At the top speed of 48.8 columns a second, that is about 225
+seconds (under four minutes) of flat-out riding, so the endless part (looping the last sets, then a generator or an
 editor) arrives quickly.
 
 ## How the sequel is built
