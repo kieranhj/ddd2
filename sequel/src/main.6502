@@ -63,7 +63,6 @@ ORG_AT  = &0E00                 \ where it runs
 
 SCREEN  = &3000
 ROW     = 640                   \ bytes in a MODE 2 character row
-GROUND  = &0C                   \ logical colour 2 (green) in both pixels: the land ground
 RIDER   = 12                    \ the riders' fixed screen column (decision 23, PROPOSED)
 VMAX    = 250                   \ the original's velocity cap (update_player)
 SKY     = 24                    \ window lines 0-23 are sky; a rider on the ground has its top here
@@ -93,6 +92,8 @@ vfrom    = &5E                  \ vacated lines, from
 vto      = &5F                  \ and to
 ukind    = &60                  \ 4: the obstacle under rider column RIDER + c (&FF: none)
 uoc      = &64                  \ 4: and which of its columns
+fg_to    = &68                  \ fill_ground: the column to stop at
+fg_byte  = &69                  \ and the byte
 d0       = &70                  \ 2: the top character row at a column
 d1       = &72                  \ 2: the character row below it
 bas      = &74                  \ 2: this strip's obstacle row
@@ -200,6 +201,20 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA #HI(T1_FIRST) : STA SYS_VIA_T1CH    \ load the counter and start
     LDA #LO(T1_NEXT)  : STA SYS_VIA_T1LL    \ then every band after it
     LDA #HI(T1_NEXT)  : STA SYS_VIA_T1LH
+    DEC c8_tick                 \ the rotating colour: logical 8, one step every 3 fields
+    BNE vs_done                 \ (update_rotating_colour_and_enemies, once a pass)
+    LDA #3
+    STA c8_tick
+    LDX c8_step
+    LDA c8_ulas,X
+    STA &FE21                   \ the ULA's palette
+    INX
+    CPX #C8_STEPS
+    BNE vs_step
+    LDX #0
+.vs_step
+    STX c8_step
+.vs_done
     RTS
 .irq_timer_hook
     INC bands
@@ -253,7 +268,8 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA #0
     STA vel,X
 .us_go
-    JSR sea_check
+    JSR level_check
+    JSR ground_edge
     JSR scroll
 .us_jump                        \ the jump: from the ground with jump held; JUMP_FIELDS long
     LDX strip
@@ -358,7 +374,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     CMP #80
     BCS us_next
     TAX
-    LDA #GROUND
+    JSR hole_ground             \ A = its level's ground
     JSR ground_column
 .us_next
     INC obj
@@ -371,9 +387,20 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     INC first,X
     JMP us_next
 
-\ sea_check: X = strip. A take back as the rider reaches each sea level, if one has been lost
+\ hole_ground: A = the ground byte for the hole `kind`'s level type (kind bits 5-6). X kept.
+.hole_ground
+    LDA kind
+    LSR A : LSR A : LSR A : LSR A : LSR A
+    AND #3
+    TAY
+    LDA ground_byte,Y
+    RTS
+
+\ level_check: X = strip. As the rider reaches each level's start (its left column at it, as
+\ the original's initialise_level with player_x 0): its rider sprite becomes that level type's
+\ (`rtype`; drawn again: `hit`), and at a sea level a take comes back if one has been lost
 \ (consider_gaining_extra_take: level type 1, not level 1, not take 1). X kept.
-.sea_check
+.level_check
     CLC
     LDA pos_lo,X
     ADC #RIDER
@@ -381,26 +408,90 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA pos_hi,X
     ADC #0
     STA tmp2
-.sc_loop
+.lc_loop
     LDA tmp
-    CMP sea_lo,X
+    CMP rl_lo,X
     LDA tmp2
-    SBC sea_hi,X
-    BCC sc_rts                  \ not there yet
+    SBC rl_hi,X
+    BCC lc_rts                  \ not there yet
+    LDA #1
+    STA hit
+    INC rtype,X
+    LDA rtype,X
+    CMP #3
+    BNE lc_type
+    LDA #0
+    STA rtype,X
+.lc_type
+    CMP #1
+    BNE lc_next                 \ not sea
     LDA take,X
     CMP #2
-    BCC sc_next
+    BCC lc_next
     DEC take,X
-.sc_next
+.lc_next
     CLC
-    LDA sea_lo,X
-    ADC #LO(3 * LEVEL_COLS)
-    STA sea_lo,X
-    LDA sea_hi,X
-    ADC #HI(3 * LEVEL_COLS)
-    STA sea_hi,X
-    JMP sc_loop
-.sc_rts
+    LDA rl_lo,X
+    ADC #LO(LEVEL_COLS)
+    STA rl_lo,X
+    LDA rl_hi,X
+    ADC #HI(LEVEL_COLS)
+    STA rl_hi,X
+    JMP lc_loop
+.lc_rts
+    RTS
+
+\ ground_edge: X = strip, just moved a column. The ground's colour changes at each level's start
+\ (`nb`, the next one after column 0): its screen column, if on the screen, becomes the next
+\ level's colour (the ground right of it already is; no hole is ever there: make_data.py's
+\ course has none at a level's start). At column 0 the next level is the one at the left
+\ edge: `ltype` steps on and `nb` to the level after. X kept.
+.ground_edge
+    SEC
+    LDA nb_lo,X
+    SBC pos_lo,X
+    STA tmp
+    LDA nb_hi,X
+    SBC pos_hi,X
+    BNE ge_rts                  \ 256 or more columns on
+    LDA tmp
+    CMP #80
+    BCS ge_rts
+    JSR set_bases
+    LDY ltype,X                 \ the next level's type: ltype + 1, MOD 3
+    INY
+    CPY #3
+    BNE ge_type
+    LDY #0
+.ge_type
+    LDA tmp
+    PHA
+    TAX
+    LDA ground_byte,Y
+    JSR ground_column
+    LDX strip
+    PLA
+    BNE ge_rts
+    JSR next_level              \ at column 0
+.ge_rts
+    RTS
+
+\ next_level: X = strip. The level at the left edge is the next one. X kept.
+.next_level
+    INC ltype,X
+    LDA ltype,X
+    CMP #3
+    BNE nl_type
+    LDA #0
+    STA ltype,X
+.nl_type
+    CLC
+    LDA nb_lo,X
+    ADC #LO(LEVEL_COLS)
+    STA nb_lo,X
+    LDA nb_hi,X
+    ADC #HI(LEVEL_COLS)
+    STA nb_hi,X
     RTS
 
 \ ---------------------------------------------------------------------------------------------
@@ -465,6 +556,8 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA #RIDER
     STA dcol
     LDA rider_tall,X
+    CLC
+    ADC rtype,X                 \ its level type's sprite
     STA ts
     JMP draw16
 .cr_rts
@@ -815,8 +908,9 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     STA phase,X
     \ fall through
 
-\ erase_strip: X = strip, still at the crash. Everything drawn on it to black, the ground whole:
-\ the obstacles on the screen, the holes, the explosion, the dead rider.
+\ erase_strip: X = strip, still at the crash. Everything drawn above its ground to black: the
+\ obstacles on the screen, the explosion, the dead rider. (The ground is drawn whole again, in
+\ its levels' colours, by respawn.)
 .erase_strip
     JSR set_bases
     LDA first,X
@@ -825,6 +919,8 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     JSR object_column
     BCS es_marks
     BMI es_next
+    LDA kind
+    BMI es_next                 \ a hole: the ground's, later
     LDA #0
     STA cc
 .es_col
@@ -834,13 +930,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     CMP #80                     \ negative or past the edge: skip
     BCS es_cnext
     TAX
-    LDA kind
-    BMI es_ground
     JSR clear_column
-    JMP es_cnext
-.es_ground
-    LDA #GROUND
-    JSR ground_column
 .es_cnext
     INC cc
     LDA cc
@@ -895,7 +985,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA #4
     BNE rs_wid
 .rs_hole
-    AND #&7F
+    AND #&1F                    \ a hole's width (bits 5-6: its level type)
 .rs_wid
     CLC
     ADC obj_x_lo,Y
@@ -953,22 +1043,54 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     JMP rs_first
 .rs_drawn
     LDX strip
-    JSR sea_check
-    JSR set_bases
-    JMP draw_objects            \ the strip at its new place (erase_strip left the ground whole)
+    JSR level_check             \ the levels the rider has reached
+.rs_levels                      \ and the one at the left edge
+    LDA pos_lo,X
+    CMP nb_lo,X
+    LDA pos_hi,X
+    SBC nb_hi,X
+    BCC draw_strip              \ the strip at its new place
+    JSR next_level
+    JMP rs_levels
 
-\ draw_strip: X = strip. The whole strip from scratch at its pos: the ground, every object on
-\ the screen, the rider. Over black (MODE 2). draw_objects: the same over a whole ground.
+\ draw_strip: X = strip. The whole strip from scratch at its pos: the ground in each level's
+\ colour, every object on the screen, the rider. Over black (MODE 2, or erase_strip).
 .draw_strip
     JSR set_bases
-    LDX #79
-.dw_ground
-    LDA #GROUND
-    JSR ground_column
-    DEX
-    BPL dw_ground
+    SEC                         \ tmp2 = the next level's screen column, or 80
+    LDA nb_lo,X
+    SBC pos_lo,X
+    STA tmp2
+    LDA nb_hi,X
+    SBC pos_hi,X
+    BNE dw_far
+    LDA tmp2
+    CMP #80
+    BCC dw_near
+.dw_far
+    LDA #80
+    STA tmp2
+.dw_near
+    LDY ltype,X                 \ this level's ground to there
+    LDA ground_byte,Y
+    PHA
+    INY                         \ the next one's after
+    CPY #3
+    BNE dw_next_type
+    LDY #0
+.dw_next_type
+    LDA ground_byte,Y
+    STA tmp
+    LDA tmp2
+    STA fg_to
+    PLA
+    LDX #0
+    JSR fill_ground
+    LDA #80
+    STA fg_to
+    LDA tmp
+    JSR fill_ground
     LDX strip
-.draw_objects
     LDA first,X
     STA obj
 .dw_obj
@@ -1006,6 +1128,8 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA #RIDER
     STA dcol
     LDA rider_tall,X
+    CLC
+    ADC rtype,X
     STA ts
     JMP draw16
 
@@ -1025,7 +1149,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA #4
     BNE oc_wid
 .oc_hole
-    AND #&7F
+    AND #&1F                    \ a hole's width (bits 5-6: its level type)
 .oc_wid
     STA wid
     SEC
@@ -1134,6 +1258,35 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     BPL cc_loop
     RTS
 
+\ fill_ground: the ground's four lit lines, columns X to fg_to - 1, to A (gb set). Returns X =
+\ fg_to. About 50 cycles a column (ground_column, called for each, was about 90).
+.fill_ground
+    CPX fg_to
+    BCS fg_rts
+    STA fg_byte
+    CLC
+    LDA col8_lo,X : ADC gb     : STA d0
+    LDA col8_hi,X : ADC gb + 1 : STA d0 + 1
+    LDY #0
+    LDA fg_byte
+.fg_col
+    STA (d0),Y
+    INY
+    STA (d0),Y
+    INY
+    STA (d0),Y
+    INY
+    STA (d0),Y
+    INY : INY : INY : INY : INY \ the next column: Y + 8 from the first
+    BNE fg_same
+    INC d0 + 1                  \ (Y counts columns x 8, so it wraps exactly at a page)
+.fg_same
+    INX
+    CPX fg_to
+    BNE fg_col
+.fg_rts
+    RTS
+
 \ ground_column: X = screen column, A = the byte for the ground's four lit lines (0: a hole).
 .ground_column
     TAY
@@ -1183,8 +1336,14 @@ WS = 7 * ROW                    \ one strip to the next
 .dead_col   EQUB 0, 0, 0, 0     \ where the dead rider is drawn
 .dead_t     EQUB 0, 0, 0, 0
 .take       EQUB 1, 1, 1, 1     \ the original's `take`: 1-3, out at 4
-.sea_lo     EQUB LO(LEVEL_COLS), LO(LEVEL_COLS), LO(LEVEL_COLS), LO(LEVEL_COLS)   \ the next sea level's start
-.sea_hi     EQUB HI(LEVEL_COLS), HI(LEVEL_COLS), HI(LEVEL_COLS), HI(LEVEL_COLS)
+.rtype      EQUB 0, 0, 0, 0     \ the level type the rider is in (0 land, 1 sea, 2 snow)
+.rl_lo      EQUB LO(LEVEL_COLS), LO(LEVEL_COLS), LO(LEVEL_COLS), LO(LEVEL_COLS)   \ the next level's start, for the rider
+.rl_hi      EQUB HI(LEVEL_COLS), HI(LEVEL_COLS), HI(LEVEL_COLS), HI(LEVEL_COLS)
+.ltype      EQUB 0, 0, 0, 0     \ the level type at the strip's left edge (column 0)
+.nb_lo      EQUB LO(LEVEL_COLS), LO(LEVEL_COLS), LO(LEVEL_COLS), LO(LEVEL_COLS)   \ the next level's start after it
+.nb_hi      EQUB HI(LEVEL_COLS), HI(LEVEL_COLS), HI(LEVEL_COLS), HI(LEVEL_COLS)
+.c8_tick    EQUB 1              \ fields to the rotating colour's next step
+.c8_step    EQUB 0
 .cause      EQUB 0              \ the last crash's reading (collide)
 .frames     EQUW 0
 .key_numbers                    \ internal key numbers, measured (docs/done.md layer 4.2)

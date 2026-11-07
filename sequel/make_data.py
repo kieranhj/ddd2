@@ -17,6 +17,8 @@ c, line l, so one 16-line column is one run of X. They are
   1             the explosion
   2 + 5p + t    player p's rider for level type t (sprite_<type>_player)
   2 + 5p + 3/4  player p's dead rider, frames one and two (sprite_dead_player_one/two)
+  22 + t        the horizontal enemy for level type t (ambulance, yacht, snowball)
+  25 + t        the vertical enemy (policeman, ball, skull)
 Player 1 (p 0) has the original's colours; for the others green (logical colour 2) is swapped with
 yellow, cyan or magenta, both ways (decision 17: RIDER_SWAP), in the rider and the dead rider alike.
 
@@ -34,7 +36,13 @@ line of its top) and which frame to draw there (0: none - it has not moved, or t
 
 THE COURSE is data/course.json's flat `course` (decisions 18-22), in course columns:
   obj_x_lo/hi   the column it starts at, ascending; a sentinel at &7FFF ends it
-  obj_kind      < &80: an obstacle, its sprite number; &80 + w: a hole w columns wide
+  obj_kind      < &80: an obstacle, its sprite number; &80 + t x &20 + w: a hole w columns wide
+                in a level of type t (its edges are drawn back in that type's ground colour)
+Level types: level L is (L - 1) MOD 3, land, sea, snow; a level is 304 columns (decision 18).
+  ground_byte   the ground's lit byte per type: green, blue, white (ground_colours_table;
+                decision 30: always blue at sea)
+  c8_ulas       the rotating colour: logical colour 8's ULA palette writes, one a pass of 3
+                fields (measured, tools/measure_palette.mjs: physical 0 4 5 1 6 3 7 7 7 3 6 1 5 4)
 FINISH is the course's end, the end of level 35 (decision 22).
 
 SHIFT ROUTINES (layer 4.1's optimisation). Moving an obstacle one column left only changes the
@@ -103,6 +111,10 @@ def main():
             tall.append(('tall_rider%d_%s' % (p + 1, t), recolour(raw('sprite_%s_player' % t), other)))
         for f in ('one', 'two'):
             tall.append(('tall_dead%d_%s' % (p + 1, f), recolour(raw('sprite_dead_player_%s' % f), other)))
+    for kind in ('horizontal', 'vertical'):
+        for t in TYPES:
+            tall.append(('tall_%s_%s' % (kind, t), raw('sprite_%s_%s_enemy' % (t, kind))))
+    assert [n for n, _ in tall].index('tall_horizontal_land') == 22
     assert not any(raw('sprite_blank'))
     jt = code[syms['jump_offsets_table'] - load:syms['jump_offsets_table'] - load + 34]
 
@@ -132,8 +144,8 @@ def main():
         if o['type'] == 'obstacle':
             objs.append((o['x'], types[o['level']] * 3 + o['sprite'] - 1))
         else:
-            assert 0 < o['width'] < 0x80
-            objs.append((o['x'], 0x80 + o['width']))
+            assert 0 < o['width'] < 0x20
+            objs.append((o['x'], 0x80 + (types[o['level']] << 5) + o['width']))
     objs.append((0x7FFF, 0))
     assert len(objs) <= 256 and objs == sorted(objs, key=lambda o: o[0])
 
@@ -154,6 +166,15 @@ def main():
     for name, data in tall:
         L.append('.' + name)
         L += equb([data[l * 4 + c] for c in range(4) for l in range(16)])
+    gc = code[syms['ground_colours_table'] - load:syms['ground_colours_table'] - load + 3]
+    def both(c):                    # MODE 2: logical colour c in both pixels of a byte
+        return sum(((c >> i) & 1) << (2 * i + 1) | ((c >> i) & 1) << (2 * i) for i in range(4))
+    L.append('.ground_byte   EQUB %s    \\ land, sea, snow' % ', '.join('&%02X' % both(c) for c in gc))
+    rc = code[syms['rotating_colour_table'] - load:syms['rotating_colour_table'] - load + 14]
+    phys = [v & 15 for v in rc]     # VDU 19's physical colour; &10 gives 0 (measured)
+    assert phys == [0, 4, 5, 1, 6, 3, 7, 7, 7, 3, 6, 1, 5, 4], phys
+    L.append('.c8_ulas   EQUB %s' % ', '.join('&%02X' % (0x80 | (p ^ 7)) for p in phys))
+    L.append('C8_STEPS = %d' % len(phys))
     L.append('.tall_lo   EQUB %s' % ', '.join('LO(%s)' % n for n, _ in tall))
     L.append('.tall_hi   EQUB %s' % ', '.join('HI(%s)' % n for n, _ in tall))
     for half in ('top', 'bot'):

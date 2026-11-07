@@ -82,7 +82,7 @@ const symOf = (n) => { const v = orig.found.get(n); if (!v) throw new Error(`${n
 const bytesAt = (name, n) => { const a = symOf(name) - 0x0e00; return denis3.subarray(a, a + n); };
 const sprite = (name) => bytesAt(name, 64);            // the original's: row by row, 4 bytes a line
 const JT = [...bytesAt("jump_offsets_table", 34)];
-const FINISH = course.finish, RIDER = 12, ROW = 640, GROUND = 0x0c, SKY = 24, LEVEL = 4 * 76;
+const FINISH = course.finish, RIDER = 12, ROW = 640, SKY = 24, LEVEL = 4 * 76;
 const objects = course.course.map((o) => o.type === "obstacle"
     ? { x: o.x, w: 4, spr: sprite(`sprite_${typeOf[o.level]}_${NAMES[o.sprite - 1]}`) }
     : { x: o.x, w: o.width, hole: true });
@@ -94,7 +94,16 @@ const pixels = (b) => [[7, 5, 3, 1], [6, 4, 2, 0]].map((bits) => bits.reduce((c,
 const byte = ([l, r]) => [7, 5, 3, 1].reduce((b, bit, i) => b | (((l >> (3 - i)) & 1) << bit), 0) |
                          [6, 4, 2, 0].reduce((b, bit, i) => b | (((r >> (3 - i)) & 1) << bit), 0);
 const recolour = (spr, o) => Uint8Array.from(spr, (b) => o === null ? b : byte(pixels(b).map((c) => (c === 2 ? o : c === o ? 2 : c))));
-const RIDERS = SWAP.map((o) => recolour(sprite("sprite_land_player"), o));
+const TYPES = ["land", "sea", "snow"];
+const RIDERS = SWAP.map((o) => TYPES.map((t) => recolour(sprite(`sprite_${t}_player`), o)));
+// level types (layer 4.4): level L (from 1) is (L - 1) MOD 3, 304 columns each; the ground in its
+// type's colour (ground_colours_table, both pixels; decision 30: blue at sea, always)
+const typeAt = (x) => Math.floor(x / LEVEL) % 3;
+const both = (c) => [0, 1, 2, 3].reduce((b, i) => b | (((c >> i) & 1) << (2 * i + 1)) | (((c >> i) & 1) << (2 * i)), 0);
+const GROUNDS = [...bytesAt("ground_colours_table", 3)].map(both);
+// the rotating colour: logical 8 stepped once a pass, VDU 19,8,rotating_colour_table[i] (&10 is 0)
+const C8 = [...bytesAt("rotating_colour_table", 14)].map((v) => 0x80 | ((v & 15) ^ 7));
+const riderOf = (r) => RIDERS[r.p][typeAt(r.pos + RIDER)];
 const DEAD = SWAP.map((o) => [recolour(sprite("sprite_dead_player_one"), o), recolour(sprite("sprite_dead_player_two"), o)]);
 const EXPLOSION = sprite("sprite_explosion"), BLANK = new Uint8Array(64);
 // the jump: the table at state s3/3 (thirds), interpolated, rounded half up
@@ -107,7 +116,7 @@ function bg(pos, c, L) {
     const x = pos + c;
     if (L < SKY) return 0;
     if (L < SKY + 16) { const i = obstAt[x]; return i < 0 ? 0 : objects[i].spr[(L - SKY) * 4 + (x - objects[i].x)]; }
-    return (L - SKY - 16) < 4 && !holeAt[x] ? GROUND : 0;
+    return (L - SKY - 16) < 4 && !holeAt[x] ? GROUNDS[typeAt(x)] : 0;
 }
 // the picture: a window, 6 character rows
 const at = (c, L) => (L >> 3) * ROW + c * 8 + (L & 7);
@@ -152,9 +161,9 @@ function step(r, accel, jump, draw) {
         let read;
         if (draw) {
             r.w = picture(r.pos);
-            put(r.w, RIDERS[r.p], RIDER, r.t);
+            put(r.w, riderOf(r), RIDER, r.t);
             read = (c, L) => r.w[at(c, L)];
-        } else if (r.blind) read = (c, L) => (L >= SKY + 16 ? (L < SKY + 20 ? GROUND : 0) : bg(r.pos, c, L));
+        } else if (r.blind) read = (c, L) => (L >= SKY + 16 ? (L < SKY + 20 ? 1 : 0) : bg(r.pos, c, L));
         else read = (c, L) => bg(r.pos, c, L);
         r.cause = collide(read, r.t, r.js !== 0);
         if (r.cause) {
@@ -166,7 +175,7 @@ function step(r, accel, jump, draw) {
             r.take++;
             if (r.take === 4) { r.phase = 3; return 0; }
             r.phase = 2;
-            if (draw) { r.w = new Uint8Array(6 * ROW); for (let c = 0; c < 80; c++) for (let L = 40; L < 44; L++) r.w[at(c, L)] = GROUND; }
+            if (draw) r.w.fill(0, 0, 5 * ROW);         // all but the ground row, which stays
             return 0;
         }
         const f = r.ct++;
@@ -187,7 +196,7 @@ function step(r, accel, jump, draw) {
         Object.assign(r, { pos: q - RIDER, frac: 0, vel: 0, js: 0, t: SKY, phase: 0 });
         if (r.pos >= FINISH - RIDER) { r.pos = FINISH - RIDER; r.finished = true; }
         seaCheck(r);
-        if (draw) { r.w = picture(r.pos); put(r.w, RIDERS[r.p], RIDER, SKY); }
+        if (draw) { r.w = picture(r.pos); put(r.w, riderOf(r), RIDER, SKY); }
     }
     return r.cause;
 }
@@ -229,9 +238,16 @@ if (NOHOLES) {
     h.wr(a + 1, [0]);
 }
 const riders = [0, 1, 2, 3].map(newRider);
-riders.forEach((r) => { r.w = picture(0); put(r.w, RIDERS[r.p], RIDER, SKY); });
+riders.forEach((r) => { r.w = picture(0); put(r.w, riderOf(r), RIDER, SKY); });
 
 const LOOP = N("loop");
+// the palette (layer 4.4): every write to the ULA's palette register once the loop runs must be
+// the rotating colour's next step, 3 fields after the last
+const palette = [];
+{
+    const cpu = h.cpu, wm = cpu.writemem.bind(cpu);
+    cpu.writemem = (addr, v) => { if (addr === 0xfe21 && started) palette.push({ field: h.word(SYM.frames, "main"), v }); return wm(addr, v); };
+}
 let started = false, fields = 0, passes = 0, checked = 0, wrong = 0, firstWrong = null, tears = 0, firstTear = null;
 let writes = 0, minGap = 99, t0 = 0, kt0 = 0, cur = null, stateWrong = 0, firstState = null;
 const crashes = { game: [], model: [] }, causes = [0, 0, 0, 0, 0, 0];
@@ -319,7 +335,7 @@ while (!done() && fields < MAXF) {
     // plans from the model after the pass before it
     if (await h.runTo(LOOP, 400_000) === null) h.die("the loop stopped", h.gaveUp);
     fields++;
-    if (VIDEO && fields === VFROM) video = await startVideo(h.s, VIDEO, { crop: cropFor(h.s, "mos"), title: "Dare Devil Denis 2 - layer 4.3" });
+    if (VIDEO && fields === VFROM) video = await startVideo(h.s, VIDEO, { crop: cropFor(h.s, "mos"), title: "Dare Devil Denis 2" });
     if (video && fields < VFROM + VN) await video.frame(`field ${fields}   takes ${riders.map((r) => (r.phase === 3 ? "out" : 4 - r.take)).join(" ")}`);
     if (video && fields === VFROM + VN) { await video.finish(); console.error(JSON.stringify({ video: video.path, format: video.format, frames: video.frames })); video = null; }
     if (stateWrong > 20 || wrong > 5000) break;
@@ -333,13 +349,23 @@ const key = (c) => `${c.field}/${c.strip}/${c.cause}`;
 const gameSet = new Set(crashes.game.map(key)), modelSet = new Set(crashes.model.map(key));
 const crashDiff = [...crashes.game.filter((c) => !modelSet.has(key(c))).map((c) => ({ only: "game", ...c })),
                    ...crashes.model.filter((c) => !gameSet.has(key(c))).map((c) => ({ only: "model", ...c }))];
+// (the cycle repeats a value, so it is matched from each possible first step; the best counts)
+let paletteWrong = Infinity, firstPalette = null;
+for (let s0 = 0; s0 < C8.length; s0++) {
+    let n = 0, first = null;
+    palette.forEach((w, i) => {
+        const ok = w.v === C8[(s0 + i) % C8.length] && (i === 0 || w.field - palette[i - 1].field === 3);
+        if (!ok) { n++; if (!first) first = { at: i, ...w, prev: palette[i - 1] }; }
+    });
+    if (n < paletteWrong) { paletteWrong = n; firstPalette = first; }
+}
 const coverage = SCENARIO === "play" ? causes[1] > 0 && causes[4] > 0 && causes[5] > 0 && respawns > 0 && outs > 0 : outs === 4;
-const ok = done() && checked > 0 && wrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 &&
+const ok = done() && checked > 0 && wrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 && paletteWrong === 0 && palette.length > fields / 3 - 2 &&
            Math.abs(passes - elapsed) <= 1 && coverage;
 h.finish({ scenario: SCENARIO, fields, passes, checked, bytes_wrong: wrong, first_wrong: firstWrong, state_wrong: stateWrong, first_state: firstState,
            crashes: crashes.game.length, crashes_disagreeing: crashDiff.slice(0, 5), by_cause: { right_edge: causes[1], middle_right: causes[2], top_right: causes[3], landed_on: causes[4], hole: causes[5] },
            respawns, outs, takes_back: takesBack, model_crashes: process.env.CRASHLOG ? crashes.model : undefined,
            finals: riders.map((r) => ({ pos: r.pos, finished: r.finished, phase: r.phase, take: r.take })),
-           screen_writes: writes, tearing_writes: tears, first_tear: firstTear, closest_rows_ahead_of_window: minGap,
+           palette_writes: palette.length, palette_wrong: paletteWrong, first_palette_wrong: firstPalette, screen_writes: writes, tearing_writes: tears, first_tear: firstTear, closest_rows_ahead_of_window: minGap,
            keys: stats(keyCost), strips: stripCost.map(stats), field_total: stats(totals), worst_field: worstField },
          ok, { samples: checked });
