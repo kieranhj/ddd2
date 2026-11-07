@@ -17,8 +17,7 @@ decisions are `docs/decisions.md` (1-27).
        and real hardware for the tearing and the keys' ghosting.
 3. [x] Jump, collisions, crash and respawn, takes; holes crash (decision 6): DONE in jsbeeb
        (`docs/done.md` layer 4.3; decisions 26-27 agreed). Left: b2 and real hardware, as 4.2.
-       Only 658 bytes are free below the screen: the RAM hunt (`beeb-ram-hunt`; &0400-&0DFF is
-       unclaimed) comes before 4.4.
+       RAM hunt done (`docs/done.md`): 2,240 bytes free below the screen, 478 in low RAM.
 4. [ ] Enemies, horizontal and vertical, in course coordinates. Each strip changes its level type
        (land, sea, snow; sprites and ground colour) as its rider crosses a level boundary.
 5. [ ] The status line at the top: four players' wages and takes (decision 13). Game mode 1

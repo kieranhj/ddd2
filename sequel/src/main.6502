@@ -1193,17 +1193,44 @@ WS = 7 * ROW                    \ one strip to the next
     EQUB 0, 4, 1, 5, 2, 6, 3, 7
 
     INCLUDE "../build/data.6502"
+.end                            \ the end of what runs at &0E00 up: below the screen
+    ASSERT end <= SCREEN
 
-\ reloc: runs at its LOAD address (exec), so only relative branches until the JMP. Copies the
-\ whole file from LOAD_AT down to ORG_AT, a page at a time, upwards: the destination is always
-\ below the source, and this routine, last in the file, is above everything it writes.
+\ What follows is only in the file. The tables for low RAM (&0400-&07FF, &0900-&0CFF; the RAM
+\ hunt, docs/done.md): their bytes, with their labels set to where reloc puts them.
+    INCLUDE "../build/low.6502"
+
+\ reloc: runs at its LOAD address (exec), so only relative branches until the JMP, and its
+\ addresses are load addresses (x - ORG_AT + LOAD_AT). First the low RAM images to their places
+\ (nowhere near the file); then the program from LOAD_AT down to ORG_AT, a page at a time,
+\ upwards: the destination is always below the source, and this routine is above all of it.
+LOAD_OF_A = low_a_image - ORG_AT + LOAD_AT
+LOAD_OF_B = low_b_image - ORG_AT + LOAD_AT
 .reloc
     SEI
+    LDA #LO(LOAD_OF_A) : STA d0
+    LDA #HI(LOAD_OF_A) : STA d0 + 1
+    LDA #LO(LOW_A)     : STA d1
+    LDA #HI(LOW_A)     : STA d1 + 1
+    LDX #LOW_A_PAGES
+    JSR reloc_pages - ORG_AT + LOAD_AT
+    LDA #LO(LOAD_OF_B) : STA d0
+    LDA #HI(LOAD_OF_B) : STA d0 + 1
+    LDA #LO(LOW_B)     : STA d1
+    LDA #HI(LOW_B)     : STA d1 + 1
+    LDX #LOW_B_PAGES
+    JSR reloc_pages - ORG_AT + LOAD_AT
     LDA #LO(LOAD_AT) : STA d0
     LDA #HI(LOAD_AT) : STA d0 + 1
     LDA #LO(ORG_AT)  : STA d1
     LDA #HI(ORG_AT)  : STA d1 + 1
     LDX #HI(end - ORG_AT + 255)
+    JSR reloc_pages - ORG_AT + LOAD_AT
+    CLI
+    JMP start
+\ reloc_pages: X pages from (d0) to (d1). (A page past an image's end copies whatever follows
+\ it in the file: harmless, inside the block.)
+.reloc_pages
     LDY #0
 .reloc_copy
     LDA (d0),Y
@@ -1214,8 +1241,6 @@ WS = 7 * ROW                    \ one strip to the next
     INC d1 + 1
     DEX
     BNE reloc_copy
-    CLI
-    JMP start
-.end
+    RTS
     ASSERT ORG_AT + HI(end - ORG_AT + 255) * 256 <= SCREEN
 ENDSECTION

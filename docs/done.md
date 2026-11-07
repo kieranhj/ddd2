@@ -4,6 +4,56 @@ What has landed, with the number that says it landed. `PLAN.md` is what is left.
 
 ---
 
+## RAM hunt before layer 4.4 (2026-11-07, branch `ram-hunt-2026-11-07`)
+
+Layer 4.3 left 658 bytes below the screen. Layer 4.4 (enemies, their sprites and tables,
+per-level-type ground and riders) wants about 2.5K.
+
+**MEASURED, what touches low RAM** (`tools/memwatch.mjs` over `tools/verify_strips.mjs`'s whole
+`play` run, 6,515 fields; the phase "play" from `start`, so the MODE change and `install_irq`
+included):
+- **&0400-&0DFF:** the only accesses once ours runs are the MOS's sound code, reading
+  &0804-&0807 and &0838 and writing &083B, 8 times each.
+- **&0D00:** the DFS's NMI code; it runs during the load.
+
+So page 8 stays the MOS's and page &0D the DFS's. **Claimed: &0400-&07FF and &0900-&0CFF.**
+
+**Built:** the read-only tables there, each page-aligned or packed inside a page, so no indexed
+read crosses one.
+- **&0400-&07FF:** `obj_x_lo/hi`, `obj_kind`, `jump_h`, `col8_lo/hi` (1,013 bytes).
+- **&0900-&0BFF:** `crash_col/t/spr` (546 bytes).
+
+`make_data.py` writes them as `sequel/build/low.6502`: bytes at the end of the file, their labels
+set to the low addresses. `reloc` copies both images there before moving the program down.
+
+| Region | Before | After |
+|---|---|---|
+| Main RAM &0E00-&2FFF | 658 free (ends &2D6D) | **2,240 free** (ends &273F) |
+| Low A &0400-&07FF | unclaimed | 11 free |
+| Low B &0900-&0CFF | unclaimed | 478 free: &0C00-&0CFF, and 74 at the end of each of pages 9-B |
+| Zero page | &00-&4F, &68-&6F, &8E-&8F free | the same |
+
+**Proof** (jsbeeb 2.10.2, B-DFS1.2, same day as the baseline):
+- **The low tables:** 318,018 reads and 0 writes during play (`memwatch`, &0400-&07FF and
+  &0900-&0CFF).
+- **`play`:** 6,485 fields, 0 bytes wrong, 21 crashes agreed, 0 writes in a window. Worst field
+  20,474 cycles (was 20,530), median 4,640 (was 4,655).
+- **`level`:** 0 bytes wrong. Worst field 19,015 (was 19,054).
+- **Still able to fail:** `--plant` 197 bytes wrong; `--early` 253,652 writes in a window;
+  `--no-holes` 2 crashes disagreeing.
+
+**Measured, not built** (the next RAM, roughly in order):
+- **Screen rows never drawn:** rows 3, 10, 17, 24 (between the strips) and row 31. They are
+  displayed, so they must stay black. Row 31 (640 bytes at &7D80) could leave the display by
+  setting R6 to 31: the picture would look the same, but the CRTC changes, so it is a decision.
+- **Rows 1-2:** freed by decision 13's single status line only if the screen is moved up, which
+  changes the layout.
+- **The 74-byte page ends in low B,** for small tables.
+
+**Rejected:**
+- **Page 8:** the MOS writes &083B in play.
+- **Page &0D:** the DFS's NMI handler.
+
 ## Layer 4.3: the jump, collisions, the crash, respawn and takes (2026-11-07)
 
 `sequel/build/ddd2.ssd`, &0E00-&2D6D (8,046 bytes; **658 free below the screen**). Each strip now
