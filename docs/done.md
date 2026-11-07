@@ -4,6 +4,66 @@ What has landed, with the number that says it landed. `PLAN.md` is what is left.
 
 ---
 
+## Layer 4.3: the jump, collisions, the crash, respawn and takes (2026-11-07)
+
+`sequel/build/ddd2.ssd`, &0E00-&2D6D (8,046 bytes; **658 free below the screen**). Each strip now
+has a 48-line window (character rows 4+7k to 9+7k) where its rider can be drawn at any height.
+- **The jump** (`update_player`): from the ground with jump held, 84 fields, at
+  `jump_offsets_table` interpolated in thirds of the original's 3-field pass (at every whole
+  pass, the original's height exactly).
+- **Collisions are the original's reads of the screen** (`main_game_loop`,
+  `check_for_collision`), every field rather than every third:
+  - the column right of the rider at its bottom line (`right_edge`), its middle and the line
+    above it;
+  - under its left column, in the air;
+  - the ground under it, on the ground. A hole is a crash (decision 6).
+- **What a rider is drawn over:** the rider and its black, as `plot_sprite` draws it. Under it
+  in the air, its four columns show the obstacle there (`restore_under`); the sky lines it leaves
+  are blacked.
+- **The crash** (`kill_player`; `tools/measure_crash.mjs` on the original):
+  - the explosion where the rider was;
+  - the dead rider from 5 columns right, a column a pass of 3 fields for 14 passes (rubbed out
+    with `sprite_blank` as it moves), then lying 18 columns right, two frames of 10 fields, 7
+    times. Measured: 42.05 fields from the crash to `animate_dead_player`, 3.00-3.01 a pass, then
+    226 fields to the next take, 86 of them the clapperboard, which goes (decision 27);
+  - then the next take or out; the strip erased (1 field), and redrawn at the respawn point
+    (decision 26, 1 field).
+- **Takes:** 3, one back at each sea level reached if one is lost (decision 27).
+- **The dead rider and explosion are new tall sprites:** 22 in all at 64 bytes, column-major, so
+  any height is one draw loop (`draw16`).
+
+**MEASURED** (`tools/verify_strips.mjs`, headless jsbeeb 2.10.2, `B-DFS1.2`). The oracle now holds
+a model of the whole game: motion, jump, the picture, the collision reads made on the model's own
+picture, crash, respawn, takes. It is re-made from the original and the decisions (sprites and
+`jump_offsets_table` out of DENIS3), not from the sequel's source or data. Per field, every strip's
+window must equal the model's; every crash the game makes (`crash_at`, with its `cause`) must be
+the model's, same field, same reading; and the game's state must equal the model's.
+
+| Scenario | Fields | Bytes wrong | Crashes, all agreed | Respawns | Takes back | Out | Writes in a window | Worst field |
+|---|---|---|---|---|---|---|---|---|
+| `play`: a planner; one blind to holes; one jumping too eagerly; a planner that coasts | 6,485 | 0 | 21: 17 into a front, 1 landed on top, 3 holes | 17 | 9 | 4 | 0 (nearest 25 rows) | 20,530 (51%) |
+| `level`: all four together, never jumping | 1,648 | 0 | 16: 12 front, 4 middle right | 12 | 0 | 4 | 0 | 19,054 (48%): all four respawning at once |
+
+- **The cost** (`play`): one strip's update 99th percentile 4,949-5,695, worst 7,268 (the
+  respawn's draw, or a rider in the air over a dense stretch). The keys: 692-693.
+- **Shown able to fail:**
+  - a byte planted in strip 2: 197 bytes wrong;
+  - T1 a band early: 114,014 writes in a window;
+  - the game's hole check broken (`--no-holes`): 2 crashes only the model made, then the state
+    and 2,778 bytes wrong.
+- **Bugs the oracle found while building:**
+  - `black_line` built its column offsets with `ORA` (line + 8, + 24, + 24): one column of sky
+    left lit as a rider rose. 2,898 bytes wrong over 2,245 fields, then fixed.
+  - Respawning redrew the whole ground: 11,000 cycles a strip, 45,075 for a field with all four
+    respawning (a field dropped). `erase_strip` now leaves the ground whole and respawn draws only
+    the objects: 4,555.
+- **Not seen yet:** a top-right crash. Nothing but an enemy can be there (layer 4.4).
+
+**The original's collision reads at 50 Hz.** The original moves up to 3 columns between reads,
+the sequel one, so the sequel always meets an obstacle's first column. Its rider can therefore
+crash on a front pixel the original's would have stepped past. It is the original's rule, read
+three times as often.
+
 ## Layer 4.2: four strips, eight keys, 50 Hz, no tearing (2026-11-07)
 
 `sequel/build/ddd2.ssd`: four riders, each on two keys (decision 25, proposed), moving with the
@@ -38,7 +98,7 @@ the raster leaves its band (decision 12).
   **worst 21,912 - 55% of the 40,000-cycle field**. Mixed: field worst 14,257.
 - **Room:** &22BB-&2FFF (3,397 bytes) is free below the screen; &0400-&0DFF is not yet claimed.
 
-**Not yet:** a second opinion in b2 (`sequeluild.ps1 -Run` boots it) and on real hardware - the
+**Not yet:** a second opinion in b2 (`sequel/build.ps1 -Run` boots it) and on real hardware - the
 tearing claim is jsbeeb's CRTC counters.
 
 ## Layer 4.1: one strip on the real course (2026-11-07)

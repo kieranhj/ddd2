@@ -1,48 +1,69 @@
-// verify_strips.mjs - layer 4.2's oracle: four riders over the whole course, every strip's picture
-// checked every field against an independent redraw, every screen write checked against the
-// raster, the loop's rate and the field's cost measured.
+// verify_strips.mjs - the sequel's oracle (layers 4.2-4.3): four riders over the whole course,
+// every strip's picture checked every field against an independent model of the game, every
+// screen write checked against the raster, the loop's rate and the field's cost measured.
 //
-//   node tools/verify_strips.mjs [--scenario same|mixed] [--fields N] [--plant] [--early]
+//   node tools/verify_strips.mjs [--scenario play|level] [--fields N] [--plant] [--early] [--no-holes]
 //
-// Boots sequel/build/ddd2.ssd (Model B, SHIFT+BREAK) and holds the players' accelerate keys,
-// pressed by their measured internal numbers (Z 97, V 99, M 101, full stop 103; docs/done.md):
-//   same    all four held from the start: the riders stay level, the densest stretches land on
-//           all four strips at once - the worst case for the field's cost
-//   mixed   P1 held throughout; P2 from field 300; P3 held 400 fields, let go 200, and so on;
-//           P4 held to field 3000, let go 600 (it slows, decision 24), then held again
-// It runs until every rider has stopped at the finish, or N fields.
-//   - THE PICTURE. At every pass's end (`loop`), each strip's three character rows (7+7k to
-//     9+7k) are compared with a model drawn from data/course.json's `course` at that strip's pos:
-//     black; the ground's four lit lines green but for hole columns; each obstacle clipped; the
-//     player's rider at column 12 over it all. The sprites are read out of build/ddd.ssd (DENIS3,
-//     at build/ddd.symbols.json's addresses), and the riders' colour swap (decision 17: green
-//     with yellow, cyan, magenta for players 2-4) is done here, not taken from the sequel's data.
-//   - THE RASTER (decision 12). Every CPU write to &3000-&7FFF after the loop starts is checked:
-//     a write to strip k's rows while the CRTC's character row counter is on those rows (and not
-//     in the vertical adjust) is a tear.
-//   - THE RATE. Passes of the loop (`new_field`) against fields (`frames`): one each.
-//   - THE COST. Each strip's update (`strip_go` to `strip_done`), the key read (`keys_go` to
-//     `keys_done`) and their sum per field.
-// Exit 0: every rider at the finish, every field checked, 0 bytes wrong, 0 tearing writes, one
-// pass a field; 1: anything else; 2: could not run.
+// Boots sequel/build/ddd2.ssd (Model B, SHIFT+BREAK) and plays all four riders by their keys,
+// pressed by their measured internal numbers (decision 25: accelerate Z V M full stop, jump X B
+// comma slash):
+//   play    P1 a planner: accelerate held, jumps when riding on would crash and jumping would not
+//           P2 the planner blind to holes: rides into them (from level 5)
+//           P3 eager: jumps whenever anything is within 40 fields - lands on obstacles, and in
+//              the air into their fronts
+//           P4 the planner, but lets go of accelerate 200 fields in every 600 (decision 24)
+//   level   all four held level, no jumps: as layer 4.2's worst case, until they are all out
+// It runs until every rider has finished or is out of takes, or N fields.
+//
+// --video OUT.mp4 [--video-from F] [--video-fields N]: also a clip of fields F to F+N (default
+// 1150, 750: P1-P3's crash at level 4, P2 and P3 into holes at level 5).
+//
+// THE MODEL is the game's rules re-made from the original (src/game.6502, docs/sequel.md) and
+// the decisions, not from the sequel's source or its data: the course from data/course.json, the
+// sprites out of build/ddd.ssd's DENIS3 (at build/ddd.symbols.json's addresses), recoloured here
+// (decision 17); jump_offsets_table out of DENIS3 too. Per field, per rider:
+//   riding   pos += vel/256; vel +1 with accelerate (to 250), -1 without (decision 24); the
+//            finish (decision 22); a take back at each sea level reached (2, 5 ... 35) if one
+//            is lost; the jump - from the ground with jump held, 84 fields, the height the
+//            table at state 1 + n/3, interpolated, rounded half up; the picture - the course at
+//            pos, the rider over it at column 12; then the original's collision reads of THAT
+//            picture: column 16 at the rider's bottom line, its middle, the line above it; under
+//            its left column in the air (lit: a crash) or the ground there (unlit: a hole)
+//   crash    the explosion at the rider; the dead rider, from 5 columns right, a column every 3
+//            fields for 14 passes at jump_offsets_table[19 + pass] (interpolated), rubbed out
+//            where it was when it moves; then frames one and two, 10 fields each, 7 times, 18
+//            columns right (tools/measure_crash.mjs: 42 + 140 fields); then the next take (3 in
+//            all) or out
+//   respawn  the next field the strip is black but its ground; the one after, standing at the
+//            first course column past the crash with 16 columns clear (decision 26), drawn whole
+// At the end of each pass (`loop`) each strip's window (character rows 4+7k to 9+7k) must equal
+// the model's, byte for byte; and each crash the game makes (`crash_at`) must be the model's, on
+// the same field, for the same reading (`cause`).
+//   THE RASTER (decision 12). A CPU write to strip k's window while the CRTC's character row
+//   counter is on it (and not in the vertical adjust) is a tear.
+//   THE RATE. Passes of the loop (`new_field`) against fields (`frames`): one each.
+//   THE COST. Each strip's update (`strip_go` to `strip_done`), the key read, their sum a field.
+// Exit 0: every rider finished or out, every field checked, 0 bytes wrong, every crash agreed,
+// crashes seen of each kind the course can give (right edge, landing on top, a hole), a respawn
+// and a rider out; 0 tearing writes; one pass a field. 1: anything else; 2: could not run.
 import { readFileSync } from "node:fs";
 
+import { cropFor, startVideo } from "./capture.mjs";
 import { open, readSymbols } from "./harness.mjs";
 
 const args = process.argv.slice(2);
 const opt = (n, d) => { const i = args.indexOf(n); return i < 0 ? d : args[i + 1]; };
-const SCENARIO = opt("--scenario", "mixed"), MAXF = parseInt(opt("--fields", "20000"), 10);
+const SCENARIO = opt("--scenario", "play"), MAXF = parseInt(opt("--fields", "30000"), 10);
 const PLANT = args.includes("--plant");
-// --early: make T1's first fire 24 lines (a band) sooner (the LDA #LO/#HI(T1_FIRST) immediates at
-// vs_count + 5 and + 10), so each strip is updated as the raster ENTERS its band - the oracle must
-// then see tearing writes
+// --early: T1's first fire 24 lines (3 rows) sooner (the LDA #LO/#HI(T1_FIRST) immediates at
+// vs_count + 5 and + 10): each strip is then updated while the raster is still in its window
 const EARLY = args.includes("--early");
-const ACCEL = [97, 99, 101, 103];
-const held = {
-    same: () => true,
-    mixed: (p, f) => [true, f >= 300, f % 600 < 400, f < 3000 || f >= 3600][p],
-}[SCENARIO];
-if (!held) { console.error(`no scenario ${SCENARIO}`); process.exit(2); }
+// --no-holes: the game's hole check never crashes (its BEQ cl_hit at cl_ground + 10 made to fall
+// through) - the crashes must then disagree with the model's
+const NOHOLES = args.includes("--no-holes");
+const ACCEL = [97, 99, 101, 103], JUMP = [66, 100, 102, 104];
+const VIDEO = opt("--video", null), VFROM = parseInt(opt("--video-from", "1150"), 10), VN = parseInt(opt("--video-fields", "750"), 10);
+if (!["play", "level"].includes(SCENARIO)) { console.error(`no scenario ${SCENARIO}`); process.exit(2); }
 
 // ---- the model's inputs ----
 const course = JSON.parse(readFileSync("data/course.json", "utf8"));
@@ -58,117 +79,267 @@ for (let i = 0; i < img[256 + 5] / 8; i++) {
 }
 const orig = readSymbols("build/ddd.symbols.json");
 const symOf = (n) => { const v = orig.found.get(n); if (!v) throw new Error(`${n} not in build/ddd.symbols.json`); return (v.find((x) => x.exact) || v[0]).value; };
-const sprite = (name) => { const a = symOf(name) - 0x0e00; return denis3.subarray(a, a + 64); };
+const bytesAt = (name, n) => { const a = symOf(name) - 0x0e00; return denis3.subarray(a, a + n); };
+const sprite = (name) => bytesAt(name, 64);            // the original's: row by row, 4 bytes a line
+const JT = [...bytesAt("jump_offsets_table", 34)];
+const FINISH = course.finish, RIDER = 12, ROW = 640, GROUND = 0x0c, SKY = 24, LEVEL = 4 * 76;
 const objects = course.course.map((o) => o.type === "obstacle"
     ? { x: o.x, w: 4, spr: sprite(`sprite_${typeOf[o.level]}_${NAMES[o.sprite - 1]}`) }
     : { x: o.x, w: o.width, hole: true });
-// decision 17: player p's rider has green (2) swapped with SWAP[p]; pixel by pixel, MODE 2
+const obstAt = new Int32Array(FINISH + 200).fill(-1), holeAt = new Uint8Array(FINISH + 200);
+objects.forEach((o, i) => { for (let c = o.x; c < o.x + o.w; c++) { if (o.hole) holeAt[c] = 1; else obstAt[c] = i; } });
+// decision 17: player p's rider (and dead rider) has green (2) swapped with SWAP[p]; MODE 2
 const SWAP = [null, 3, 6, 5];
 const pixels = (b) => [[7, 5, 3, 1], [6, 4, 2, 0]].map((bits) => bits.reduce((c, bit, i) => c | (((b >> bit) & 1) << (3 - i)), 0));
 const byte = ([l, r]) => [7, 5, 3, 1].reduce((b, bit, i) => b | (((l >> (3 - i)) & 1) << bit), 0) |
                          [6, 4, 2, 0].reduce((b, bit, i) => b | (((r >> (3 - i)) & 1) << bit), 0);
-const land = sprite("sprite_land_player");
-const riders = SWAP.map((o) => Uint8Array.from(land, (b) => o === null ? b : byte(pixels(b).map((c) => (c === 2 ? o : c === o ? 2 : c)))));
-const RCOL = 12, ROW = 640;
+const recolour = (spr, o) => Uint8Array.from(spr, (b) => o === null ? b : byte(pixels(b).map((c) => (c === 2 ? o : c === o ? 2 : c))));
+const RIDERS = SWAP.map((o) => recolour(sprite("sprite_land_player"), o));
+const DEAD = SWAP.map((o) => [recolour(sprite("sprite_dead_player_one"), o), recolour(sprite("sprite_dead_player_two"), o)]);
+const EXPLOSION = sprite("sprite_explosion"), BLANK = new Uint8Array(64);
+// the jump: the table at state s3/3 (thirds), interpolated, rounded half up
+const height = (s3) => { const s = Math.floor(s3 / 3), f = s3 % 3; return Math.floor((6 * JT[s] + (JT[s + 1] - JT[s]) * f * 2 + 3) / 6); };
+const JUMP_FIELDS = 84, CRASH_FLY = 42, CRASH_ALL = 42 + 140;
 
-const model = (pos, p) => {
-    const m = new Uint8Array(3 * ROW);
-    for (let c = 0; c < 80; c++) for (let l = 0; l < 4; l++) m[2 * ROW + c * 8 + l] = 0x0c;
-    const put = (spr, c0) => {
-        for (let c = 0; c < 4; c++) {
-            const sc = c0 + c;
-            if (sc < 0 || sc > 79) continue;
-            for (let l = 0; l < 16; l++) m[(l >> 3) * ROW + sc * 8 + (l & 7)] = spr[l * 4 + c];
+// ---- the model ----
+// the course's own byte at window (column c, line L) of a strip at pos: sky, obstacle, ground
+function bg(pos, c, L) {
+    const x = pos + c;
+    if (L < SKY) return 0;
+    if (L < SKY + 16) { const i = obstAt[x]; return i < 0 ? 0 : objects[i].spr[(L - SKY) * 4 + (x - objects[i].x)]; }
+    return (L - SKY - 16) < 4 && !holeAt[x] ? GROUND : 0;
+}
+// the picture: a window, 6 character rows
+const at = (c, L) => (L >> 3) * ROW + c * 8 + (L & 7);
+function picture(pos) {
+    const w = new Uint8Array(6 * ROW);
+    for (let c = 0; c < 80; c++) for (let L = SKY; L < 48; L++) w[at(c, L)] = bg(pos, c, L);
+    return w;
+}
+function put(w, spr, c0, t) {                          // a 16-line sprite, whole, top at line t
+    for (let c = 0; c < 4; c++) for (let l = 0; l < 16; l++) w[at(c0 + c, t + l)] = spr[l * 4 + c];
+}
+// a collision reading: which of the original's points is lit (unlit, for the hole); 0 if none
+function collide(read, t, air) {
+    if (read(RIDER + 4, t + 15)) return 1;             // right_edge
+    if (read(RIDER + 4, t + 8)) return 2;              // middle right
+    if (read(RIDER + 4, t - 1)) return 3;              // top right
+    if (air) return read(RIDER, t + 16) ? 4 : 0;       // under its left column
+    return read(RIDER, SKY + 16) ? 0 : 5;              // the ground under it: a hole
+}
+const newRider = (p) => ({ p, pos: 0, frac: 0, vel: 0, js: 0, t: SKY, phase: 0, ct: 0, take: 1, sea: LEVEL, finished: false,
+                           crashT: 0, dead: null, w: null, cause: 0 });
+function seaCheck(r) {
+    while (r.pos + RIDER >= r.sea) { if (r.take >= 2) r.take--; r.sea += 3 * LEVEL; }
+}
+// one field of rider r; draw: keep its picture (r.w). Returns the crash's reading, or 0.
+function step(r, accel, jump, draw) {
+    r.cause = 0;
+    if (r.phase === 0) {
+        if (!r.finished) {
+            r.frac += r.vel;
+            const moved = r.frac >= 256;
+            r.frac &= 255;
+            r.vel = accel ? Math.min(r.vel + 1, 250) : Math.max(r.vel - 1, 0);
+            if (moved) {
+                r.pos++;
+                if (r.pos >= FINISH - RIDER) { r.finished = true; r.vel = 0; }
+                seaCheck(r);
+            }
         }
-    };
-    for (const o of objects) {
-        const c0 = o.x - pos;
-        if (c0 + o.w <= 0 || c0 >= 80) continue;
-        if (o.hole) { for (let c = Math.max(0, c0); c < Math.min(80, c0 + o.w); c++) for (let l = 0; l < 4; l++) m[2 * ROW + c * 8 + l] = 0; }
-        else put(o.spr, c0);
+        if (r.js === 0) { if (jump) r.js = 1; } else if (++r.js === JUMP_FIELDS + 1) r.js = 0;
+        r.t = SKY - (r.js ? height(3 + r.js) : 0);
+        let read;
+        if (draw) {
+            r.w = picture(r.pos);
+            put(r.w, RIDERS[r.p], RIDER, r.t);
+            read = (c, L) => r.w[at(c, L)];
+        } else if (r.blind) read = (c, L) => (L >= SKY + 16 ? (L < SKY + 20 ? GROUND : 0) : bg(r.pos, c, L));
+        else read = (c, L) => bg(r.pos, c, L);
+        r.cause = collide(read, r.t, r.js !== 0);
+        if (r.cause) {
+            r.phase = 1; r.ct = 0; r.vel = 0; r.js = 0; r.crashT = r.t; r.dead = null;
+            if (draw) put(r.w, EXPLOSION, RIDER, r.t);
+        }
+    } else if (r.phase === 1) {
+        if (r.ct === CRASH_ALL) {
+            r.take++;
+            if (r.take === 4) { r.phase = 3; return 0; }
+            r.phase = 2;
+            if (draw) { r.w = new Uint8Array(6 * ROW); for (let c = 0; c < 80; c++) for (let L = 40; L < 44; L++) r.w[at(c, L)] = GROUND; }
+            return 0;
+        }
+        const f = r.ct++;
+        if (!draw) return 0;
+        let c, t, spr;
+        if (f < CRASH_FLY) { const p = Math.floor(f / 3); c = RIDER + 5 + p; t = SKY - height(3 * (19 + p) + f % 3); spr = DEAD[r.p][0]; }
+        else { c = RIDER + 18; t = SKY; spr = DEAD[r.p][Math.floor((f - CRASH_FLY) / 10) % 2]; }
+        if (r.dead && (r.dead.c !== c || r.dead.t !== t)) put(r.w, BLANK, r.dead.c, r.dead.t);
+        put(r.w, spr, c, t);
+        r.dead = { c, t };
+    } else if (r.phase === 2) {
+        let q = r.pos + RIDER;                         // past the crash, CLEAR (16) columns clear
+        for (const o of objects) {
+            if (o.x + o.w <= r.pos) continue;
+            if (o.x >= q + 16) break;
+            q = Math.max(q, o.x + o.w);
+        }
+        Object.assign(r, { pos: q - RIDER, frac: 0, vel: 0, js: 0, t: SKY, phase: 0 });
+        if (r.pos >= FINISH - RIDER) { r.pos = FINISH - RIDER; r.finished = true; }
+        seaCheck(r);
+        if (draw) { r.w = picture(r.pos); put(r.w, RIDERS[r.p], RIDER, SKY); }
     }
-    put(riders[p], RCOL);
-    return m;
-};
+    return r.cause;
+}
+const clone = (r) => ({ ...r, w: null, dead: r.dead && { ...r.dead } });
+// the planner: jump now if riding on (no jumps) crashes within the horizon and jumping now gets
+// it back on the ground clear of it - or if it is the last field it could jump at all
+function plan(r, accelFor, { blind = false, eager = false } = {}) {
+    if (r.phase !== 0 || r.js !== 0) return false;
+    const survive = (jumpNow) => {
+        const s = clone(r);
+        s.blind = blind;
+        for (let f = 0; f < 120; f++) {
+            if (step(s, accelFor(f), jumpNow && f === 0, false)) return f;
+            if (s.finished) return 999;
+        }
+        return 999;
+    };
+    const stay = survive(false);
+    if (stay === 999) return false;
+    if (eager) return stay < 40;
+    const jump = survive(true);
+    return (jump > stay && jump > JUMP_FIELDS) || (stay <= 1 && jump > stay);
+}
 
 // ---- the run ----
 const h = await open({ name: "verify_strips", disc: "sequel/build/ddd2.ssd" });
 const N = (n) => h.need(n);
-const POSLO = N("pos_lo"), POSHI = N("pos_hi"), VEL = N("vel"), DONE = N("finished"), FRAMES = N("frames");
-await h.boot({ field: FRAMES, fieldBytes: 2 });
+const SYM = Object.fromEntries(["pos_lo", "pos_hi", "pos_frac", "vel", "js", "phase", "take", "finished", "frames", "cause", "strip"].map((n) => [n, N(n)]));
+await h.boot({ field: SYM.frames, fieldBytes: 2 });
 if (EARLY) {
-    const at = N("vs_count");
-    if (h.byte(at + 4) !== 0xa9 || h.byte(at + 9) !== 0xa9) h.die("vs_count + 4 and + 9 are not LDA #");
-    const t1 = (h.byte(at + 5) | (h.byte(at + 10) << 8)) - 24 * 64;
-    h.wr(at + 5, [t1 & 255]); h.wr(at + 10, [t1 >> 8]);
+    const a = N("vs_count");
+    if (h.byte(a + 4) !== 0xa9 || h.byte(a + 9) !== 0xa9) h.die("vs_count + 4 and + 9 are not LDA #");
+    const t1 = (h.byte(a + 5) | (h.byte(a + 10) << 8)) - 24 * 64;
+    h.wr(a + 5, [t1 & 255]); h.wr(a + 10, [t1 >> 8]);
 }
+if (NOHOLES) {
+    const a = N("cl_ground") + 10;
+    if (h.byte(a) !== 0xf0) h.die("cl_ground + 10 is not BEQ");
+    h.wr(a + 1, [0]);
+}
+const riders = [0, 1, 2, 3].map(newRider);
+riders.forEach((r) => { r.w = picture(0); put(r.w, RIDERS[r.p], RIDER, SKY); });
 
+const LOOP = N("loop");
 let started = false, fields = 0, passes = 0, checked = 0, wrong = 0, firstWrong = null, tears = 0, firstTear = null;
-let writes = 0, minGap = 99, t0 = 0, kt0 = 0, cur = null;
-const fieldCost = [];
-const stripCost = [[], [], [], []], keyCost = [];
+let writes = 0, minGap = 99, t0 = 0, kt0 = 0, cur = null, stateWrong = 0, firstState = null;
+const crashes = { game: [], model: [] }, causes = [0, 0, 0, 0, 0, 0];
+let respawns = 0, outs = 0, takesBack = 0;
+const fieldCost = [], stripCost = [[], [], [], []], keyCost = [];
+const held = [[false, false], [false, false], [false, false], [false, false]];
 h.onExec(N("new_field"), () => { started = true; passes++; cur = { strips: [0, 0, 0, 0], keys: 0 }; fieldCost.push(cur); });
 h.onExec(N("strip_go"), () => { t0 = h.s.elapsedCycles; });
 h.onExec(N("strip_done"), () => {
-    const k = h.byte(N("strip")), c = h.s.elapsedCycles - t0;
+    const k = h.byte(SYM.strip), c = h.s.elapsedCycles - t0;
     if (cur) cur.strips[k] = c;
     stripCost[k].push(c);
 });
 h.onExec(N("keys_go"), () => { kt0 = h.s.elapsedCycles; });
-h.onExec(N("keys_done"), () => { const c = h.s.elapsedCycles - kt0; if (cur) cur.keys = c; keyCost.push(c); });
+h.onExec(N("keys_done"), () => {
+    const c = h.s.elapsedCycles - kt0; if (cur) cur.keys = c; keyCost.push(c);
+    for (let k = 0; k < 4; k++) {               // what it read is what is held
+        const accel = !!(h.byte(0x80 + k) & 0x80), jump = !!(h.byte(0x84 + k) & 0x80);
+        if (accel !== held[k][0] || jump !== held[k][1]) h.die("the keys the game read are not the keys held", { field: fields, strip: k, accel, jump, held: held[k] });
+    }
+});
+h.onExec(N("crash_at"), () => { crashes.game.push({ field: passes, strip: h.byte(SYM.strip), cause: h.byte(SYM.cause) }); });
 h.onWrite(0x3000, 0x7fff, (addr, val, ctx) => {
     if (!started) return false;
     writes++;
     const row = Math.floor((addr - 0x3000) / ROW);
-    const k = Math.floor((row - 7) / 7);
-    if (row < 7 || (row - 7) % 7 > 2 || k > 3) return false;
-    const lo = 7 + 7 * k, hi = 9 + 7 * k;
+    const k = Math.floor((row - 4) / 7);
+    if (row < 4 || (row - 4) % 7 > 5 || k > 3) return false;
+    const lo = 4 + 7 * k, hi = 9 + 7 * k;
     if (!ctx.adj && ctx.vc >= lo && ctx.vc <= hi) {
         tears++;
         if (!firstTear) firstTear = { field: fields, addr: "&" + addr.toString(16), strip: k, vc: ctx.vc, sc: ctx.sc, pc: "&" + ctx.pc.toString(16), at: h.symAt(ctx.pc) };
-    } else if (!ctx.adj) {
-        // how far ahead of its band the raster was, in character rows (wrapping at 39)
-        const gap = (lo - ctx.vc + 39) % 39;
-        minGap = Math.min(minGap, gap);
-    }
+    } else if (!ctx.adj) minGap = Math.min(minGap, (lo - ctx.vc + 39) % 39);
     return false;
 });
-// the picture, at the end of each pass (the loop's top, after strip 3)
-const stripsAt = (k) => 0x3000 + (7 + 7 * k) * ROW;
+// at the end of each pass: the model's field, then the pictures and the state
+const windowAt = (k) => 0x3000 + (4 + 7 * k) * ROW;
+let lastPass = 0;
 h.onExec(N("loop"), () => {
-    if (!started) return;
-    const pos = [0, 1, 2, 3].map((k) => h.byte(POSLO + k) | (h.byte(POSHI + k) << 8));
+    if (!started || passes === lastPass) return;
+    lastPass = passes;
     for (let k = 0; k < 4; k++) {
-        const got = h.rd(stripsAt(k), 3 * ROW, "main"), want = model(pos[k], k);
-        for (let i = 0; i < want.length; i++) if (got[i] !== want[i]) {
+        const r = riders[k];
+        const accel = !!(h.byte(0x80 + k) & 0x80), jump = !!(h.byte(0x84 + k) & 0x80);
+        const was = r.phase, take = r.take;
+        const cause = step(r, accel, jump, true);
+        if (cause) { crashes.model.push({ field: passes, strip: k, cause, pos: r.pos, js: r.js, t: r.crashT }); causes[cause]++; }
+        if (was === 2 && r.phase === 0) respawns++;
+        if (was !== 3 && r.phase === 3) outs++;
+        if (r.take < take) takesBack++;
+        const got = h.rd(windowAt(k), 6 * ROW, "main");
+        for (let i = 0; i < got.length; i++) if (got[i] !== r.w[i]) {
             wrong++;
-            if (!firstWrong) firstWrong = { field: fields, strip: k, pos: pos[k], row: 7 + 7 * k + Math.floor(i / ROW), col: (i % ROW) >> 3, line: i & 7, got: got[i], want: want[i] };
+            if (!firstWrong) firstWrong = { field: fields, pass: passes, strip: k, phase: r.phase, ct: r.ct, pos: r.pos, js: r.js, t: r.t,
+                                            row: 4 + 7 * k + Math.floor(i / ROW), col: (i % ROW) >> 3, line: i & 7, got: got[i], want: r.w[i] };
         }
+        const g = { pos: h.byte(SYM.pos_lo + k) | (h.byte(SYM.pos_hi + k) << 8), vel: h.byte(SYM.vel + k), js: h.byte(SYM.js + k),
+                    phase: h.byte(SYM.phase + k), take: h.byte(SYM.take + k) };
+        const m = { pos: r.pos, vel: r.vel, js: r.js, phase: r.phase, take: r.take };
+        if (JSON.stringify(g) !== JSON.stringify(m)) { stateWrong++; if (!firstState) firstState = { field: fields, pass: passes, strip: k, game: g, model: m }; }
     }
     checked++;
 });
 
-let pressed = [false, false, false, false];
-const f0 = h.word(FRAMES, "main");
-let allDone = false;
-while (!allDone && fields < MAXF) {
+const accelFor = {
+    play: (p, f) => p !== 3 || f % 600 < 400,
+    level: () => true,
+}[SCENARIO];
+const f0 = h.word(SYM.frames, "main");
+let video = null;
+const done = () => riders.every((r) => r.finished || r.phase === 3);
+while (!done() && fields < MAXF) {
     for (let p = 0; p < 4; p++) {
-        const want = held(p, fields);
-        if (want !== pressed[p]) { (want ? h.keyDownRaw : h.keyUpRaw)(ACCEL[p]); pressed[p] = want; }
+        const r = riders[p];
+        const a = accelFor(p, fields);
+        let j = false;
+        if (SCENARIO === "play") {
+            j = plan(r, (f) => accelFor(p, fields + 1 + f), { blind: p === 1, eager: p === 2 });
+        }
+        if (a !== held[p][0]) { (a ? h.keyDownRaw : h.keyUpRaw)(ACCEL[p]); held[p][0] = a; }
+        if (j !== held[p][1]) { (j ? h.keyDownRaw : h.keyUpRaw)(JUMP[p]); held[p][1] = j; }
     }
-    if (PLANT && fields === 500) { h.wr(stripsAt(2) + 70 * 8 + 2, [0x3f], "main"); }
-    await h.s.runFrames(1);
+    if (PLANT && fields === 500) h.wr(windowAt(2) + 3 * ROW + 70 * 8 + 2, [0x3f], "main");
+    // a pass at a time: the keys set above are the ones the next pass reads, and the planner
+    // plans from the model after the pass before it
+    if (await h.runTo(LOOP, 400_000) === null) h.die("the loop stopped", h.gaveUp);
     fields++;
-    allDone = [0, 1, 2, 3].every((k) => h.byte(DONE + k));
+    if (VIDEO && fields === VFROM) video = await startVideo(h.s, VIDEO, { crop: cropFor(h.s, "mos"), title: "Dare Devil Denis 2 - layer 4.3" });
+    if (video && fields < VFROM + VN) await video.frame(`field ${fields}   takes ${riders.map((r) => (r.phase === 3 ? "out" : 4 - r.take)).join(" ")}`);
+    if (video && fields === VFROM + VN) { await video.finish(); console.error(JSON.stringify({ video: video.path, format: video.format, frames: video.frames })); video = null; }
+    if (stateWrong > 20 || wrong > 5000) break;
 }
-const elapsed = h.word(FRAMES, "main") - f0;
+const elapsed = h.word(SYM.frames, "main") - f0;
 
 const stats = (a) => { const s = [...a].sort((x, y) => x - y); return { n: s.length, median: s[s.length >> 1], p99: s[Math.floor(0.99 * (s.length - 1))], max: s.at(-1) }; };
 const totals = fieldCost.map((c) => c.keys + c.strips.reduce((a, b) => a + b, 0));
 const worstField = fieldCost[totals.indexOf(Math.max(...totals))];
-const finals = [0, 1, 2, 3].map((k) => ({ pos: h.byte(POSLO + k) | (h.byte(POSHI + k) << 8), done: h.byte(DONE + k) }));
-const ok = allDone && checked > 0 && wrong === 0 && tears === 0 && Math.abs(passes - elapsed) <= 1;
-h.finish({ scenario: SCENARIO, fields, elapsed_fields: elapsed, passes, checked, bytes_wrong: wrong, first_wrong: firstWrong,
-           screen_writes: writes, tearing_writes: tears, first_tear: firstTear, closest_rows_ahead_of_band: minGap,
-           finals, keys: stats(keyCost), strips: stripCost.map(stats), field_total: stats(totals), worst_field: worstField },
+const key = (c) => `${c.field}/${c.strip}/${c.cause}`;
+const gameSet = new Set(crashes.game.map(key)), modelSet = new Set(crashes.model.map(key));
+const crashDiff = [...crashes.game.filter((c) => !modelSet.has(key(c))).map((c) => ({ only: "game", ...c })),
+                   ...crashes.model.filter((c) => !gameSet.has(key(c))).map((c) => ({ only: "model", ...c }))];
+const coverage = SCENARIO === "play" ? causes[1] > 0 && causes[4] > 0 && causes[5] > 0 && respawns > 0 && outs > 0 : outs === 4;
+const ok = done() && checked > 0 && wrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 &&
+           Math.abs(passes - elapsed) <= 1 && coverage;
+h.finish({ scenario: SCENARIO, fields, passes, checked, bytes_wrong: wrong, first_wrong: firstWrong, state_wrong: stateWrong, first_state: firstState,
+           crashes: crashes.game.length, crashes_disagreeing: crashDiff.slice(0, 5), by_cause: { right_edge: causes[1], middle_right: causes[2], top_right: causes[3], landed_on: causes[4], hole: causes[5] },
+           respawns, outs, takes_back: takesBack, model_crashes: process.env.CRASHLOG ? crashes.model : undefined,
+           finals: riders.map((r) => ({ pos: r.pos, finished: r.finished, phase: r.phase, take: r.take })),
+           screen_writes: writes, tearing_writes: tears, first_tear: firstTear, closest_rows_ahead_of_window: minGap,
+           keys: stats(keyCost), strips: stripCost.map(stats), field_total: stats(totals), worst_field: worstField },
          ok, { samples: checked });

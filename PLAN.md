@@ -1,7 +1,7 @@
 # Plan
 
 What is left. What has landed is in `docs/done.md`. The sequel's design is `docs/sequel.md`; the
-decisions are `docs/decisions.md` (1-25).
+decisions are `docs/decisions.md` (1-27).
 
 ## Step 1 - the original, buildable and verified: DONE (tag `step1-byte-identical-rebuild`, public at github.com/kieranhj/ddd2)
 
@@ -13,9 +13,12 @@ decisions are `docs/decisions.md` (1-25).
 
 1. [x] One strip on the real course: DONE (`docs/done.md` layer 4.1; decision 23 proposed).
 2. [x] Four strips and eight keys, 50 Hz, no tearing: DONE in jsbeeb (`docs/done.md` layer 4.2;
-       decisions 24-25 proposed, the colours of 17 to be seen). Left: b2 (`sequeluild.ps1 -Run`)
+       decisions 24-25 proposed, the colours of 17 to be seen). Left: b2 (`sequel/build.ps1 -Run`)
        and real hardware for the tearing and the keys' ghosting.
-3. [ ] Jump, collisions, crash and respawn, takes. Holes crash (decision 6).
+3. [x] Jump, collisions, crash and respawn, takes; holes crash (decision 6): DONE in jsbeeb
+       (`docs/done.md` layer 4.3; decisions 26-27 proposed). Left: b2 and real hardware, as 4.2.
+       Only 658 bytes are free below the screen: the RAM hunt (`beeb-ram-hunt`; &0400-&0DFF is
+       unclaimed) comes before 4.4.
 4. [ ] Enemies, horizontal and vertical, in course coordinates. Each strip changes its level type
        (land, sea, snow; sprites and ground colour) as its rider crosses a level boundary.
 5. [ ] The status line at the top: four players' wages and takes (decision 13). Game mode 1
