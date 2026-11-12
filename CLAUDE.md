@@ -67,8 +67,8 @@ Design: `docs/sequel.md`; what landed, with its numbers: `docs/done.md`. Build a
 ```
 
 `!BOOT` is *EXEC (option 3): `MODE2`, then `*RUN DDD2` (loads at &1900; `reloc` copies it down).
-Title: a player joins with its accelerate key; A-F starts. Keys (decision 25): Z X | V B | M , | . /
-(accelerate, jump). The published WIP: memory `ddd2-wip-published`.
+Title: a player joins with its accelerate key; A-F starts. Keys (decisions 25, 48): Z X D | V B G | M , K |
+. / RETURN (accelerate, jump, brake). The published WIP: memory `ddd2-wip-published`.
 
 | `sequel/src/` | Holds |
 |---|---|
@@ -105,7 +105,7 @@ in `docs/done.md`'s latest entry):
   VSync, at most two bands late, or it waits a field (a dropped field, never a tear); strip 3 may
   also start in the next field before line 120. `BUGS.md` #1: fields dropped in four-way lockstep.
 - **sfx50 effects must lie at &1000 or above** (its header says why).
-- **B is player 2's jump and skill B** on the title.
+- **B is player 2's jump and skill B, D player 1's brake and skill D** on the title.
 - **jsbeeb draws the picture 8 lines lower** with the shortened display; every row is on its MODE 2
   scanline after VSync (measured). A real TV syncs to VSync: check in b2 and on hardware.
 

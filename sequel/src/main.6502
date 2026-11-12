@@ -2,8 +2,9 @@
 \
 \ LAYER 4.3 (PLAN.md): the jump, collisions, the crash, respawn and takes. Each player has two
 \ keys, accelerate and jump (decision 7), measured in jsbeeb (docs/done.md layer 4.2): Z X | V B
-\ | M , | . /, one key in each of matrix columns 1-8. Letting go of accelerate slows the rider by 1
-\ a field (decision 24, PROPOSED). Each rider has its own colours (decision 17). No enemies, gold,
+\ | M , | . /, one key in each of matrix columns 1-8; and a brake each, D G K RETURN (decision
+\ 48: the twelve keys form no rectangle in the matrix, so no two players make a phantom key).
+\ Letting go of accelerate slows the rider by 1 a field (decision 24, PROPOSED). Each rider has its own colours (decision 17). No enemies, gold,
 \ wages or level types yet (layers 4.4, 4.5): every strip is drawn as land.
 \
 \ THE MACHINE. Loaded at &1900 by *RUN, it copies itself down to &0E00 (`reloc`, last in the
@@ -52,7 +53,7 @@
 \ been lost (consider_gaining_extra_take).
 \
 \   strip_go .. strip_done      one strip's update (X = strip), for a cycle-count breakpoint pair
-\   keys_go .. keys_done        the eight keys
+\   keys_go .. keys_done        the twelve keys
 \   crash_at                    a rider has just crashed (strip in `strip`, the reading in `cause`)
 
 INCLUDE "../../src/lib/beeb.h.6502"
@@ -65,6 +66,7 @@ SCREEN  = &3000
 ROW     = 640                   \ bytes in a MODE 2 character row
 RIDER   = 12                    \ the riders' fixed screen column (decision 23, PROPOSED)
 VMAX    = 250                   \ the original's velocity cap (update_player)
+BRAKE   = 4                     \ the brake: vel down by 4 a field, 250 to 0 in 63 (decision 48)
 SKY     = 24                    \ window lines 0-23 are sky; a rider on the ground has its top here
 \ the tall sprites' numbers (TALL_*) are make_data.py's, in data.6502
 TAKES   = 3                     \ the original's: out when `take` reaches 4
@@ -256,18 +258,24 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     JSR game_done               \ everyone out or finished: the game's end (flow.6502)
     JMP loop
 
-\ read_keys: the eight keys into keys and jumps (bit 7 set: held).
+\ read_keys: the twelve keys into keys, jumps and brakes (bit 7 set: held). key_numbers is in
+\ slot order: 0-3 accelerate, 4-7 jump (keys + 4 = jumps), 8-11 brake (decision 48).
 .read_keys
 .keys_go
-    LDA #7
+    LDA #11
     STA kn
 .rk_loop
     LDY kn
     LDX key_numbers,Y
     JSR keydown_int             \ A = &80 held, 0 not; X, Y clobbered
     LDY kn
-    LDX key_slot,Y
-    STA keys,X
+    CPY #8
+    BCS rk_brake
+    STA keys,Y
+    BCC rk_next                 \ (always)
+.rk_brake
+    STA brakes - 8,Y
+.rk_next
     DEC kn
     BPL rk_loop
 .keys_done
@@ -326,6 +334,17 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     ADC vel,X
     STA pos_frac,X
     PHP
+    LDA brakes,X
+    BPL us_drive
+    LDA vel,X                   \ brake held: slow by BRAKE a field, to 0 (decision 48)
+    SEC
+    SBC #BRAKE
+    BCS us_braked
+    LDA #0
+.us_braked
+    STA vel,X
+    JMP us_speed
+.us_drive
     LDA keys,X
     BPL us_coast
     LDA vel,X
@@ -1533,6 +1552,7 @@ WS = 7 * ROW                    \ one strip to the next
     ASSERT SCREEN = &3000 AND ROW = 640
 .pos_frac   EQUB 0, 0, 0, 0
 .finished   EQUB 0, 0, 0, 0
+.brakes     EQUB 0, 0, 0, 0     \ brake held, per strip (bit 7; read_keys)
 .ct         EQUB 0, 0, 0, 0     \ fields into the crash
 .crash_tt   EQUB 0, 0, 0, 0     \ where the explosion is (window line)
 .dead_col   EQUB 0, 0, 0, 0     \ where the dead rider is drawn

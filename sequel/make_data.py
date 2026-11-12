@@ -256,8 +256,9 @@ def main():
                ('gbase_lo', [(SCREEN + (9 + 7 * k) * ROW) & 255 for k in range(4)]),
                ('gbase_hi', [(SCREEN + (9 + 7 * k) * ROW) >> 8 for k in range(4)]),
                ('rider_tall', [names_.index('tall_look1') + p for p in range(4)]),
-               ('key_numbers', [97, 66, 99, 100, 101, 102, 103, 104]),   # Z X V B M , . / (measured)
-               ('key_slot', [0, 4, 1, 5, 2, 6, 3, 7])]
+               # the keys by slot (read_keys): accelerate Z V M . (keys), jump X B , / (jumps),
+               # brake D G K RETURN (brakes, decision 48); internal numbers, measured in jsbeeb
+               ('key_numbers', [97, 99, 101, 103, 66, 100, 102, 104, 50, 83, 70, 73])]
     # ENEMIES (layer 4.4), per level, from data/course.json (as initialise_level sets them up):
     # the horizontal enemy on the second ground of every level (level_set_data says so for all
     # twelve sets), starting at x 74 (&4A); the vertical enemies, the first five only (the

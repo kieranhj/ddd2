@@ -1,7 +1,7 @@
 # Plan
 
 What is left. What has landed (steps 1-6, with their numbers) is in `docs/done.md`. The sequel's
-design is `docs/sequel.md`; the decisions are `docs/decisions.md` (1-47).
+design is `docs/sequel.md`; the decisions are `docs/decisions.md` (1-48).
 
 ## Now: the owner's play test (WIP published 2026-11-07, ddd2 18eaa84)
 
@@ -29,5 +29,5 @@ design is `docs/sequel.md`; the decisions are `docs/decisions.md` (1-47).
    wins) and last rider standing. Needs the owner's answers first: the race's length, what a crash
    costs, how a mode is chosen on the title.
 2. **The endless part:** loop the last sets, then a level editor or a procedural generator.
-3. **RAM:** main RAM has 178 bytes free after the 2026-11-12 RAM hunt (`docs/done.md`); the
+3. **RAM:** main RAM has 148 bytes free after the 2026-11-12 RAM hunt and the brake (`docs/done.md`); the
    levers left are listed there ("measured, not built").

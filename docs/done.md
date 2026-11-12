@@ -4,6 +4,32 @@ What has landed, with the number that says it landed. `PLAN.md` is what is left.
 
 ---
 
+## The brake (2026-11-12, decision 48)
+
+The owner, play-testing: "we're going to need a brake button". A third key each: **D, G, K,
+RETURN**; held, the rider slows by 4 a field to 0 (250 to 0 in 63 fields), over accelerate.
+
+- **The keys, MEASURED** in jsbeeb 2.10.2 (Model B `B-DFS1.2` and Master; host keys pressed by
+  name, OSBYTE 121 scanning from 16; the scan proven on Z 97, X 66, and 255 with nothing held):
+  D 50, G 83, K 70, RETURN 73, the same on both. Chosen because no four of the twelve keys form a
+  rectangle in the matrix (no phantom key from two players' held keys); not yet tried on a real
+  keyboard (jsbeeb was not shown to model ghosting).
+- **The code:** `key_numbers` in slot order (accelerate, jump, brake), so `key_slot` went: page
+  &0D 4 bytes freer. `read_keys` reads twelve; `brakes` (4 bytes, main RAM); the brake in
+  `us_ride`. Main RAM 178 -> 148 bytes free (`end` &2F4E -> &2F6C).
+- **The cost, MEASURED** (`verify_strips`, play): the key read 692 -> 1,076 cycles a field
+  (median; 96 a key). The lockstep run's drops (`BUGS.md` #1): 40 in 5,361 fields (before, 36 in
+  3,307; not comparable: P4 now brakes and rides further, to column 1,817 from 252). Worst field
+  48,159 cycles.
+- **The suite** on the final build: break, sound, level, B0110, D1010, F0001 pass; play and
+  `--model Master` 0 bytes and 0 states wrong, 353 fields braked, failing only on the drops;
+  `--plant` and the break plant fail as they must.
+- **The oracle:** the model brakes (`step`); P4 in play brakes from 240 to 120 whenever it reaches
+  240, mostly with accelerate held; the keys the game read, brakes too, must be the keys held; play
+  must see a field braked. **Shown able to fail:** a build with the brake at 3, not 4, failed on
+  its first braking field (game vel 237, model 236; 978 bytes, 21 states wrong). An earlier script
+  (a fixed 45-field window) did NOT catch it: P4 was standing still then.
+
 ## The RAM hunt, and the texts on a Master (2026-11-12)
 
 The owner, on a Master 128: "the font looks corrupted" (`BUGS.md` #3). The fix needed 126 bytes
