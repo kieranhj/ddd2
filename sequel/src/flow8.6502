@@ -99,14 +99,5 @@
     STA field
     RTS
 
-\ print: X = an offset into `texts`, to OSWRCH until &FF.
-.print
-    LDA texts,X
-    CMP #&FF
-    BEQ pr_rts
-    JSR OSWRCH
-    INX
-    BNE print
-.pr_rts
-    RTS
-
+\ print's (flow.6502) two pixels a byte, white: neither, the right, the left, both (MODE 2)
+.pr_white   EQUB &00, &15, &2A, &3F

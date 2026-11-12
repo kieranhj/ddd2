@@ -68,6 +68,60 @@ PHASE_IDLE = 4                  \ no one playing this strip
     JSR next_field              \ start on a whole field
     JMP loop
 
+\ print: X = an offset into `texts`: the screen address of its first character, then the
+\ characters (32-127), to &FF. Each is drawn white on black from the MOS ROM's font at &C000,
+\ not through OSWRCH: the VDU's workspace at &0360-&037F (its colours, its font's pages) holds
+\ the game's tables from `start` on (decision 32), and OSWRCH drew with them (BUGS.md #2).
+\ Row 10 is cleared by screen_init, so a text need not rub out the one before it.
+TEXT_ROW = SCREEN + 10 * ROW    \ the black row between strips 0 and 1 (decision 42)
+.print
+    LDA texts,X : STA d0
+    INX
+    LDA texts,X : STA d0 + 1
+.pr_char
+    INX
+    LDA texts,X
+    CMP #&FF
+    BEQ pr_rts
+    STX cc
+    LDY #&18                    \ its glyph, &C000 + (c - 32) x 8: (&1800 + c - 32) x 8
+    STY pk + 1
+    ADC #&E0                    \ (C clear from the CMP; c >= 32 carries into &18)
+    ASL A : ROL pk + 1
+    ASL A : ROL pk + 1
+    ASL A : ROL pk + 1
+    STA pk
+    LDY #7
+.pr_line
+    LDA (pk),Y
+    STA tmp
+.pr_pair                        \ two pixels a byte, left to right: column y, y + 8, y + 16, y + 24
+    LDA #0
+    ASL tmp : ROL A
+    ASL tmp : ROL A
+    TAX
+    LDA pr_white,X
+    STA (d0),Y
+    TYA
+    ADC #8                      \ (C clear: the ROL shifted in 0)
+    TAY
+    CPY #32
+    BCC pr_pair
+    TYA                         \ y + 32, C set: the line above
+    SBC #33
+    TAY
+    BPL pr_line
+    LDA d0                      \ the next character, 32 bytes on (C clear: y - 1 >= -1 borrowed)
+    ADC #32
+    STA d0
+    BCC pr_next
+    INC d0 + 1
+.pr_next
+    LDX cc
+    BNE pr_char                 \ (always: X > 0)
+.pr_rts
+    RTS
+
 T_TITLE = t_title - texts
 T_WINS = t_wins - texts
 \ the skills' levels (starting_levels_table: 1 7 13 19 25 31), their first course column, and

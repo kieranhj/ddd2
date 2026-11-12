@@ -71,13 +71,13 @@
 
 .texts
 .t_title
-    EQUB 31, 1, 10, 17, 7
+    EQUW TEXT_ROW + 1 * 32
     EQUS "PRESS A-F TO START"
     EQUB &FF
 .t_wins
-    EQUB 31, 1, 10, 17, 7
-    EQUS "  PLAYER "
+    EQUW TEXT_ROW + 3 * 32
+    EQUS "PLAYER "
 .t_winner_n
-    EQUS "1 WINS     "
+    EQUS "1 WINS"
     EQUB &FF
 

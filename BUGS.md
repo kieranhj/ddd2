@@ -6,6 +6,7 @@ ruled out. Index first, detail below.
 | # | Status | Summary |
 |---|---|---|
 | 1 | Open: to play test | Fields dropped when all four riders hit a heavy moment together (decision 11) |
+| 2 | Fixed 2026-11-12 | The title's and the game end's text drawn through OSWRCH with the game's tables as the VDU's workspace: no text, and gaps in the floors |
 
 <!--
 Format for an entry:
@@ -49,3 +50,28 @@ play testing decides whether it matters.
 3. Spread a strip's enemy redraws: a moved enemy that is not near the rider could wait a field
    when the field is already heavy (a visible lag of one field for that enemy).
 
+## 2. No text, and gaps in the floors, at the game's end
+
+**Open 2026-11-12.** The owner's play test (bbc.xania.org, the WIP disc, ddd2 18eaa84): at the
+game's end there is no "PLAYER n WINS"; the game seems to stop, and gaps appear in the middle of
+strips 1-3's floors.
+
+### What was measured
+- In jsbeeb (2.10.2, B-DFS1.2) no text either, on the title ("PRESS A-F TO START") or at the end:
+  row 10 all 0 during the end's wait, while the MOS's cursor (&0318-&0319) had moved on to row 11
+  and the screen start (&0350) was &3000. After VDU 17,7 the text colour (&0357) was 0.
+- The cause: `print` sent the texts to OSWRCH, and the VDU's workspace runs to &037F; from &0360
+  it holds the game's pitch table since `start` (decision 32 claimed page 3 from &0360 because
+  nothing WRITES it once the game runs - but OSWRCH READS it: the colour count &0360, the pixels a
+  byte &0361, the font's pages &0368-&036E). Every text has been drawn with those since step 4.5.
+  The gaps were not reproduced here (jsbeeb drew black text in row 10), but OSWRCH plotting with a
+  garbage pixel count and font pages explains them.
+
+### Ruled out
+- The strips through the end's wait: unchanged, every field (verify_strips now checks it).
+
+### Fixed (2026-11-12)
+- `print` (flow.6502) draws the texts itself from the MOS ROM's font at &C000, white on black;
+  the game no longer calls OSWRCH after `start`'s cursor-off. `verify_strips` checks row 10 on the
+  title and at the end against the font drawn independently: the OSWRCH build fails it (288 and
+  231 bytes wrong), the fix passes.
