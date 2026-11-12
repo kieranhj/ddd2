@@ -4,6 +4,42 @@ What has landed, with the number that says it landed. `PLAN.md` is what is left.
 
 ---
 
+## The play test's first notes (2026-11-12)
+
+- **`*FX200,2` first in `!BOOT`** (decision 43): BREAK after a game had left the machine with no
+  DFS. Not seen in jsbeeb, where a BREAK in game comes back with PAGE &1900 from the old disc and
+  the new: still to check in b2 and on hardware.
+- **The texts drawn from the ROM font** (`BUGS.md` #2): there was no text on the title or at the
+  end, and the owner saw gaps in the floors at the end. OSWRCH was drawing with the game's pitch
+  table as the VDU's workspace. The MOS is now not called after `start` at all (decision 46).
+- **The horizontal enemies ping-pong, turned round** (decision 44): out x 0-74, back facing left.
+- **Markers on the floors** (decision 45): yellow, every course column 20k + 19, four on the
+  screen.
+- **RAM** (decision 46): the MOS's workspace a BREAK does not need. &0236-&027F the tune's
+  pitches and flow's tables (out of main RAM), with &0258 kept at 2; page 3 the three mirrored
+  sprites and the rest of flow's tables; page &0D's tail `pitch_lo` (`pitch_hi` worked out, 7
+  bytes of code for a 48-byte table). `game` moved to page 8, `mark_phase` to the stack page, the
+  markers' helpers to rows 0-2, their state to zero page &B1-&C4. Free after: main 5 bytes, page
+  8 27, the stack page 3, rows 0-2 4, page 2 9, page 3 36, page &0D 0.
+- **A first try put the sprites at &0280-&02FF and BREAK hung** (the MOS reads &0280-&02FF -
+  &0287 the BREAK intercept, &028D the last BREAK's type, &02A1 on the ROM types - before it
+  clears memory). Measured on the build before them, each candidate range filled with &AA, then
+  &4C, in game: only &0280-&02FF stops BREAK and SHIFT+BREAK coming back.
+
+**MEASURED** (`tools/verify_strips.mjs`, jsbeeb 2.10.2, B-DFS1.2):
+- **New in the oracle:** the strips are held to their last picture through the end's 250-field
+  wait, and row 10's text, on the title and at the end, to the ROM's font drawn independently.
+  The model's enemies turn back with a sprite it mirrors itself; its ground has the markers.
+- **Still able to fail:** the OSWRCH build, 288 and 231 bytes of text wrong; a byte planted in a
+  floor during the end's wait, 149 wrong; the markers' move turned off, 5,024 wrong; the
+  unmirrored sprite on the way back, 5,049 wrong.
+- **`play`, four players:** 0 bytes wrong, 0 writes in a window, every crash agreed, the end and
+  the texts right. 36 fields dropped (14 without the markers): `BUGS.md` #1.
+- **`memwatch`** over a whole four-player `level` game, title to title: 0 accesses to &0236-&0257
+  and &0259-&035F after `start`.
+- **`tools/verify_break.mjs`** (new): a game, BREAK, then BASIC with PAGE &1900; SHIFT+BREAK, then
+  the title. Passes; with &0280-&02FF planted with junk it fails (PAGE &02, no title).
+
 ## Step 6: sound (2026-11-07)
 
 - **The driver:** the kit's `lib/sfx50.6502` (plain 6502), run from our VSync interrupt with the
@@ -25,7 +61,7 @@ What has landed, with the number that says it landed. `PLAN.md` is what is left.
 - **RAM:**
   - Row 2 off the display (decision 42).
   - Page 3 above the VDU's variables (&0360-&03FF): measured unwritten through a whole game,
-    title text included.
+    title text included. (But OSWRCH READ &0360-&037F: `BUGS.md` #2, fixed 2026-11-12.)
   - Main ends &2FA7; rows 0-2 hold the sound, the status line and the screen's set-up.
 
 **MEASURED** (jsbeeb 2.10.2, B-DFS1.2):

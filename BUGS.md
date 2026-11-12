@@ -36,6 +36,16 @@ play testing decides whether it matters.
 - The worst field is 38,562 cycles (the field is 39,936); the loop's slack absorbs single heavy
   fields, and a run of them drops one. A drop never tears: the late-start rule makes it a field
   late instead (0 writes in a window).
+- **2026-11-12, after the play test's changes** (same harness and run):
+  - With the enemies turning back (decision 44) the scripted game is a different one (its riders
+    crash elsewhere); with the markers' code taken out of game and model alike: 3,271 passes in
+    3,285 fields, **14 dropped**, worst field 43,756.
+  - With the markers (decision 45) as well: 3,271 passes in 3,307 fields, **36 dropped**, worst
+    field 48,024. `marks_move` costs a median 973 cycles each column a strip moves (p99 1,058,
+    4,690 calls): about 3,900 a field with four riders at speed.
+  - `level` (four players) now drops 1 (940 fields for 939 passes); B 0110, D 1010, F 0001
+    none.
+  - 0 bytes wrong in all of it; 0 writes in a window.
 
 ### Ruled out / done
 - Four respawns at once: fixed (the three-field respawn, 58,541 -> under 15,000).
@@ -49,6 +59,12 @@ play testing decides whether it matters.
    (one column left or right, as the obstacles'), ~1.2K of code; or a tighter `draw16`.
 3. Spread a strip's enemy redraws: a moved enemy that is not near the rider could wait a field
    when the field is already heavy (a visible lag of one field for that enemy).
+4. **Faster markers** (estimated, not measured): each marker's old and new column from one
+   pointer (the new one is 8 bytes before the old), the stores unrolled, no JSR a marker; about
+   460 cycles a move, half today's. Needs about 40 more bytes in one piece: page 3 has 36 at its
+   end and page 8 27 (decision 46 has taken the rest of the measured-free MOS workspace).
+5. **Lighter markers** (a visible change): two lines tall instead of four, or two on the screen
+   instead of four, each about halving their cost.
 
 ## 2. No text, and gaps in the floors, at the game's end
 

@@ -1,0 +1,47 @@
+\ marks.6502 - the floor's markers (decision 45): a yellow column in the ground's four lit lines
+\ at every course column 20k + 19, so four on the screen, to show the speed. None in a hole.
+\
+\ Each strip keeps its first marker's screen column (`mph`, 0-19: the rest are 20, 40 and 60 on)
+\ and the ground byte each marker was drawn over (`msv`; 0: a hole, not drawn). On each column
+\ the strip moves (after `scroll`, which has opened and closed the holes and `ground_edge` the
+\ level's colour): each old marker's column back to the byte it covered - unless it no longer
+\ holds the marker (a hole or a level edge has been written there since: that write is right);
+\ then each new one, a column left, drawn where there is ground. `draw_ground` draws them whole.
+
+MARK     = &0F                  \ logical 3, yellow, both pixels (the grounds: green, blue, white)
+MARK_GAP = 20
+
+\ marks_move: X = strip, moved a column (gb set). X kept.
+.marks_move
+    JSR mk_base
+.mm_old
+    LDY #0
+    LDA (d0),Y
+    CMP #MARK
+    BNE mm_onext
+    LDA msv,X
+    JSR gc_put
+.mm_onext
+    JSR mk_next
+    BNE mm_old
+    LDX strip
+    DEC mph,X
+    BPL marks_draw
+    LDA #MARK_GAP - 1
+    STA mph,X
+\ marks_draw: X = strip (gb set). Its markers, over the ground there is; what each covered kept.
+.marks_draw
+    JSR mk_base
+.md_loop
+    LDY #0
+    LDA (d0),Y
+    STA msv,X
+    BEQ md_next                 \ a hole: none
+    LDA #MARK
+    JSR gc_put
+.md_next
+    JSR mk_next
+    BNE md_loop
+    LDX strip
+.md_rts
+    RTS

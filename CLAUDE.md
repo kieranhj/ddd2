@@ -76,7 +76,8 @@ Title: a player joins with its accelerate key; A-F starts. Keys (decision 25): Z
 | `enemies.6502` | the enemies in course coordinates, two level slots a strip, erase/draw with spans |
 | `specials.6502` | the spider, the helicopter, the gold |
 | `status.6502` | wages, the status line, `set_look` (a player's colours) |
-| `flow.6502`, `flow8.6502`, `flow1.6502` | the title, joining, skill, the game's end |
+| `flow.6502`, `flow8.6502`, `flow1.6502`, `flow2.6502` | the title, joining, skill, the game's end; `print` (the ROM font) |
+| `marks.6502`, `marks0.6502` | the floor's markers (decision 45) |
 | `screen.6502` | `screen_init`: rows 3-30 cleared, the CRTC set |
 | `sound.6502`, `sound_main.6502` | the sfx50 driver's caller, the engine, the title tune |
 
@@ -85,16 +86,19 @@ in `docs/done.md`'s latest entry):
 - Main RAM: the tall sprites first at &0E00 (a page start: no ALIGN gaps), then the code, below &3000.
 - Low RAM: &0400-&07FF and &0900-&0CFF tables and sprites (`make_data.py`'s `low.6502`, copied by
   `reloc`); page &0D: `RTI` at &0D00 (decision 32), then small tables.
-- Page 8, the stack page below &01C0, and page 3 from &0360: code and tables, copied by `start`
-  after `install_irq` (which flushes the MOS's buffers in page 8).
+- Page 8, the stack page below &01C0, &0236-&027F and page 3 (the tune's pitches, flow's tables,
+  the mirrored enemies; decision 46): copied by `start` after `install_irq` (which flushes the
+  MOS's buffers in page 8). Never &0280-&02FF: BREAK reads it (`verify_break.mjs`).
 - The screen shows rows 3-30 only (decisions 31, 37, 41, 42; R6 28, R7 31, start &3780). Rows 0-2
   (&3000-&377F) hold code, copied once by `reloc`; row 31 (&7D80) holds the enemies', the status
   line's and the looks' state, set at each game's start.
-- Zero page: &00-&1F, &50-&8D, &90-&B0 (`main.6502`'s names).
+- Zero page: &00-&1F, &50-&8D, &90-&C4 (`main.6502`'s names).
 
 **Traps:**
-- **Never VDU 22** (or any MODE change) after start: it clears rows 0-2 and 31. `screen_init`
-  clears rows 3-30 itself.
+- **Never call the MOS after `start`** (decision 46): its workspace in pages 2-3 holds the game's
+  tables, so OSWRCH draws garbage (`BUGS.md` #2) and VDU 22 would also clear rows 0-2 and 31.
+  `screen_init` clears rows 3-30; `print` draws from the ROM font. The vectors, &0258 (`*FX200`)
+  and &0280-&02FF stay the MOS's.
 - **The timing** (decision 12): strip k is updated once System VIA T1 has fired k + 1 times after
   VSync, at most two bands late, or it waits a field (a dropped field, never a tear); strip 3 may
   also start in the next field before line 120. `BUGS.md` #1: fields dropped in four-way lockstep.
@@ -112,6 +116,7 @@ in `docs/done.md`'s latest entry):
   above name the bank (`"main"`), and `onExec` only works after `boot`.
 - `verify_sound.mjs`: the title's tune against DENIS2's notes through the MOS's measured periods;
   the game's effect and engine requests. `--plant` must fail.
+- `verify_break.mjs`: BREAK in a game gives BASIC with the DFS, SHIFT+BREAK the title. `--plant`.
 - `measure_crash.mjs`, `measure_palette.mjs`: the original's crash timing, its rotating colour.
 
 The original measured in headless jsbeeb (after the build; `node tools/X.mjs`): `tools/ddd.mjs`

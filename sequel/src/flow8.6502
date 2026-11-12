@@ -17,6 +17,17 @@
     BPL su_strip
     RTS
 
+\ game (flow.6502's): everyone joined at skill `skill`'s level; the loop.
+.game
+    JSR tune_stop
+    JSR set_up
+    LDA #0
+    STA pass_count
+    STA pass_count + 1
+.game_start
+    JSR next_field              \ start on a whole field
+    JMP loop
+
 \ strip_init: X = strip. Its state at the start of skill `skill`'s level. X kept.
 .strip_init
     LDY skill
@@ -88,7 +99,7 @@
     JMP si_first
 .si_rts
     LDX strip
-    RTS
+    JMP mark_phase              \ its markers' place (marks.6502)
 
 \ next_field: wait for the next field.
 .next_field

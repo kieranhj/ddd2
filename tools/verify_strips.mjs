@@ -115,7 +115,10 @@ const riderOf = (r) => RIDERS[r.p][typeAt(r.pos + RIDER)];
 // as the jump). Decision 28: a level's clock starts the first field it is on a strip's screen,
 // and runs every field after. Drawn whole, the level at the left edge's first, the horizontal
 // before the vertical, the rider over them.
-const HZ = TYPES.map((t) => sprite(`sprite_${t}_horizontal_enemy`)), VT = TYPES.map((t) => sprite(`sprite_${t}_vertical_enemy`));
+// decision 44: out x 0-74, then back 73 ... 1 facing left (the sprite mirrored: each line's
+// columns reversed, each byte's two pixels swapped), a 148-pass round
+const mirror = (spr) => Uint8Array.from({ length: 64 }, (_, i) => { const [l, r] = pixels(spr[(i & ~3) + 3 - (i & 3)]); return byte([r, l]); });
+const HZ = TYPES.map((t) => sprite(`sprite_${t}_horizontal_enemy`)), HZM = HZ.map(mirror), VT = TYPES.map((t) => sprite(`sprite_${t}_vertical_enemy`));
 const VEN = course.levels.map((L) => L.vertical.slice(0, 5).map((v) => ({ off: 76 * v.ground + v.x, q0: 3 * (v.state % 31) })));
 const vheight = (q) => { const s = Math.floor(q / 3), f = q % 3, a = JT[s + 1], b = JT[(s + 1) % 31 + 1]; return Math.floor((6 * a + (b - a) * f * 2 + 3) / 6); };
 function enemies(r) {
@@ -123,7 +126,8 @@ function enemies(r) {
     for (const l of [l0, l0 + 1]) {
         if (!r.clk.has(l)) continue;
         const f = r.clk.get(l), S = l * LEVEL, ty = l % 3;
-        out.push({ x: S + 76 + (Math.floor(f / 3) % 75), t: SKY, spr: HZ[ty] });
+        const q = Math.floor(f / 3) % 148;
+        out.push({ x: S + 76 + (q < 75 ? q : 148 - q), t: SKY, spr: q < 75 ? HZ[ty] : HZM[ty] });
         for (const v of VEN[l]) out.push({ x: S + v.off, t: SKY - vheight((v.q0 + f) % 93), spr: VT[ty] });
         const sp = r.spec.get(l);                      // the spider or the helicopter, the gold, the 80
         if (l < 3) out.push({ x: S + 3 * 76 + 40, t: Math.max(0, sp.y - 13), spr: SPIDER });
@@ -244,8 +248,12 @@ function bg(pos, c, L) {
     const x = pos + c;
     if (L < SKY) return 0;
     if (L < SKY + 16) { const i = obstAt[x]; return i < 0 ? 0 : objects[i].spr[(L - SKY) * 4 + (x - objects[i].x)]; }
-    return (L - SKY - 16) < 4 && !holeAt[x] ? GROUNDS[typeAt(x)] : 0;
+    return (L - SKY - 16) < 4 && !holeAt[x] ? groundAt(x) : 0;
 }
+// the ground's lit byte at course column x: its level's colour, but yellow (logical 3) at every
+// course column 20k + 19 (decision 45: markers, four on the screen)
+const MARK = both(3);
+const groundAt = (x) => (x % 20 === 19 ? MARK : GROUNDS[typeAt(x)]);
 // the picture: a window, 6 character rows
 const at = (c, L) => (L >> 3) * ROW + c * 8 + (L & 7);
 function picture(pos) {
@@ -331,7 +339,7 @@ function step(r, accel, jump, draw) {
             skipGrounds(r);
             if (draw) {
                 r.w = new Uint8Array(6 * ROW);
-                for (let c = 0; c < 80; c++) for (let L = 40; L < 44; L++) r.w[at(c, L)] = GROUNDS[typeAt(r.pos + c)];
+                for (let c = 0; c < 80; c++) for (let L = 40; L < 44; L++) r.w[at(c, L)] = groundAt(r.pos + c);
             }
             return 0;
         }
@@ -457,7 +465,7 @@ let tE = 0, tR = 0;
 const segs = [];
 h.onExec(N("prof_enemies"), () => { tE = h.s.elapsedCycles; tR = 0; });
 const timed = {};
-for (const [from, to] of [["enemies_over_rider", "eor_rts"], ["set_look", "sl_done"], ["slot_pass", "spp_rts"], ["enemy_draw", "ed_none"], ["draw16", "d16_rts"], ["restore_under", "ru_draw"], ["erase_box", null], ["restore_lines", "rl_rts"]]) {
+for (const [from, to] of [["enemies_over_rider", "eor_rts"], ["set_look", "sl_done"], ["slot_pass", "spp_rts"], ["enemy_draw", "ed_none"], ["draw16", "d16_rts"], ["restore_under", "ru_draw"], ["erase_box", null], ["restore_lines", "rl_rts"], ["marks_move", "md_rts"]]) {
     if (!to) continue;
     let t = 0; timed[from] = [];
     h.onExec(N(from), () => { t = h.s.elapsedCycles; });

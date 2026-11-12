@@ -1,7 +1,8 @@
 \ enemies.6502 - the horizontal and vertical enemies in course coordinates (layer 4.4).
 \
 \ WHAT (update_rotating_colour_and_enemies, initialise_level; make_data.py's ENEMIES): every
-\ level has a horizontal enemy on its second ground, x 0-74 and round again, a column a pass,
+\ level has a horizontal enemy on its second ground, x 0-74 a column a pass, then back facing
+\ left (decision 44; the original's went round again, appearing just ahead of a rider),
 \ and up to five vertical enemies at fixed columns, rising and falling by jump_offsets_table
 \ (interpolated in thirds of a pass, `vh`). All on the strip's obstacle rows, drawn whole, black
 \ included, as plot_sprite does; the rider over them.
@@ -356,27 +357,31 @@
     RTS                         \ no level: none
 .esp_level
     JSR slot_g
-    \ the horizontal enemy: start + HZ_BASE + x, top line SKY
+    \ the horizontal enemy: start + HZ_BASE + x, top line SKY. Out to 74 facing right, then
+    \ back facing left (decision 44): x = its count to 74, then 148 - the count.
     LDX eg
+    LDA #TALL_HZ
+    STA esp_s
+    LDA en_q,X
+    CMP #HZ_TURN
+    BCC esp_hz
+    EOR #&FF                    \ C set: 148 - the count
+    ADC #HZ_WRAP
+    LDX #TALL_HZM
+    STX esp_s
+.esp_hz
     CLC
-    LDA sl_start_lo,Y
-    ADC #HZ_BASE
+    ADC #HZ_BASE                \ (x + 76 < 256)
+    ADC sl_start_lo,Y
     STA tmp
     LDA sl_start_hi,Y
-    ADC #0
-    STA tmp2
-    CLC
-    LDA tmp
-    ADC en_q,X
-    STA tmp
-    LDA tmp2
     ADC #0
     STA tmp2
     LDA #SKY
     STA esp_t
     LDA sl_type,Y
     CLC
-    ADC #TALL_HZ
+    ADC esp_s
     STA esp_s
     JSR esp_put
     \ the vertical ones

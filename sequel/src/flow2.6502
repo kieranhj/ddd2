@@ -1,0 +1,11 @@
+\ flow2.6502 - flow.6502's tables, part 1, assembled for page 2 at &0259 (main.6502's page2
+\ section; decision 46): only the title and the set-up read them. Part 2 is flow3.6502.
+
+\ the skills' levels (starting_levels_table: 1 7 13 19 25 31), their first course column, and
+\ the strip's pos with the rider's left column there (at level 1: 0, the rider at column 12)
+.start_lidx EQUB 0, 6, 12, 18, 24, 30
+.edge_lidx  EQUB 0, 5, 11, 17, 23, 29
+.edge_ltype EQUB 0, 2, 2, 2, 2, 2       \ (29 MOD 3 = 2: snow)
+.edge_nb_lo EQUB LO(LEVEL_COLS), LO(6 * LEVEL_COLS), LO(12 * LEVEL_COLS), LO(18 * LEVEL_COLS), LO(24 * LEVEL_COLS), LO(30 * LEVEL_COLS)
+.edge_nb_hi EQUB HI(LEVEL_COLS), HI(6 * LEVEL_COLS), HI(12 * LEVEL_COLS), HI(18 * LEVEL_COLS), HI(24 * LEVEL_COLS), HI(30 * LEVEL_COLS)
+.level_lo   EQUB LO(0), LO(6 * LEVEL_COLS), LO(12 * LEVEL_COLS), LO(18 * LEVEL_COLS), LO(24 * LEVEL_COLS), LO(30 * LEVEL_COLS)

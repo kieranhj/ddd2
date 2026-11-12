@@ -128,6 +128,8 @@ hc       = &A7                  \ specials.6502: 4
 top_put  = &AB                  \ compose_rider: the highest line put back
 tmp_snd  = &AC                  \ sound.6502's, the interrupt's only: 3
 tune_at  = &AF                  \ 2
+mph      = &B1                  \ 4: marks.6502, per strip: its first marker's screen column
+msv      = &B5                  \ 16: per strip x 4 + marker, the ground byte it covers
 en_n     = &1E                  \ enemies on the list this field
 d2       = &50                  \ 2: draw16's third character row
 ts       = &52                  \ draw16: the tall sprite
@@ -186,7 +188,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA #0 : JSR OSWRCH
     DEX
     BNE cursor_off
-    JSR install_irq             \ IRQ1V ours from here on (the MOS's text output still serves)
+    JSR install_irq             \ IRQ1V ours from here on; the MOS is not called again (BUGS.md #2)
     LDX #0                      \ page 8's code and the stack page's, from the file's tail (at
 .start_copy                     \ its load address, above anything the move down wrote; MODE 2
     LDA p8_image - ORG_AT + LOAD_AT,X   \ has not yet cleared it)
@@ -196,11 +198,13 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA p1_image - ORG_AT + LOAD_AT,X
     STA &0100,X
 .start_p1
-    CPX #p3_end - &0360
-    BCS start_p3
-    LDA p3_image - ORG_AT + LOAD_AT,X
-    STA &0360,X
-.start_p3
+    LDA p3_image - ORG_AT + LOAD_AT,X  \ page 3, whole
+    STA &0300,X
+    CPX #p2_end - &0236
+    BCS start_p2
+    LDA p2_image - ORG_AT + LOAD_AT,X
+    STA &0236,X
+.start_p2
     INX
     BNE start_copy
     JMP title                   \ flow.6502
@@ -364,6 +368,8 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     JSR wage_check
     JSR ground_edge
     JSR scroll
+    LDX strip
+    JSR marks_move              \ the floor's markers (marks.6502)
 .us_jump
 .prof_enemies                   \ (a label for the cost's breakdown: tools/verify_strips.mjs)
     LDX strip                   \ the enemies (enemies.6502)
@@ -1258,7 +1264,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     JSR next_level
     JMP rs_levels
 .rs_placed
-    RTS
+    JMP mark_phase              \ its markers' place (flow1.6502)
 
 \ draw_strip: X = strip. The whole strip from scratch at its pos: the ground in each level's
 \ colour, every object on the screen, the rider. Over black (MODE 2, or erase_strip).
@@ -1302,7 +1308,9 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA #80
     STA fg_to
     LDA tmp
-    JMP fill_ground
+    JSR fill_ground
+    LDX strip
+    JMP marks_draw              \ and its markers over it
 
 \ draw_objects: X = strip, its ground whole (bas set). Its holes, its obstacles, its enemies,
 \ its rider.
@@ -1517,6 +1525,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA col8_lo,X : ADC gb     : STA d0
     LDA col8_hi,X : ADC gb + 1 : STA d0 + 1
     TYA
+.gc_put                         \ (A to the four lines at d0)
     LDY #3
 .gc_loop
     STA (d0),Y
@@ -1564,6 +1573,7 @@ WS = 7 * ROW                    \ one strip to the next
     INCLUDE "screen.6502"
     INCLUDE "sound_main.6502"
     INCLUDE "flow.6502"
+    INCLUDE "marks.6502"
     INCLUDE "../build/data.6502"
 .end                            \ the end of what runs at &0E00 up: below the screen
     ASSERT end <= SCREEN
@@ -1571,6 +1581,10 @@ WS = 7 * ROW                    \ one strip to the next
 \ What follows is only in the file. The tables for low RAM (&0400-&07FF, &0900-&0CFF; the RAM
 \ hunt, docs/done.md): their bytes, with their labels set to where reloc puts them.
     INCLUDE "../build/low.6502"
+\ page &0D's tail, straight after its image in the file: reloc's page copy brings it.
+SECTION pagedt, org = LOW_D + LOW_D_USED, guard = LOW_D + 256
+    INCLUDE "../build/sound_pitch.6502"
+ENDSECTION
 
 \ Code and tables for page 8 and the stack page, assembled at their own addresses and written
 \ here in the file; `start` copies them down (after install_irq: decision 32).
@@ -1584,14 +1598,30 @@ SECTION page1, org = &0100, guard = &01C0
     INCLUDE "flow1.6502"
 .p1_end
 ENDSECTION
-.p3_image                       \ page 3 above the VDU's variables, &0360-&03FF: nothing writes it
-SECTION page3, org = &0360, guard = &0400   \ once the game runs, title text and all (measured)
-    INCLUDE "../build/sound_pitch.6502"
+\ The MOS's workspace in pages 2 and 3, which nothing reads or writes once `start` has taken the
+\ interrupt, as the MOS is not called after it (tools/memwatch.mjs over a whole driven game,
+\ title and end included), and which BREAK does not need (each range filled with junk in game,
+\ then BREAK and SHIFT+BREAK: the DFS and the game come back; tools/verify_break.mjs): decision
+\ 46. Not &0200-&0235 (the vectors) or &0280-&02FF (BREAK reads them first: junk there hangs it).
+.p2_image                       \ &0236-&027F: the tune's pitches, &0258, flow's tables part 1
+SECTION page2, org = &0236, guard = &0280
+    INCLUDE "../build/sound_tunep.6502"
+    ASSERT P% <= &0258
+    SKIP &0258 - P%
+    EQUB 2                      \ &0258: *FX200,2's value, as !BOOT set it (decision 43)
+    INCLUDE "flow2.6502"
+.p2_end
+ENDSECTION
+.p3_image                       \ page 3: the mirrored enemies (64-byte aligned), flow's tables part 2
+SECTION page3, org = &0300, guard = &0400
+    INCLUDE "../build/mirror.6502"
+    INCLUDE "flow3.6502"
 .p3_end
 ENDSECTION
 .r0_image                       \ row 0, &3000-&327F: off the display (decision 37)
 SECTION row0, org = SCREEN, guard = SCREEN + 3 * ROW
     INCLUDE "status.6502"
+    INCLUDE "marks0.6502"
     INCLUDE "sound.6502"
 .r0_end
 ENDSECTION

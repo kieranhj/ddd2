@@ -1,0 +1,30 @@
+\ marks0.6502 - marks.6502's helpers, assembled for rows 0-2 (main.6502's row0 section).
+
+\ mk_base: X = strip (gb set). d0 = its first marker's ground (gb + mph x 8); X = strip x 4,
+\ its first `msv`.
+.mk_base
+    LDA mph,X
+    ASL A : ASL A : ASL A       \ (C clear: mph x 8 <= 152)
+    ADC gb
+    STA d0
+    LDA gb + 1
+    ADC #0
+    STA d0 + 1
+    TXA
+    ASL A : ASL A
+    TAX
+    RTS
+
+\ mk_next: d0 to the next marker's ground, 20 columns on; X + 1. Z set after the fourth.
+.mk_next
+    CLC
+    LDA d0
+    ADC #MARK_GAP * 8
+    STA d0
+    BCC mn_same
+    INC d0 + 1
+.mn_same
+    INX
+    TXA
+    AND #3
+    RTS

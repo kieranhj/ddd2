@@ -52,26 +52,17 @@ PHASE_IDLE = 4                  \ no one playing this strip
     LDY skill
     LDX skill_keys,Y
     JSR keydown_int             \ A = &80 held
-    BMI game
+    BPL tl_not
+    JMP game                    \ (flow8.6502)
+.tl_not
     DEC skill
     BPL tl_skill
     JMP title_loop
 
-\ game: everyone joined at skill `skill`'s level; the loop.
-.game
-    JSR tune_stop
-    JSR set_up
-    LDA #0
-    STA pass_count
-    STA pass_count + 1
-.game_start
-    JSR next_field              \ start on a whole field
-    JMP loop
-
 \ print: X = an offset into `texts`: the screen address of its first character, then the
 \ characters (32-127), to &FF. Each is drawn white on black from the MOS ROM's font at &C000,
-\ not through OSWRCH: the VDU's workspace at &0360-&037F (its colours, its font's pages) holds
-\ the game's tables from `start` on (decision 32), and OSWRCH drew with them (BUGS.md #2).
+\ not through OSWRCH: the VDU's workspace (its colours, its font's pages) holds the game's tables
+\ from `start` on (decision 46), and OSWRCH drew with them (BUGS.md #2).
 \ Row 10 is cleared by screen_init, so a text need not rub out the one before it.
 TEXT_ROW = SCREEN + 10 * ROW    \ the black row between strips 0 and 1 (decision 42)
 .print
@@ -124,18 +115,3 @@ TEXT_ROW = SCREEN + 10 * ROW    \ the black row between strips 0 and 1 (decision
 
 T_TITLE = t_title - texts
 T_WINS = t_wins - texts
-\ the skills' levels (starting_levels_table: 1 7 13 19 25 31), their first course column, and
-\ the strip's pos with the rider's left column there (at level 1: 0, the rider at column 12)
-.start_lidx EQUB 0, 6, 12, 18, 24, 30
-.edge_lidx  EQUB 0, 5, 11, 17, 23, 29
-.edge_ltype EQUB 0, 2, 2, 2, 2, 2       \ (29 MOD 3 = 2: snow)
-.edge_nb_lo EQUB LO(LEVEL_COLS), LO(6 * LEVEL_COLS), LO(12 * LEVEL_COLS), LO(18 * LEVEL_COLS), LO(24 * LEVEL_COLS), LO(30 * LEVEL_COLS)
-.edge_nb_hi EQUB HI(LEVEL_COLS), HI(6 * LEVEL_COLS), HI(12 * LEVEL_COLS), HI(18 * LEVEL_COLS), HI(24 * LEVEL_COLS), HI(30 * LEVEL_COLS)
-.level_lo   EQUB LO(0), LO(6 * LEVEL_COLS), LO(12 * LEVEL_COLS), LO(18 * LEVEL_COLS), LO(24 * LEVEL_COLS), LO(30 * LEVEL_COLS)
-.level_hi   EQUB HI(0), HI(6 * LEVEL_COLS), HI(12 * LEVEL_COLS), HI(18 * LEVEL_COLS), HI(24 * LEVEL_COLS), HI(30 * LEVEL_COLS)
-.start_lo   EQUB LO(0), LO(6 * LEVEL_COLS - RIDER), LO(12 * LEVEL_COLS - RIDER), LO(18 * LEVEL_COLS - RIDER), LO(24 * LEVEL_COLS - RIDER), LO(30 * LEVEL_COLS - RIDER)
-.start_hi   EQUB HI(0), HI(6 * LEVEL_COLS - RIDER), HI(12 * LEVEL_COLS - RIDER), HI(18 * LEVEL_COLS - RIDER), HI(24 * LEVEL_COLS - RIDER), HI(30 * LEVEL_COLS - RIDER)
-.skill_keys EQUB 65, 100, 82, 50, 34, 67  \ A-F, internal numbers (measured: tools/ddd.mjs)
-.bit_of     EQUB 1, 2, 4, 8
-
-

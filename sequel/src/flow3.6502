@@ -1,0 +1,8 @@
+\ flow3.6502 - flow.6502's tables, part 2, assembled for page 3 at &03C0 (main.6502's page3
+\ section, after the mirrored enemies; decision 46).
+
+.level_hi   EQUB HI(0), HI(6 * LEVEL_COLS), HI(12 * LEVEL_COLS), HI(18 * LEVEL_COLS), HI(24 * LEVEL_COLS), HI(30 * LEVEL_COLS)
+.start_lo   EQUB LO(0), LO(6 * LEVEL_COLS - RIDER), LO(12 * LEVEL_COLS - RIDER), LO(18 * LEVEL_COLS - RIDER), LO(24 * LEVEL_COLS - RIDER), LO(30 * LEVEL_COLS - RIDER)
+.start_hi   EQUB HI(0), HI(6 * LEVEL_COLS - RIDER), HI(12 * LEVEL_COLS - RIDER), HI(18 * LEVEL_COLS - RIDER), HI(24 * LEVEL_COLS - RIDER), HI(30 * LEVEL_COLS - RIDER)
+.skill_keys EQUB 65, 100, 82, 50, 34, 67  \ A-F, internal numbers (measured: tools/ddd.mjs)
+.bit_of     EQUB 1, 2, 4, 8

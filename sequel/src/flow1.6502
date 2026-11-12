@@ -81,3 +81,29 @@
     EQUS "1 WINS"
     EQUB &FF
 
+\ mark_phase: X = strip, at a new pos. Its first marker's screen column (marks.6502): with the
+\ markers at course columns 20k + 19, mph = 19 - pos MOD 20. pos MOD 20 = (pos_hi MOD 5) x 16 +
+\ pos_lo, MOD 20 (256 = 16 and 5 x 16 = 80 = 0, MOD 20). X kept.
+.mark_phase
+    LDA pos_hi,X
+.mp_5
+    CMP #5
+    BCC mp_16
+    SBC #5
+    BCS mp_5                    \ (always)
+.mp_16
+    ASL A : ASL A : ASL A : ASL A   \ (<= 64: C clear)
+    ADC pos_lo,X
+    BCC mp_20
+    SBC #160                    \ (C set: 256 + A - 160, 8 x 20)
+.mp_20
+    CMP #MARK_GAP
+    BCC mp_m
+    SBC #MARK_GAP
+    BCS mp_20                   \ (always)
+.mp_m
+    EOR #&FF                    \ 19 - it (C clear: 255 - it + 20)
+    ADC #MARK_GAP
+    STA mph,X
+    RTS
+

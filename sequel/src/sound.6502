@@ -87,7 +87,10 @@ CRASH_SOUNDS = 72               \ fields the crash sounds (its ramps: 71, and th
     TAY
     LDA pitch_lo,Y
     STA tmp_snd
-    LDA pitch_hi,Y
+    CPY #PITCH_HI3              \ the high byte: 3 below PITCH_HI3, else 2 (make_sound.py)
+    LDA #0
+    ROL A
+    EOR #3
 .pp_shift
     DEX
     BMI pp_done
