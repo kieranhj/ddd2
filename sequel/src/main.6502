@@ -167,9 +167,25 @@ field    = &8B                  \ the field this pass of the loop is for
 kn       = &8C                  \ the key being read
 tmp2     = &8D
 
+\ the strips' state, per strip (strip_init sets every one; zero page, &20-&4F, BASIC's and
+\ unused: a byte shorter and a cycle faster each access than main RAM - the RAM hunt, 2026-11-12):
+pos_lo   = &20
+pos_hi   = &24
+first    = &28
+vel      = &2C
+js       = &30         \ fields into the jump (0: on the ground)
+drawn_t  = &34         \ where the rider's top is drawn
+phase    = &38         \ 0 riding, 1 the crash, 2 respawn, 3 out of takes
+nb_lo    = &3C         \ the next level's start after it
+nb_hi    = &40
+rtype    = &44         \ the level type the rider is in (0 land, 1 sea, 2 snow)
+take     = &48         \ the original's `take`: 1-3, out at 4
+ltype    = &4C         \ the level type at the strip's left edge (column 0)
+    ASSERT ltype + 4 = &50
+
 IRQ_UNINSTALL = 0
 KEYDOWN_NO_INKEY = 1            \ keydown.6502: only keydown_int is called
-FONT_BLK = &20                  \ start: OSWORD 10's block, 9 bytes (BASIC's zero page, unused)
+FONT_BLK = &20                  \ start: OSWORD 10's block, 9 bytes (before strip_init uses &20 up)
 
 \ !BOOT (*EXEC, the disc's option 3): BREAK to clear memory (*FX200,2: the game takes the DFS's
 \ workspace and IRQ1V, so a soft BREAK would leave a machine with no DFS; decision 43); MODE 2
@@ -1516,26 +1532,14 @@ WS = 7 * ROW                    \ one strip to the next
 \ page &0D (make_data.py, low.6502), from these same numbers:
     ASSERT SCREEN = &3000 AND ROW = 640
 .pos_frac   EQUB 0, 0, 0, 0
-.pos_lo     EQUB 0, 0, 0, 0
-.pos_hi     EQUB 0, 0, 0, 0
-.vel        EQUB 0, 0, 0, 0
-.first      EQUB 0, 0, 0, 0
 .finished   EQUB 0, 0, 0, 0
-.js         EQUB 0, 0, 0, 0     \ fields into the jump (0: on the ground)
-.drawn_t    EQUB SKY, SKY, SKY, SKY     \ where the rider's top is drawn
-.phase      EQUB 0, 0, 0, 0     \ 0 riding, 1 the crash, 2 respawn, 3 out of takes
 .ct         EQUB 0, 0, 0, 0     \ fields into the crash
 .crash_tt   EQUB 0, 0, 0, 0     \ where the explosion is (window line)
 .dead_col   EQUB 0, 0, 0, 0     \ where the dead rider is drawn
 .dead_t     EQUB 0, 0, 0, 0
-.take       EQUB 1, 1, 1, 1     \ the original's `take`: 1-3, out at 4
-.rtype      EQUB 0, 0, 0, 0     \ the level type the rider is in (0 land, 1 sea, 2 snow)
 .rl_lo      EQUB LO(LEVEL_COLS), LO(LEVEL_COLS), LO(LEVEL_COLS), LO(LEVEL_COLS)   \ the next level's start, for the rider
 .rl_hi      EQUB HI(LEVEL_COLS), HI(LEVEL_COLS), HI(LEVEL_COLS), HI(LEVEL_COLS)
 .lidx       EQUB 0, 0, 0, 0     \ the level at the strip's left edge (0: level 1)
-.ltype      EQUB 0, 0, 0, 0     \ the level type at the strip's left edge (column 0)
-.nb_lo      EQUB LO(LEVEL_COLS), LO(LEVEL_COLS), LO(LEVEL_COLS), LO(LEVEL_COLS)   \ the next level's start after it
-.nb_hi      EQUB HI(LEVEL_COLS), HI(LEVEL_COLS), HI(LEVEL_COLS), HI(LEVEL_COLS)
 .c8_tick    EQUB 1              \ fields to the rotating colour's next step
 .c8_step    EQUB 0
 .cause      EQUB 0              \ the last crash's reading (collide)

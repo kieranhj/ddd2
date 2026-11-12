@@ -4,6 +4,47 @@ What has landed, with the number that says it landed. `PLAN.md` is what is left.
 
 ---
 
+## The RAM hunt, and the texts on a Master (2026-11-12)
+
+The owner, on a Master 128: "the font looks corrupted" (`BUGS.md` #3). The fix needed 126 bytes
+of main RAM, which had 5, and the brake still to come; the owner asked for a full RAM hunt.
+
+| Region | Before | After |
+|---|---|---|
+| Main RAM (&0E00-&2FFF) | 5 (end &2FFB) | **178** (end &2F4E), with `font` (126) in it |
+| Page 8 | 27 | 41 |
+| Stack page (to &01C0) | 3 | 10 |
+| Rows 0-2 | 4 | 9 |
+| Page 2 / page 3 / page &0D | 3 / 36 / 0 | the same |
+| Low A / low B | 11 / 0 | the same |
+| Row 31 | 16 | 16 |
+| Zero page &20-&4F | 48, unclaimed | 0: the strips' state |
+
+**Built**, one lever a commit, the suite after each:
+1. **Run-once code out of main RAM** (148 bytes): `start` and `install_irq` run from the
+   loader's tail at their load address, as `reloc` does; `keydown_inkey`, never called, left out
+   (`KEYDOWN_NO_INKEY`). The kit's `irq.6502` split in two (`irq_install.6502`), its silence loop
+   made table-free so it runs anywhere. 0 cycles in play.
+2. **The font** (decision 47): 18 glyphs through OSWORD 10 at load, 126 bytes.
+3. **Twelve per-strip arrays into zero page &20-&4F** (`pos_lo`, `pos_hi`, `first`, `vel`, `js`,
+   `drawn_t`, `phase`, `nb_lo`, `nb_hi`, `rtype`, `take`, `ltype`; `strip_init` sets each one):
+   157 bytes of main RAM (48 of storage, a byte from each of ~110 instructions), more in page 8,
+   the stack page and rows 0-2; a cycle faster each access. Worst field of `play` 48,125 -> 48,085.
+
+**MEASURED** (jsbeeb 2.10.2), after each lever the same as before it: `verify_strips` play, on a
+Model B and (new) `--model Master`: 0 bytes wrong, the texts right, 36 fields dropped (`BUGS.md`
+#1, unchanged); level, B0110, D1010, F0001 pass; `--plant` fails. `verify_sound` and
+`verify_break` pass; the break plant fails. The build before the font fix, on a Master: title
+text 306 bytes wrong, end 242.
+
+**Measured, not built** (the next RAM, by value):
+- **Zero page &C5-&FB:** the MOS's, unused while it is not called (its interrupt entry writes
+  only &FC). Not yet shown BREAK-safe: needs `verify_break`'s plant over it first.
+- **More per-strip arrays to zero page** (`ct`, `lidx`, `finished`, `rl_lo`/`rl_hi`, `pos_frac`,
+  ...: 4-6 references each) once &C5-&FB is proven.
+- **Row 31's tail:** 16 bytes, game state only (set at each game's start).
+- **Dead code:** none. Every label in the sequel is referenced, but for the tools' markers.
+
 ## The play test's first notes (2026-11-12)
 
 - **`*FX200,2` first in `!BOOT`** (decision 43): BREAK after a game had left the machine with no
