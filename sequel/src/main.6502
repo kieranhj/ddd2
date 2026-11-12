@@ -169,6 +169,7 @@ tmp2     = &8D
 
 IRQ_UNINSTALL = 0
 KEYDOWN_NO_INKEY = 1            \ keydown.6502: only keydown_int is called
+FONT_BLK = &20                  \ start: OSWORD 10's block, 9 bytes (BASIC's zero page, unused)
 
 \ !BOOT (*EXEC, the disc's option 3): BREAK to clear memory (*FX200,2: the game takes the DFS's
 \ workspace and IRQ1V, so a soft BREAK would leave a machine with no DFS; decision 43); MODE 2
@@ -1548,6 +1549,8 @@ WS = 7 * ROW                    \ one strip to the next
     INCLUDE "flow.6502"
     INCLUDE "marks.6502"
     INCLUDE "../build/data.6502"
+.font                           \ GLYPHS x 7 lines (print, flow.6502): filled by `start`
+    SKIP GLYPHS * 7
 .end                            \ the end of what runs at &0E00 up: below the screen
     ASSERT end <= SCREEN
 
@@ -1609,6 +1612,8 @@ LOAD_OF_D = low_d_image - ORG_AT + LOAD_AT
 LOAD_OF_R0 = r0_image - ORG_AT + LOAD_AT
 .reloc
     SEI
+    LDA #1                      \ start's font: the line it writes next, + 1
+    STA tmp2
     LDA #LO(LOAD_OF_A) : STA d0
     LDA #HI(LOAD_OF_A) : STA d0 + 1
     LDA #LO(LOW_A)     : STA d1
@@ -1643,6 +1648,29 @@ LOAD_OF_R0 = r0_image - ORG_AT + LOAD_AT
 \ start: what runs once, here in the loader's tail at its load address (relative branches; its
 \ own labels as load addresses), so main RAM holds only what play needs. screen_init clears it.
 .start
+    LDX #0                      \ the font, first, while the MOS's VDU is whole: OSWORD 10 gives
+.font_glyph                     \ the machine's own glyph wherever its MOS keeps it (BUGS.md #3)
+    STX cc
+    LDA font_chars - ORG_AT + LOAD_AT,X
+    STA FONT_BLK
+    LDX #LO(FONT_BLK)
+    LDY #HI(FONT_BLK)
+    LDA #10
+    JSR osword
+    LDX tmp2
+    LDY #1
+.font_line
+    LDA FONT_BLK,Y
+    STA font - 1,X              \ (tmp2 starts at 1)
+    INX
+    INY
+    CPY #8
+    BNE font_line
+    STX tmp2
+    LDX cc
+    INX
+    CPX #GLYPHS
+    BNE font_glyph
     LDA #23 : JSR OSWRCH        \ VDU 23,1,0;0;0;0; - cursor off
     LDA #1  : JSR OSWRCH
     LDX #8
@@ -1686,5 +1714,7 @@ LOAD_OF_R0 = r0_image - ORG_AT + LOAD_AT
     RTS
 \ (The program's last page may copy a little past `end`, into the screen at &3000: harmless,
 \ as `start`'s MODE 2 clears the screen. `end <= SCREEN` is the limit.)
+.font_chars EQUS "1234-PRESAFTOLYWIN"    \ G_1 ... G_N (flow.6502), in order
+    ASSERT P% - font_chars = GLYPHS
     INCLUDE "../../src/lib/irq_install.6502"    \ install_irq: runs once, from here too
 ENDSECTION

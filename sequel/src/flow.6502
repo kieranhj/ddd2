@@ -59,10 +59,11 @@ PHASE_IDLE = 4                  \ no one playing this strip
     BPL tl_skill
     JMP title_loop
 
-\ print: X = an offset into `texts`: the screen address of its first character, then the
-\ characters (32-127), to &FF. Each is drawn white on black from the MOS ROM's font at &C000,
-\ not through OSWRCH: the VDU's workspace (its colours, its font's pages) holds the game's tables
-\ from `start` on (decision 46), and OSWRCH drew with them (BUGS.md #2).
+\ print: X = an offset into `texts`: the screen address of its first character, then glyph
+\ numbers (`font`, below: G_SPACE draws nothing), to &FF. Each is drawn white on black, from
+\ the MOS's own font as `start` copied it through OSWORD 10 (decision 47): not from &C000, which
+\ is the font only on a Model B (a Master's is elsewhere: BUGS.md #3), and not through OSWRCH,
+\ whose workspace holds the game's tables from `start` on (decision 46, BUGS.md #2).
 \ Row 10 is cleared by screen_init, so a text need not rub out the one before it.
 TEXT_ROW = SCREEN + 10 * ROW    \ the black row between strips 0 and 1 (decision 42)
 .print
@@ -75,14 +76,18 @@ TEXT_ROW = SCREEN + 10 * ROW    \ the black row between strips 0 and 1 (decision
     CMP #&FF
     BEQ pr_rts
     STX cc
-    LDY #&18                    \ its glyph, &C000 + (c - 32) x 8: (&1800 + c - 32) x 8
-    STY pk + 1
-    ADC #&E0                    \ (C clear from the CMP; c >= 32 carries into &18)
-    ASL A : ROL pk + 1
-    ASL A : ROL pk + 1
-    ASL A : ROL pk + 1
+    CMP #G_SPACE
+    BCS pr_next                 \ a space: nothing drawn
+    STA tmp                     \ its glyph, font + g x 7
+    ASL A : ASL A : ASL A
+    SEC
+    SBC tmp                     \ g x 7, C set (no borrow, even for g = 0)
+    ADC #LO(font - 1)           \ (font - 1) + 1 + g x 7
     STA pk
-    LDY #7
+    LDA #HI(font - 1)
+    ADC #0
+    STA pk + 1
+    LDY #6                      \ 7 lines: the font's eighth is blank, and so is the row's
 .pr_line
     LDA (pk),Y
     STA tmp
@@ -102,16 +107,26 @@ TEXT_ROW = SCREEN + 10 * ROW    \ the black row between strips 0 and 1 (decision
     SBC #33
     TAY
     BPL pr_line
-    LDA d0                      \ the next character, 32 bytes on (C clear: y - 1 >= -1 borrowed)
+.pr_next
+    CLC                         \ the next character, 32 bytes on
+    LDA d0
     ADC #32
     STA d0
-    BCC pr_next
+    BCC pr_nx
     INC d0 + 1
-.pr_next
+.pr_nx
     LDX cc
     BNE pr_char                 \ (always: X > 0)
 .pr_rts
     RTS
+
+\ the glyphs the texts use, in `font`'s order: the digits first, so a player's number (0-3) is
+\ its own glyph. `start` fills `font` from these characters.
+G_1 = 0 : G_2 = 1 : G_3 = 2 : G_4 = 3 : G_DASH = 4
+G_P = 5 : G_R = 6 : G_E = 7 : G_S = 8 : G_A = 9 : G_F = 10 : G_T = 11 : G_O = 12
+G_L = 13 : G_Y = 14 : G_W = 15 : G_I = 16 : G_N = 17
+GLYPHS = 18
+G_SPACE = &80
 
 T_TITLE = t_title - texts
 T_WINS = t_wins - texts

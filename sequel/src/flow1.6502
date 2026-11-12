@@ -53,9 +53,7 @@
     INX
     CPX #4
     BNE gd_best
-    LDA winner
-    CLC
-    ADC #'1'
+    LDA winner                  \ (glyph 0-3 is the digit 1-4)
     STA t_winner_n
     LDX #T_WINS
     JSR print
@@ -72,14 +70,13 @@
 .texts
 .t_title
     EQUW TEXT_ROW + 1 * 32
-    EQUS "PRESS A-F TO START"
-    EQUB &FF
+    EQUB G_P, G_R, G_E, G_S, G_S, G_SPACE, G_A, G_DASH, G_F, G_SPACE    \ PRESS A-F TO START
+    EQUB G_T, G_O, G_SPACE, G_S, G_T, G_A, G_R, G_T, &FF
 .t_wins
     EQUW TEXT_ROW + 3 * 32
-    EQUS "PLAYER "
+    EQUB G_P, G_L, G_A, G_Y, G_E, G_R, G_SPACE                          \ PLAYER n WINS
 .t_winner_n
-    EQUS "1 WINS"
-    EQUB &FF
+    EQUB G_1, G_SPACE, G_W, G_I, G_N, G_S, &FF
 
 \ mark_phase: X = strip, at a new pos. Its first marker's screen column (marks.6502): with the
 \ markers at course columns 20k + 19, mph = 19 - pos MOD 20. pos MOD 20 = (pos_hi MOD 5) x 16 +

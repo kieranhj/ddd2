@@ -52,6 +52,8 @@ import { readFileSync } from "node:fs";
 
 import { cropFor, startVideo } from "./capture.mjs";
 import { open, readSymbols } from "./harness.mjs";
+import { resolveJsbeebSrc } from "./jsbeeb_src.mjs";
+import { join } from "node:path";
 
 const args = process.argv.slice(2);
 const opt = (n, d) => { const i = args.indexOf(n); return i < 0 ? d : args[i + 1]; };
@@ -63,6 +65,8 @@ const EARLY = args.includes("--early");
 // --no-holes: the game's hole check never crashes (its BEQ cl_hit at cl_ground + 10 made to fall
 // through) - the crashes must then disagree with the model's
 const NOHOLES = args.includes("--no-holes");
+// --model Master: the same run on a Master 128 (MOS 3.20), whose font is not at &C000 (BUGS.md #3)
+const MODEL = opt("--model", "B-DFS1.2");
 const ACCEL = [97, 99, 101, 103], JUMP = [66, 100, 102, 104];
 const SKILL = "ABCDEF".indexOf(opt("--skill", "A")), JOINED = opt("--players", "1111").split("").map((c) => c === "1");
 if (SKILL < 0 || JOINED.length !== 4 || !JOINED.some(Boolean)) { console.error("--skill A-F, --players four of 0/1"); process.exit(2); }
@@ -382,7 +386,7 @@ function plan(r, accelFor, { blind = false, eager = false } = {}) {
 }
 
 // ---- the run ----
-const h = await open({ name: "verify_strips", disc: "sequel/build/ddd2.ssd" });
+const h = await open({ name: "verify_strips", disc: "sequel/build/ddd2.ssd", model: MODEL });
 const N = (n) => h.need(n);
 const SYM = Object.fromEntries(["pos_lo", "pos_hi", "pos_frac", "vel", "js", "phase", "take", "finished", "frames", "cause", "strip"].map((n) => [n, N(n)]));
 await h.boot({ field: SYM.frames, fieldBytes: 2 });
@@ -402,10 +406,13 @@ const SKILL_KEY = [65, 100, 82, 50, 34, 67][SKILL];
 const heldT = [[false, false], [false, false], [false, false], [false, false]];
 if (await h.runTo(N("title_loop"), 40_000_000) === null) h.die("never reached the title", h.gaveUp);
 // THE TEXTS (row 10, the black row between strips 0 and 1; decision 42): the MOS ROM's font
-// (&C000, characters 32-127, a byte a line, bit 7 the left pixel), white on black, MODE 2 (a byte
+// (characters 32-127 at the start of the Model B's MOS 1.20 ROM, read from jsbeeb's own file, not
+// from the machine: a Master's MOS 3.20 holds the same 768 bytes, but not at &C000 - measured
+// 2026-11-12, its ROM image at &1F900 - and the game copies them through OSWORD 10, decision 47;
+// a byte a line, bit 7 the left pixel), white on black, MODE 2 (a byte
 // two pixels: the left in bits 7 5 3 1, the right in 6 4 2 0; white is colour 7, bits 5 3 1 / 4 2 0)
 const textRow = (str, col) => {
-    const row = new Uint8Array(ROW), font = h.rd(0xc000, 96 * 8, "main");
+    const row = new Uint8Array(ROW), font = readFileSync(join(resolveJsbeebSrc().src, "..", "public", "roms", "os.rom")).subarray(0, 96 * 8);
     [...str].forEach((ch, i) => {
         for (let y = 0; y < 8; y++) {
             const g = font[(ch.charCodeAt(0) - 32) * 8 + y];

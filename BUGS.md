@@ -7,6 +7,7 @@ ruled out. Index first, detail below.
 |---|---|---|
 | 1 | Open: to play test | Fields dropped when all four riders hit a heavy moment together (decision 11) |
 | 2 | Fixed 2026-11-12 | The title's and the game end's text drawn through OSWRCH with the game's tables as the VDU's workspace: no text, and gaps in the floors |
+| 3 | Fixed 2026-11-12 | The texts garbled on a Master: `print` read the font at &C000, where only a Model B keeps it |
 
 <!--
 Format for an entry:
@@ -91,3 +92,22 @@ strips 1-3's floors.
   the game no longer calls OSWRCH after `start`'s cursor-off. `verify_strips` checks row 10 on the
   title and at the end against the font drawn independently: the OSWRCH build fails it (288 and
   231 bytes wrong), the fix passes.
+
+## 3. The texts garbled on a Master
+
+**Open 2026-11-12.** The owner, playing on a Master 128 after #2's fix: "the font looks corrupted".
+
+### What was measured
+- `print` (#2's fix) read each glyph at &C000 + (c - 32) x 8: the font on a Model B (MOS 1.20).
+  In jsbeeb's Master 128 (MOS 3.20) &C000 reads 0, and the font's bytes appear nowhere in
+  &8000-&FFFF as the CPU sees them; in the MOS 3.20 ROM image they are at &1F900, the same 768
+  bytes as the Model B's. So on a Master the texts were drawn from whatever &C000 held.
+- jsbeeb's Master runs the game (an earlier screenshot after 150 frames was still loading).
+- `verify_strips --model Master` on the build before the fix: 306 bytes of the title's text wrong
+  and 242 of the end's; the fix: 0 and 0.
+
+### Fixed (2026-11-12)
+- `start` copies the 18 glyphs the texts use, through OSWORD 10, into `font` (126 bytes of main
+  RAM) while the MOS is still whole; `print` draws from there (decision 47). The room came from
+  the RAM hunt's first lever (run-once code out of main RAM). `verify_strips` takes its expected
+  glyphs from jsbeeb's Model B ROM file, so it checks a Master's text too (`--model Master`).
