@@ -167,10 +167,11 @@ tmp2     = &8D
 
 IRQ_UNINSTALL = 0
 
-\ !BOOT (*EXEC, the disc's option 3): MODE 2 once, before the game loads, so that it never has to be
-\ set again (decision 37); then the game.
+\ !BOOT (*EXEC, the disc's option 3): BREAK to clear memory (*FX200,2: the game takes the DFS's
+\ workspace and IRQ1V, so a soft BREAK would leave a machine with no DFS; decision 43); MODE 2
+\ once, before the game loads, so that it never has to be set again (decision 37); then the game.
 SECTION boot, org = 0, filename = "!BOOT"
-    EQUS "MODE2", 13, "*RUN DDD2", 13
+    EQUS "*FX200,2", 13, "MODE2", 13, "*RUN DDD2", 13
 ENDSECTION
 
 SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, filename = "DDD2"

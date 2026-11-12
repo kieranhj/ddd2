@@ -13,7 +13,8 @@
 //              the air into their fronts
 //           P4 the planner, but lets go of accelerate 200 fields in every 600 (decision 24)
 //   level   all four held level, no jumps: as layer 4.2's worst case, until they are all out
-// It runs until every rider has finished or is out of takes, or N fields.
+// It runs until every rider has finished or is out of takes, or N fields; then through the end's
+// 250-field wait every strip must still be its last picture, and the title must come back.
 //
 // --video OUT.mp4 [--video-from F] [--video-fields N]: also a clip of fields F to F+N (default
 // 1150, 750: P1-P3's crash at level 4, P2 and P3 into holes at level 5).
@@ -556,8 +557,25 @@ if (done()) {
     started = false;                                   // the game is over: the end and the title are not watched
     let best = -1;
     riders.forEach((r, p) => { if (JOINED[p] && (best < 0 || r.wages > riders[best].wages)) best = p; });
+    // through the end's wait nothing may change in the strips' windows: each field of it, every
+    // strip must still be the last pass's picture (only the text row between strips changes)
+    let endWrong = 0, firstEnd = null, endFields = 0;
+    const atWait = await h.runTo(N("gd_wait"), 2_000_000);
+    if (atWait !== null) {
+        for (let f = 0; f < 250; f++) {
+            if (await h.runTo(N("gd_wait"), 400_000) === null) break;
+            endFields++;
+            for (let k = 0; k < 4; k++) {
+                const got = h.rd(windowAt(k), 6 * ROW, "main");
+                for (let i = 0; i < got.length; i++) if (got[i] !== riders[k].w[i]) {
+                    endWrong++;
+                    if (!firstEnd) firstEnd = { end_field: f, strip: k, row: 4 + 7 * k + Math.floor(i / ROW), col: (i % ROW) >> 3, line: i & 7, got: got[i], want: riders[k].w[i] };
+                }
+            }
+        }
+    }
     const back = await h.runTo(N("title_loop"), 20_000_000);
-    endOk = { winner_game: h.byte(0xa5), winner_model: best, back_at_title: back !== null };
+    endOk = { winner_game: h.byte(0xa5), winner_model: best, back_at_title: back !== null, end_fields: endFields, end_bytes_wrong: endWrong, first_end_wrong: firstEnd };
 }
 
 const stats = (a) => { const s = [...a].sort((x, y) => x - y); return { n: s.length, median: s[s.length >> 1], p99: s[Math.floor(0.99 * (s.length - 1))], max: s.at(-1) }; };
@@ -581,7 +599,7 @@ const full = SKILL === 0 && JOINED.every(Boolean);     // the runs that must see
 const coverage = !full ? outs + riders.filter((r, p) => JOINED[p] && r.finished).length === JOINED.filter(Boolean).length : SCENARIO === "play" ? causes[1] > 0 && causes[4] > 0 && causes[5] > 0 && respawns > 0 && outs > 0 : outs === JOINED.filter(Boolean).length;
 const sndMissing = sndEvents.filter(([p, c, v]) => !sndReqs.some(([q, d, w]) => q === p && d === c && w === v));
 const sndCounts = Object.fromEntries(["crash", "gold", "take"].map((k) => [k, sndEvents.filter((e) => e[3] === k).length]));
-const ok = sndMissing.length === 0 && done() && endOk && endOk.back_at_title && endOk.winner_game === endOk.winner_model && checked > 0 && wrong === 0 && statusWrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 && paletteWrong === 0 && palette.length > fields / 3 - 2 &&
+const ok = sndMissing.length === 0 && done() && endOk && endOk.back_at_title && endOk.end_fields >= 249 && endOk.end_bytes_wrong === 0 && endOk.winner_game === endOk.winner_model && checked > 0 && wrong === 0 && statusWrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 && paletteWrong === 0 && palette.length > fields / 3 - 2 &&
            Math.abs(passes - elapsed) <= 1 && coverage;
 h.finish({ scenario: SCENARIO, sound: { events: sndCounts, missing: sndMissing.slice(0, 5) }, skill: "ABCDEF"[SKILL], players: JOINED.map(Number).join(""), game_end: endOk, status_wrong: statusWrong, first_status_wrong: firstStatus, wages: riders.map((r) => r.wages), fields, passes, elapsed_fields: elapsed, coverage, checked, bytes_wrong: wrong, first_wrong: firstWrong, state_wrong: stateWrong, first_state: firstState,
            crashes: crashes.game.length, crashes_disagreeing: crashDiff.slice(0, 5), by_cause: { right_edge: causes[1], middle_right: causes[2], top_right: causes[3], landed_on: causes[4], hole: causes[5] },
