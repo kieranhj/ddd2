@@ -93,6 +93,7 @@
     rts
 }
 
+IF NOT(DEFINED(KEYDOWN_NO_INKEY))   ; a port that only uses keydown_int saves its 10 bytes
 \ ---- keydown_inkey: X = negative INKEY byte; Z set if pressed ------
 \ Paradroid's contract, the one every BBC reference and INKEY(-n)
 \ speaks. The INKEY byte EOR &FF is the internal key number.
@@ -105,6 +106,7 @@
     eor #&80                    ; Z set = pressed
     rts
 }
+ENDIF
 
 \ ******************************************************************
 \ *	read_joystick - five keys packed into the C64's joystick byte

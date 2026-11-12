@@ -1,0 +1,95 @@
+\ ******************************************************************
+\ *	irq_install.6502 - install_irq (and uninstall_irq): irq.6502's
+\ *	run-once half, in a file of its own so a port can put it where
+\ *	run-once code goes (the sequel: its loader's tail, which the
+\ *	screen's clear then takes back). Position-independent: it reads
+\ *	no table of its own, so it may run at its load address.
+\ *	beeb-port-kit, MIT, Kieran Connell 2026. Include it with irq.6502.
+\ ******************************************************************
+
+\ ---- install: put irq_handler at the head of IRQ1V ---------------
+.install_irq
+{
+    sei
+IF IRQ_UNINSTALL
+    \\ Save what the MOS had FIRST, before any of it is clobbered. The
+    \\ T1 latches matter as much as the vector: the rupture reprograms
+    \\ them every field, and the MOS's 100 Hz events - the keyboard
+    \\ scan, the clock, the disc timeouts - run off what it left there.
+    \\ Reading T1LL/T1LH reads the latches without touching the counter.
+    lda SYS_VIA_IER : and #&7f : sta old_sys_ier
+    lda USR_VIA_IER : and #&7f : sta old_usr_ier
+    lda SYS_VIA_ACR : sta old_sys_acr
+    lda SYS_VIA_T1LL : sta old_sys_t1l
+    lda SYS_VIA_T1LH : sta old_sys_t1h
+    lda IRQ1V   : sta old_irq1v
+    lda IRQ1V+1 : sta old_irq1v+1
+ENDIF
+
+    lda #&7f : sta SYS_VIA_IER  ; silence both VIAs: anything we do not
+    lda #&7f : sta USR_VIA_IER  ; service would hold IRQ asserted forever
+
+    lda #LO(irq_handler) : sta IRQ1V
+    lda #HI(irq_handler) : sta IRQ1V+1
+
+    lda SYS_VIA_ACR             ; T1 continuous, no PB7 output
+    and #&3f
+    ora #&40
+    sta SYS_VIA_ACR
+
+    \\ SILENCE THE SOUND CHIP: attenuation 15 on all four channels. The
+    \\ MOS's sound driver runs off the interrupt just taken away, so any
+    \\ note it had started now plays until something writes the chip. A
+    \\ *RUN boot enters with interrupts off, and that left the BREAK beep
+    \\ at 523 Hz, attenuation 2, on a Model B for good (jsbeeb 2026-09-11;
+    \\ an *EXEC boot's beep had ended by then). Edge's sn_write, per byte.
+    ldy #&ff                    ; noise, then channels 2, 1, 0: volume off
+.sn_off                         ; (&FF &DF &BF &9F: no table, so this runs anywhere)
+    ldx #255 : stx SND_DDRA     ; port A all out
+    sty SND_ORA
+    inx : stx SND_PORTB         ; latch line 0 low: the chip's write enable
+    lda SND_PORTB               ; (the read is the settle time)
+    ora #8 : sta SND_PORTB      ; line 0 high again
+    tya : sec : sbc #&20 : tay
+    bmi sn_off
+
+    lda #&7f : sta SYS_VIA_IFR  ; clear anything pending
+    lda #&c2 : sta SYS_VIA_IER  ; enable CA1 (VSync) + T1
+    cli
+    rts
+}
+
+IF IRQ_UNINSTALL
+\ ---- uninstall: give the machine back to the MOS -----------------
+\ The exact inverse, from the saves above: silence everything, put the
+\ MOS's ACR and T1 latches back, restore IRQ1V, then re-enable what the
+\ MOS had enabled. Writing the T1 LATCHES only - never T1C-H, which
+\ would restart the counter mid-count - is enough: T1 is continuous and
+\ reloads from the latch on its next underflow, so the MOS clock is at
+\ most one rupture interval late.
+\ Callable only after install_irq has run at least once. Flush the MOS
+\ sound workspace FIRST if you have written over &0800 - see the header.
+.uninstall_irq
+{
+    sei
+    lda #&7f : sta SYS_VIA_IER
+    lda #&7f : sta USR_VIA_IER
+    lda old_sys_acr : sta SYS_VIA_ACR
+    lda old_sys_t1l : sta SYS_VIA_T1LL
+    lda old_sys_t1h : sta SYS_VIA_T1LH
+    lda old_irq1v   : sta IRQ1V
+    lda old_irq1v+1 : sta IRQ1V+1
+    lda #&7f : sta SYS_VIA_IFR  ; nothing of ours may be left pending
+    lda old_sys_ier : ora #&80 : sta SYS_VIA_IER
+    lda old_usr_ier : ora #&80 : sta USR_VIA_IER
+    cli
+    rts
+}
+
+.old_irq1v   EQUW 0
+.old_sys_ier EQUB 0             ; the MOS's VIA state, saved by install_irq
+.old_usr_ier EQUB 0             ; and handed back by uninstall_irq
+.old_sys_acr EQUB 0
+.old_sys_t1l EQUB 0
+.old_sys_t1h EQUB 0
+ENDIF
