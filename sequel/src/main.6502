@@ -168,6 +168,8 @@ kn       = &8C                  \ the key being read
 tmp2     = &8D
 
 IRQ_UNINSTALL = 0
+KEYDOWN_NO_INKEY = 1            \ keydown.6502: only keydown_int is called
+FONT_BLK = &20                  \ start: OSWORD 10's block, 9 bytes (BASIC's zero page, unused)
 
 \ !BOOT (*EXEC, the disc's option 3): BREAK to clear memory (*FX200,2: the game takes the DFS's
 \ workspace and IRQ1V, so a soft BREAK would leave a machine with no DFS; decision 43); MODE 2
@@ -180,34 +182,6 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
 
     INCLUDE "../build/sprites.6502"     \ first: ORG_AT is a page start (make_data.py)
 
-.start
-    LDA #23 : JSR OSWRCH        \ VDU 23,1,0;0;0;0; - cursor off
-    LDA #1  : JSR OSWRCH
-    LDX #8
-.cursor_off
-    LDA #0 : JSR OSWRCH
-    DEX
-    BNE cursor_off
-    JSR install_irq             \ IRQ1V ours from here on; the MOS is not called again (BUGS.md #2)
-    LDX #0                      \ page 8's code and the stack page's, from the file's tail (at
-.start_copy                     \ its load address, above anything the move down wrote; MODE 2
-    LDA p8_image - ORG_AT + LOAD_AT,X   \ has not yet cleared it)
-    STA &0800,X
-    CPX #p1_end - &0100
-    BCS start_p1
-    LDA p1_image - ORG_AT + LOAD_AT,X
-    STA &0100,X
-.start_p1
-    LDA p3_image - ORG_AT + LOAD_AT,X  \ page 3, whole
-    STA &0300,X
-    CPX #p2_end - &0236
-    BCS start_p2
-    LDA p2_image - ORG_AT + LOAD_AT,X
-    STA &0236,X
-.start_p2
-    INX
-    BNE start_copy
-    JMP title                   \ flow.6502
 
 .loop
     LDA frames                  \ one pass a field: wait for one that has not had its pass
@@ -1575,6 +1549,8 @@ WS = 7 * ROW                    \ one strip to the next
     INCLUDE "flow.6502"
     INCLUDE "marks.6502"
     INCLUDE "../build/data.6502"
+.font                           \ GLYPHS x 7 lines (print, flow.6502): filled by `start`
+    SKIP GLYPHS * 7
 .end                            \ the end of what runs at &0E00 up: below the screen
     ASSERT end <= SCREEN
 
@@ -1636,6 +1612,8 @@ LOAD_OF_D = low_d_image - ORG_AT + LOAD_AT
 LOAD_OF_R0 = r0_image - ORG_AT + LOAD_AT
 .reloc
     SEI
+    LDA #1                      \ start's font: the line it writes next, + 1
+    STA tmp2
     LDA #LO(LOAD_OF_A) : STA d0
     LDA #HI(LOAD_OF_A) : STA d0 + 1
     LDA #LO(LOW_A)     : STA d1
@@ -1667,7 +1645,59 @@ LOAD_OF_R0 = r0_image - ORG_AT + LOAD_AT
     LDX #HI(3 * ROW + 255)
     JSR reloc_pages - ORG_AT + LOAD_AT
     CLI
-    JMP start
+\ start: what runs once, here in the loader's tail at its load address (relative branches; its
+\ own labels as load addresses), so main RAM holds only what play needs. screen_init clears it.
+.start
+    LDX #0                      \ the font, first, while the MOS's VDU is whole: OSWORD 10 gives
+.font_glyph                     \ the machine's own glyph wherever its MOS keeps it (BUGS.md #3)
+    STX cc
+    LDA font_chars - ORG_AT + LOAD_AT,X
+    STA FONT_BLK
+    LDX #LO(FONT_BLK)
+    LDY #HI(FONT_BLK)
+    LDA #10
+    JSR osword
+    LDX tmp2
+    LDY #1
+.font_line
+    LDA FONT_BLK,Y
+    STA font - 1,X              \ (tmp2 starts at 1)
+    INX
+    INY
+    CPY #8
+    BNE font_line
+    STX tmp2
+    LDX cc
+    INX
+    CPX #GLYPHS
+    BNE font_glyph
+    LDA #23 : JSR OSWRCH        \ VDU 23,1,0;0;0;0; - cursor off
+    LDA #1  : JSR OSWRCH
+    LDX #8
+.cursor_off
+    LDA #0 : JSR OSWRCH
+    DEX
+    BNE cursor_off
+    JSR install_irq - ORG_AT + LOAD_AT  \ IRQ1V ours from here on; the MOS is not called again (BUGS.md #2)
+    LDX #0                      \ page 8's code and the stack page's, from the file's tail (at
+.start_copy                     \ its load address, above anything the move down wrote; MODE 2
+    LDA p8_image - ORG_AT + LOAD_AT,X   \ has not yet cleared it)
+    STA &0800,X
+    CPX #p1_end - &0100
+    BCS start_p1
+    LDA p1_image - ORG_AT + LOAD_AT,X
+    STA &0100,X
+.start_p1
+    LDA p3_image - ORG_AT + LOAD_AT,X  \ page 3, whole
+    STA &0300,X
+    CPX #p2_end - &0236
+    BCS start_p2
+    LDA p2_image - ORG_AT + LOAD_AT,X
+    STA &0236,X
+.start_p2
+    INX
+    BNE start_copy
+    JMP title                   \ flow.6502
 \ reloc_pages: X pages from (d0) to (d1). (A page past an image's end copies whatever follows
 \ it in the file: harmless, inside the block.)
 .reloc_pages
@@ -1684,4 +1714,7 @@ LOAD_OF_R0 = r0_image - ORG_AT + LOAD_AT
     RTS
 \ (The program's last page may copy a little past `end`, into the screen at &3000: harmless,
 \ as `start`'s MODE 2 clears the screen. `end <= SCREEN` is the limit.)
+.font_chars EQUS "1234-PRESAFTOLYWIN"    \ G_1 ... G_N (flow.6502), in order
+    ASSERT P% - font_chars = GLYPHS
+    INCLUDE "../../src/lib/irq_install.6502"    \ install_irq: runs once, from here too
 ENDSECTION

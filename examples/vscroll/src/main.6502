@@ -508,6 +508,7 @@ SECTION VScroll, org = CODE_ORG, guard = CODE_TOP, filename = "VScroll", exec = 
 \ ******************************************************************
 INCLUDE "rupture.6502"
 INCLUDE "../../../src/lib/irq.6502"
+INCLUDE "../../../src/lib/irq_install.6502"
 INCLUDE "../../../src/lib/keydown.6502"
 
 .end
