@@ -68,7 +68,7 @@ RIDER   = 12                    \ the riders' fixed screen column (decision 23, 
 VMAX    = 250                   \ the original's velocity cap (update_player)
 SKY     = 24                    \ window lines 0-23 are sky; a rider on the ground has its top here
 \ the tall sprites' numbers (TALL_*) are make_data.py's, in data.6502
-TAKES   = 3                     \ the original's: out when `take` reaches 4
+TAKES   = 5                     \ out when `take` reaches TAKES + 1 (the original's 3; decision 50)
 DEAD_COL = 18                   \ where the dead rider ends up, columns right of the rider
 LEVEL_COLS = 4 * 76             \ a level: four grounds (decision 18)
 CLEAR   = 16                    \ respawn: columns clear from the rider's left column (decision 26)

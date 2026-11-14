@@ -7,7 +7,7 @@
 \
 \ THE STATUS LINE (decision 13; its layout decision 33, PROPOSED) is character row 1: each
 \ player a block of 20 byte columns, in the player's colour (decision 17's: green, yellow, cyan,
-\ magenta) - its wages at columns 2-13 and its takes left (3, 2, 1, 0) at 16-17, in the
+\ magenta) - its wages at columns 2-13 and its takes left (5 ... 0) at 16-17, in the
 \ sequel's own digits, 4 pixels wide (3 lit, 1 gap) and 7 lines tall, so 40 fit a row where
 \ MODE 2's characters fit 20. A player's block is drawn again when it changes (`sdirty`), at the
 \ head of a pass, before strip 0: the raster is then past row 1 (strip 0 starts after line 120)
@@ -119,7 +119,7 @@ TAKES_AT = 16
     BPL su_loop
     RTS
 
-\ status_draw: player sp_player's block: wages, then takes left (4 - take).
+\ status_draw: player sp_player's block: wages, then takes left (TAKES + 1 - take).
 .status_draw
     LDX sp_player
     LDA colour_left,X
@@ -152,7 +152,7 @@ TAKES_AT = 16
     CLC
     ADC #TAKES_AT
     STA dg_col
-    LDA #4
+    LDA #TAKES + 1
     SEC
     SBC take,X
     CMP shown_takes,X

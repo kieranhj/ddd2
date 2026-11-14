@@ -1,7 +1,7 @@
 \ flow.6502 - the title, joining, the skill, the game, the game's end (layer 4.5b).
 \
 \ THE TITLE: every strip at level 1, its rider standing; row 2 "PRESS A-F TO START". A player
-\ joins by pressing its accelerate key: its status block appears (wages 0, takes 3). A-F, once
+\ joins by pressing its accelerate key: its status block appears (wages 0, takes 5). A-F, once
 \ someone has joined, starts the game for those who have, at that skill's level - the original's
 \ starting_levels_table: 1 7 13 19 25 31 (decision 15: one choice for everyone). A strip with no
 \ player stands still all game (decision 14).

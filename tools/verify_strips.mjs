@@ -38,7 +38,7 @@
 //   crash    the explosion at the rider; the dead rider, from 5 columns right, a column every 3
 //            fields for 14 passes at jump_offsets_table[19 + pass] (interpolated), rubbed out
 //            where it was when it moves; then frames one and two, 10 fields each, 7 times, 18
-//            columns right (tools/measure_crash.mjs: 42 + 140 fields); then the next take (3 in
+//            columns right (tools/measure_crash.mjs: 42 + 140 fields); then the next take (5 in
 //            all) or out
 //   respawn  the next field the strip is black but its ground; the one after, standing at the
 //            first course column past the crash with 16 columns clear (decision 26), drawn whole
@@ -97,6 +97,7 @@ const bytesAt = (name, n) => { const a = symOf(name) - 0x0e00; return denis3.sub
 const sprite = (name) => bytesAt(name, 64);            // the original's: row by row, 4 bytes a line
 const JT = [...bytesAt("jump_offsets_table", 34)];
 const FINISH = course.finish, RIDER = 12, ROW = 640, SKY = 24, LEVEL = 4 * 76;
+const TAKES = 5;                                       // the original's 3 (decision 50)
 const objects = course.course.map((o) => o.type === "obstacle"
     ? { x: o.x, w: 4, spr: sprite(`sprite_${typeOf[o.level]}_${NAMES[o.sprite - 1]}`) }
     : { x: o.x, w: o.width, hole: true });
@@ -221,7 +222,7 @@ function statusRow(snap) {
     });
     return w;
 }
-const snapshot = () => riders.map((r) => ({ wages: r.wages, takes: 4 - r.take }));
+const snapshot = () => riders.map((r) => ({ wages: r.wages, takes: TAKES + 1 - r.take }));
 const clocks = (r) => { for (const [l, f] of r.clk) { r.clk.set(l, f + 1); if ((f + 1) % 3 === 0) specPass(r, l); } };
 function startVisible(r) {
     const l0 = Math.floor(r.pos / LEVEL);
@@ -331,7 +332,7 @@ function step(r, accel, jump, draw, brake = false) {
         if (r.ct === CRASH_ALL) {                      // the crash over: the next take, or out;
             r.take++;                                  // and the strip erased
             r.canBrake = true;
-            if (r.take === 4) { r.phase = 3; return 0; }
+            if (r.take === TAKES + 1) { r.phase = 3; return 0; }
             r.ct++;
             if (draw) r.w.fill(0, 0, 5 * ROW);         // all but the ground row, which stays
             return 0;
@@ -594,7 +595,7 @@ while (!done() && fields < MAXF) {
     if (await h.runTo(LOOP, 400_000) === null) h.die("the loop stopped", h.gaveUp);
     fields++;
     if (VIDEO && fields === VFROM) video = await startVideo(h.s, VIDEO, { crop: cropFor(h.s, "mos"), title: "Dare Devil Denis 2" });
-    if (video && fields < VFROM + VN) await video.frame(`field ${fields}   takes ${riders.map((r) => (r.phase === 3 ? "out" : 4 - r.take)).join(" ")}`);
+    if (video && fields < VFROM + VN) await video.frame(`field ${fields}   takes ${riders.map((r) => (r.phase === 3 ? "out" : TAKES + 1 - r.take)).join(" ")}`);
     if (video && fields === VFROM + VN) { await video.finish(); console.error(JSON.stringify({ video: video.path, format: video.format, frames: video.frames })); video = null; }
     if (stateWrong > 20 || wrong > 5000) break;
 }
