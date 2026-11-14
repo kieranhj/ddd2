@@ -12,8 +12,8 @@
 //           P3 eager: jumps whenever anything is within 40 fields - lands on obstacles, and in
 //              the air into their fronts
 //           P4 the planner, but lets go of accelerate 200 fields in every 600 (decision 24), and
-//              brakes from 240 to 120 whenever it gets to 240, accelerate mostly still held
-//              (the brake wins; decision 48)
+//              holds the brake from 240 until 120, accelerate mostly held too: a dead stop,
+//              or, used this level, nothing until the next level's start (decision 48)
 //   level   all four held level, no jumps: as layer 4.2's worst case, until they are all out
 // It runs until every rider has finished or is out of takes, or N fields; then through the end's
 // 250-field wait every strip must still be its last picture, and the title must come back; the
@@ -26,8 +26,9 @@
 // the decisions, not from the sequel's source or its data: the course from data/course.json, the
 // sprites out of build/ddd.ssd's DENIS3 (at build/ddd.symbols.json's addresses), recoloured here
 // (decision 17); jump_offsets_table out of DENIS3 too. Per field, per rider:
-//   riding   pos += vel/256; vel -4 with the brake (to 0; decision 48), else +1 with accelerate
-//            (to 250), -1 without (decision 24); the
+//   riding   pos += vel/256; the brake stops it dead, once a level - again at each level's start
+//            reached, each take and the game's start (the original's player_can_brake; decision
+//            48) - else vel +1 with accelerate (to 250), -1 without (decision 24); the
 //            finish (decision 22); a take back at each sea level reached (2, 5 ... 35) if one
 //            is lost; the jump - from the ground with jump held, 84 fields, the height the
 //            table at state 1 + n/3, interpolated, rounded half up; the picture - the course at
@@ -287,7 +288,7 @@ function collide(read, t, air) {
 // the start (flow.6502; decision 15): skill A-F's level, the original's starting_levels_table; the
 // rider's left column at its start (at level 1 the strip's left edge, the rider at column 12)
 const START_LEVEL = [1, 7, 13, 19, 25, 31][SKILL], S0 = (START_LEVEL - 1) * LEVEL;
-const newRider = (p) => ({ p, pos: START_LEVEL === 1 ? 0 : S0 - RIDER, frac: 0, vel: 0, js: 0, t: SKY, phase: JOINED[p] ? 0 : 4, ct: 0, take: 1, sea: S0 + LEVEL, finished: false,
+const newRider = (p) => ({ p, pos: START_LEVEL === 1 ? 0 : S0 - RIDER, frac: 0, vel: 0, js: 0, t: SKY, phase: JOINED[p] ? 0 : 4, ct: 0, take: 1, sea: S0 + LEVEL, rl: S0 + LEVEL, canBrake: true, finished: false,
                            crashT: 0, dead: null, w: null, cause: 0, clk: new Map(), spec: new Map(), wages: 0, wg: S0 + 76, gcount: (START_LEVEL - 1) * 4 });
 function seaCheck(r) {
     while (r.pos + RIDER >= r.sea) { if (r.take >= 2) r.take--; r.sea += 3 * LEVEL; }
@@ -301,10 +302,12 @@ function step(r, accel, jump, draw, brake = false) {
             r.frac += r.vel;
             const moved = r.frac >= 256;
             r.frac &= 255;
-            r.vel = brake ? Math.max(r.vel - 4, 0) : accel ? Math.min(r.vel + 1, 250) : Math.max(r.vel - 1, 0);
+            if (brake && r.canBrake) { r.vel = 0; r.canBrake = false; }
+            else r.vel = accel ? Math.min(r.vel + 1, 250) : Math.max(r.vel - 1, 0);
             if (moved) {
                 r.pos++;
                 if (r.pos >= FINISH - RIDER) { r.finished = true; r.vel = 0; }
+                while (r.pos + RIDER >= r.rl) { r.canBrake = true; r.rl += LEVEL; }
                 seaCheck(r);
                 wageCheck(r);
             }
@@ -327,6 +330,7 @@ function step(r, accel, jump, draw, brake = false) {
         clocks(r);
         if (r.ct === CRASH_ALL) {                      // the crash over: the next take, or out;
             r.take++;                                  // and the strip erased
+            r.canBrake = true;
             if (r.take === 4) { r.phase = 3; return 0; }
             r.ct++;
             if (draw) r.w.fill(0, 0, 5 * ROW);         // all but the ground row, which stays
@@ -459,7 +463,7 @@ const palette = [];
 let started = false, fields = 0, passes = 0, checked = 0, wrong = 0, firstWrong = null, tears = 0, firstTear = null;
 let writes = 0, minGap = 99, t0 = 0, kt0 = 0, cur = null, stateWrong = 0, firstState = null;
 const crashes = { game: [], model: [] }, causes = [0, 0, 0, 0, 0, 0];
-let respawns = 0, outs = 0, takesBack = 0, brakeFields = 0;
+let respawns = 0, outs = 0, takesBack = 0, brakeFields = 0, brakeStops = 0;
 const fieldCost = [], stripCost = [[], [], [], []], keyCost = [];
 const held = heldT;
 h.onExec(N("new_field"), () => {
@@ -533,8 +537,8 @@ h.onExec(LOOP, () => {
         const r = riders[k];
         const accel = !!(h.byte(0x80 + k) & 0x80), jump = !!(h.byte(0x84 + k) & 0x80), brake = !!(h.byte(SYM.brakes + k) & 0x80);
         const was = r.phase, take = r.take;
+        if (brake && was === 0 && !r.finished) { brakeFields++; if (r.canBrake) brakeStops++; }
         const cause = step(r, accel, jump, true, brake);
-        if (brake && was === 0 && !r.finished) brakeFields++;
         if (cause) { crashes.model.push({ field: passes, strip: k, cause, pos: r.pos, js: r.js, t: r.crashT }); causes[cause]++; }
         if (was === 2 && r.phase === 0) respawns++;
         if (was !== 3 && r.phase === 3) outs++;
@@ -642,14 +646,14 @@ for (let s0 = 0; s0 < C8.length; s0++) {
     if (n < paletteWrong) { paletteWrong = n; firstPalette = first; }
 }
 const full = SKILL === 0 && JOINED.every(Boolean);     // the runs that must see every kind of crash
-const coverage = !full ? outs + riders.filter((r, p) => JOINED[p] && r.finished).length === JOINED.filter(Boolean).length : SCENARIO === "play" ? causes[1] > 0 && causes[4] > 0 && causes[5] > 0 && respawns > 0 && outs > 0 && brakeFields > 0 : outs === JOINED.filter(Boolean).length;
+const coverage = !full ? outs + riders.filter((r, p) => JOINED[p] && r.finished).length === JOINED.filter(Boolean).length : SCENARIO === "play" ? causes[1] > 0 && causes[4] > 0 && causes[5] > 0 && respawns > 0 && outs > 0 && brakeStops > 0 && brakeFields > brakeStops : outs === JOINED.filter(Boolean).length;
 const sndMissing = sndEvents.filter(([p, c, v]) => !sndReqs.some(([q, d, w]) => q === p && d === c && w === v));
 const sndCounts = Object.fromEntries(["crash", "gold", "take"].map((k) => [k, sndEvents.filter((e) => e[3] === k).length]));
 const ok = sndMissing.length === 0 && done() && endOk && endOk.back_at_title && endOk.end_fields >= 249 && endOk.end_bytes_wrong === 0 && endOk.end_text_wrong === 0 && endOk.title_text_wrong === 0 && endOk.winner_game === endOk.winner_model && checked > 0 && wrong === 0 && statusWrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 && paletteWrong === 0 && palette.length > fields / 3 - 2 &&
            Math.abs(passes - elapsed) <= 1 && coverage;
 h.finish({ scenario: SCENARIO, sound: { events: sndCounts, missing: sndMissing.slice(0, 5) }, skill: "ABCDEF"[SKILL], players: JOINED.map(Number).join(""), game_end: endOk, status_wrong: statusWrong, first_status_wrong: firstStatus, wages: riders.map((r) => r.wages), fields, passes, elapsed_fields: elapsed, coverage, checked, bytes_wrong: wrong, first_wrong: firstWrong, state_wrong: stateWrong, first_state: firstState,
            crashes: crashes.game.length, crashes_disagreeing: crashDiff.slice(0, 5), by_cause: { right_edge: causes[1], middle_right: causes[2], top_right: causes[3], landed_on: causes[4], hole: causes[5] },
-           respawns, outs, takes_back: takesBack, brake_fields: brakeFields, model_crashes: process.env.CRASHLOG ? crashes.model : undefined,
+           respawns, outs, takes_back: takesBack, brake_fields: brakeFields, brake_stops: brakeStops, model_crashes: process.env.CRASHLOG ? crashes.model : undefined,
            finals: riders.map((r) => ({ pos: r.pos, finished: r.finished, phase: r.phase, take: r.take })),
            palette_writes: palette.length, palette_wrong: paletteWrong, first_palette_wrong: firstPalette, screen_writes: writes, tearing_writes: tears, first_tear: firstTear, closest_rows_ahead_of_window: minGap,
            keys: stats(keyCost), strips: stripCost.map(stats),

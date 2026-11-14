@@ -66,7 +66,6 @@ SCREEN  = &3000
 ROW     = 640                   \ bytes in a MODE 2 character row
 RIDER   = 12                    \ the riders' fixed screen column (decision 23, PROPOSED)
 VMAX    = 250                   \ the original's velocity cap (update_player)
-BRAKE   = 4                     \ the brake: vel down by 4 a field, 250 to 0 in 63 (decision 48)
 SKY     = 24                    \ window lines 0-23 are sky; a rider on the ground has its top here
 \ the tall sprites' numbers (TALL_*) are make_data.py's, in data.6502
 TAKES   = 3                     \ the original's: out when `take` reaches 4
@@ -334,14 +333,12 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     ADC vel,X
     STA pos_frac,X
     PHP
-    LDA brakes,X
-    BPL us_drive
-    LDA vel,X                   \ brake held: slow by BRAKE a field, to 0 (decision 48)
-    SEC
-    SBC #BRAKE
-    BCS us_braked
+    LDA brakes,X                \ the brake (the original's RETURN; decision 48): a dead stop,
+    BPL us_drive                \ once a level - again at the next level's start, take or game
+    LDA can_brake,X
+    BEQ us_drive                \ used this level: accelerate as ever
     LDA #0
-.us_braked
+    STA can_brake,X
     STA vel,X
     JMP us_speed
 .us_drive
@@ -534,6 +531,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     BCC lc_rts                  \ not there yet
     LDA #1
     STA hit
+    STA can_brake,X             \ a new level: the brake again (player_can_brake)
     INC rtype,X
     LDA rtype,X
     CMP #3
@@ -1099,6 +1097,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     INC take,X                  \ field with the other strips' worst
     LDA #1
     STA sdirty,X
+    STA can_brake,X             \ a new take: the brake again
     LDA take,X
     CMP #TAKES + 1
     BNE cu_erase
@@ -1553,6 +1552,7 @@ WS = 7 * ROW                    \ one strip to the next
 .pos_frac   EQUB 0, 0, 0, 0
 .finished   EQUB 0, 0, 0, 0
 .brakes     EQUB 0, 0, 0, 0     \ brake held, per strip (bit 7; read_keys)
+.can_brake  EQUB 0, 0, 0, 0     \ non-zero: the brake not yet used this level (decision 48)
 .ct         EQUB 0, 0, 0, 0     \ fields into the crash
 .crash_tt   EQUB 0, 0, 0, 0     \ where the explosion is (window line)
 .dead_col   EQUB 0, 0, 0, 0     \ where the dead rider is drawn

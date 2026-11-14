@@ -61,6 +61,7 @@
     STA drawn_t,X
     LDA #1
     STA take,X
+    STA can_brake,X             \ the brake, once a level (decision 48)
     CLC                         \ the rider's level's start: rl = it + 304, wg = it + 76
     LDA level_lo,Y
     ADC #LO(LEVEL_COLS)
