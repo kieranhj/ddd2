@@ -1,7 +1,7 @@
 # Plan
 
 What is left. What has landed (steps 1-6, with their numbers) is in `docs/done.md`. The sequel's
-design is `docs/sequel.md`; the decisions are `docs/decisions.md` (1-48).
+design is `docs/sequel.md`; the decisions are `docs/decisions.md` (1-49).
 
 ## Now: the owner's play test (WIP published 2026-11-07, ddd2 18eaa84)
 

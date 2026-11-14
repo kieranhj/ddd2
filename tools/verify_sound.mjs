@@ -93,7 +93,7 @@ while (note < startNote + NOTES) {
 }
 
 // ---- the game: skill A, player 1 ----
-const ACCEL = 97, SKILL_A = 65;
+const ACCEL = 0, JUMP = 97, SKILL_A = 65;             // SHIFT, Z (decision 49)
 h.keyDownRaw(ACCEL);
 for (let f = 0; f < 100 && h.byte(0xa4) !== 1; f++) await h.s.runFrames(1);
 h.keyDownRaw(SKILL_A);
@@ -126,7 +126,7 @@ h.onExec(N("sf_driver"), () => { const p = h.rd(PITCH, 1, "main")[0]; });
 let lastPitch = null, periodWrong = 0, firstPeriod = null, periodChecks = 0;
 for (; field < FIELDS; field++) {
     // a simple rider: accelerate, jump now and then (crashes and golds come with it)
-    if (field % 90 === 30) h.keyDownRaw(66); else if (field % 90 === 33) h.keyUpRaw(66);
+    if (field % 90 === 30) h.keyDownRaw(JUMP); else if (field % 90 === 33) h.keyUpRaw(JUMP);
     const before = h.rd(PITCH, 1, "main")[0];
     await h.s.runFrames(1);
     const w = engineWant.find(([f]) => f === field);

@@ -5,8 +5,8 @@
 //   node tools/verify_strips.mjs [--scenario play|level] [--fields N] [--plant] [--early] [--no-holes]
 //
 // Boots sequel/build/ddd2.ssd (Model B, SHIFT+BREAK) and plays all four riders by their keys,
-// pressed by their measured internal numbers (decision 25: accelerate Z V M full stop, jump X B
-// comma slash; decision 48: brake D G K RETURN):
+// pressed by their measured internal numbers (accelerate, jump, brake; decision 49:
+// SHIFT Z X | G H J | , . / | keypad 4 5 6, on a Model B cursor LEFT DOWN RIGHT):
 //   play    P1 a planner: accelerate held, jumps when riding on would crash and jumping would not
 //           P2 the planner blind to holes: rides into them (from level 5)
 //           P3 eager: jumps whenever anything is within 40 fields - lands on obstacles, and in
@@ -70,7 +70,9 @@ const EARLY = args.includes("--early");
 const NOHOLES = args.includes("--no-holes");
 // --model Master: the same run on a Master 128 (MOS 3.20), whose font is not at &C000 (BUGS.md #3)
 const MODEL = opt("--model", "B-DFS1.2");
-const ACCEL = [97, 99, 101, 103], JUMP = [66, 100, 102, 104], BRAKE = [50, 83, 70, 73];
+// the keys (decision 49; measured in jsbeeb): player 4 on the Master's keypad, else the cursor keys
+const MASTER = /master/i.test(MODEL);
+const ACCEL = [0, 83, 102, MASTER ? 122 : 25], JUMP = [97, 84, 103, MASTER ? 123 : 41], BRAKE = [66, 69, 104, MASTER ? 26 : 121];
 const SKILL = "ABCDEF".indexOf(opt("--skill", "A")), JOINED = opt("--players", "1111").split("").map((c) => c === "1");
 if (SKILL < 0 || JOINED.length !== 4 || !JOINED.some(Boolean)) { console.error("--skill A-F, --players four of 0/1"); process.exit(2); }
 const VIDEO = opt("--video", null), VFROM = parseInt(opt("--video-from", "1150"), 10), VN = parseInt(opt("--video-fields", "750"), 10);
@@ -429,13 +431,9 @@ const titleTextWrong = textWrong(textRow("PRESS A-F TO START", 1));
 const mask = JOINED.reduce((m, j, p) => m | (j ? 1 << p : 0), 0);
 JOINED.forEach((j, p) => { if (j) { h.keyDownRaw(ACCEL[p]); heldT[p][0] = true; } });
 for (let f = 0; h.byte(0xa4) !== mask; f++) { if (f > 100) h.die("the players did not join", { joined: h.byte(0xa4), mask }); await h.s.runFrames(1); }
-if (SKILL === 1) heldT[1][1] = true;                   // B is player 2's jump key too
-if (SKILL === 3) heldT[0][2] = true;                   // and D player 1's brake
 h.keyDownRaw(SKILL_KEY);
 if (await h.runTo(N("game_start"), 40_000_000) === null) h.die("the game never started", h.gaveUp);
 h.keyUpRaw(SKILL_KEY);
-heldT[1][1] = false;
-heldT[0][2] = false;
 const riders = [0, 1, 2, 3].map(newRider);
 riders.forEach(startVisible);                          // every level on the screen at the start: its clock
 riders.forEach((r) => { r.w = riding(r); });

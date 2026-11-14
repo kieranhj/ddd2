@@ -18,13 +18,13 @@ const h = await open({ name: "verify_break", disc: "sequel/build/ddd2.ssd" });
 const N = (n) => h.need(n);
 await h.boot({ field: N("frames"), fieldBytes: 2 });
 if (await h.runTo(N("title_loop"), 40_000_000) === null) h.die("never reached the title", h.gaveUp);
-h.keyDownRaw(97);                                      // Z: player 1 joins
+h.keyDownRaw(0);                                       // SHIFT: player 1 joins (decision 49)
 await h.s.runFrames(5);
 h.keyDownRaw(65);                                      // A: skill A
 if (await h.runTo(N("game_start"), 40_000_000) === null) h.die("the game never started", h.gaveUp);
 h.keyUpRaw(65);
 await h.s.runFrames(200);
-h.keyUpRaw(97);
+h.keyUpRaw(0);
 const inGame = { fx200: h.s.readMemory(0x258, 1)[0], pc: h.cpu.pc };
 if (PLANT) for (let a = 0x280; a <= 0x2ff; a++) h.s.writeMemory(a, [0xaa]);
 h.s.reset(false);                                      // BREAK

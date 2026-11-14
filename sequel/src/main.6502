@@ -1,11 +1,11 @@
 \ main.6502 - Dare Devil Denis 2: four strips of the original, each an endless runner.
 \
-\ LAYER 4.3 (PLAN.md): the jump, collisions, the crash, respawn and takes. Each player has two
-\ keys, accelerate and jump (decision 7), measured in jsbeeb (docs/done.md layer 4.2): Z X | V B
-\ | M , | . /, one key in each of matrix columns 1-8; and a brake each, D G K RETURN (decision
-\ 48: the twelve keys form no rectangle in the matrix, so no two players make a phantom key).
-\ Letting go of accelerate slows the rider by 1 a field (decision 24, PROPOSED). Each rider has its own colours (decision 17). No enemies, gold,
-\ wages or level types yet (layers 4.4, 4.5): every strip is drawn as land.
+\ LAYER 4.3 (PLAN.md): the jump, collisions, the crash, respawn and takes. Each player has three
+\ keys, accelerate, jump and brake (decisions 7, 48, 49), measured in jsbeeb: SHIFT Z X | G H J
+\ | , . / | the Master's keypad 4 5 6 (a Model B's cursor LEFT DOWN RIGHT). Players 1-3 have
+\ one key in each of matrix columns 0-8, player 4 columns 10-11 (or 9): no four keys form a
+\ rectangle in the matrix, so no two players make a phantom key. Letting go of accelerate slows
+\ the rider by 1 a field (decision 24, PROPOSED). Each rider has its own colours (decision 17).
 \
 \ THE MACHINE. Loaded at &1900 by *RUN, it copies itself down to &0E00 (`reloc`, last in the
 \ file) over the DFS's workspace, and never touches the disc again. The MOS sets MODE 2 and turns
@@ -1702,6 +1702,17 @@ LOAD_OF_R0 = r0_image - ORG_AT + LOAD_AT
     LDA #0 : JSR OSWRCH
     DEX
     BNE cursor_off
+    LDA #0                      \ the machine (OSBYTE 0, X = 1): not a Master 128 or ET (3, 4),
+    LDX #1                      \ so no keypad - player 4's keys are the cursor keys (decision 49)
+    JSR osbyte
+    CPX #3
+    BEQ start_keypad
+    CPX #4
+    BEQ start_keypad
+    LDA #25 : STA key_numbers + 3       \ LEFT, accelerate
+    LDA #41 : STA key_numbers + 7       \ DOWN, jump
+    LDA #121 : STA key_numbers + 11     \ RIGHT, brake
+.start_keypad
     JSR install_irq - ORG_AT + LOAD_AT  \ IRQ1V ours from here on; the MOS is not called again (BUGS.md #2)
     LDX #0                      \ page 8's code and the stack page's, from the file's tail (at
 .start_copy                     \ its load address, above anything the move down wrote; MODE 2
