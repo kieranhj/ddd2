@@ -1018,7 +1018,31 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     JMP respawn
 .cu_not_respawn
     BCC cu_crash
-    RTS                         \ out: the dead rider stays where it lies
+    CMP #PHASE_IDLE
+    BNE cu_rts                  \ out: the dead rider stays where it lies
+    LDA keys,X                  \ no one playing it: accelerate held joins it, mid-game too
+    BMI join                    \ (decision 51)
+.cu_rts
+    RTS
+\ join: X = strip, idle, its accelerate held. Its player joins at the start of the course (the
+\ skill's level), as the rest did: strip_init, then the crash's end - the next field erases the
+\ strip and counts the take (0 to 1: its status block drawn then), the one after places the
+\ rider and the respawn draws the rest, each field light enough to share (cu_take).
+.join
+    LDA joined
+    ORA bit_of,X
+    STA joined
+    JSR strip_init              \ (flow8.6502) X kept
+    LDA #1
+    STA phase,X
+    LDA #CRASH_FIELDS
+    STA ct,X
+    LDA #SKY                    \ the erase rubs the standing rider out as the explosion
+    STA crash_tt,X
+    LDA #0
+    STA take,X
+    STA sdirty,X
+    RTS
 .cu_crash
     LDY ct,X
     CPY #CRASH_FIELDS

@@ -113,7 +113,8 @@ in `docs/done.md`'s latest entry):
   re-made from the original (course, sprites, rules, decisions); every strip and the status line
   every field, every crash, sound request and the game's end must agree; no write in a strip's
   window. `--scenario level` (the cost's worst case), `--skill A-F --players 1010`, `--plant`,
-  `--early`, `--no-holes` (each must fail), `--video OUT.mp4`, `--model Master`. In the harness, reads at &3000 and
+  `--early`, `--no-holes` (each must fail), `--video OUT.mp4`, `--model Master`, `--join P:F` (a
+  player joins mid-game). In the harness, reads at &3000 and
   above name the bank (`"main"`), and `onExec` only works after `boot`.
 - `verify_sound.mjs`: the title's tune against DENIS2's notes through the MOS's measured periods;
   the game's effect and engine requests. `--plant` must fail.

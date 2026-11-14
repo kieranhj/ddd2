@@ -76,6 +76,14 @@ const MASTER = /master/i.test(MODEL);
 const ACCEL = [0, 83, 102, MASTER ? 122 : 25], JUMP = [97, 84, 103, MASTER ? 123 : 41], BRAKE = [66, 69, 104, MASTER ? 26 : 121];
 const SKILL = "ABCDEF".indexOf(opt("--skill", "A")), JOINED = opt("--players", "1111").split("").map((c) => c === "1");
 if (SKILL < 0 || JOINED.length !== 4 || !JOINED.some(Boolean)) { console.error("--skill A-F, --players four of 0/1"); process.exit(2); }
+// --join P:F,...: player P (1-4), not joined on the title, presses accelerate at field F of the
+// game and plays from then on (decision 51: a player joins mid-game)
+const LATE = [undefined, undefined, undefined, undefined];
+for (const j of (opt("--join", "") || "").split(",").filter(Boolean)) {
+    const [p, f] = j.split(":").map(Number);
+    if (!(p >= 1 && p <= 4) || JOINED[p - 1] || !(f >= 0)) { console.error("--join P:F, P a player not in --players"); process.exit(2); }
+    LATE[p - 1] = f;
+}
 const VIDEO = opt("--video", null), VFROM = parseInt(opt("--video-from", "1150"), 10), VN = parseInt(opt("--video-fields", "750"), 10);
 if (!["play", "level"].includes(SCENARIO)) { console.error(`no scenario ${SCENARIO}`); process.exit(2); }
 
@@ -214,7 +222,7 @@ const PCOL = [2, 3, 6, 5].map(both);
 function statusRow(snap) {
     const w = new Uint8Array(ROW);
     snap.forEach(({ wages, takes }, p) => {
-        if (!JOINED[p]) return;                        // no block for a player not playing
+        if (!snap[p].shown) return;                    // no block for a player not playing (yet)
         const L = PCOL[p] & 0xaa, R = PCOL[p] & 0x55;
         const digit = (d, col) => DIGITS[d].forEach((g, y) => { w[col * 8 + y] = (g & 4 ? L : 0) | (g & 2 ? R : 0); w[col * 8 + 8 + y] = g & 1 ? L : 0; });
         String(wages).padStart(6, "0").split("").forEach((ch, i) => digit(+ch, 20 * p + 2 + 2 * i));
@@ -222,7 +230,8 @@ function statusRow(snap) {
     });
     return w;
 }
-const snapshot = () => riders.map((r) => ({ wages: r.wages, takes: TAKES + 1 - r.take }));
+// (a player who joined mid-game: its block from the field its take is counted, cu_take)
+const snapshot = () => riders.map((r) => ({ wages: r.wages, takes: TAKES + 1 - r.take, shown: r.phase !== 4 && r.take >= 1 }));
 const clocks = (r) => { for (const [l, f] of r.clk) { r.clk.set(l, f + 1); if ((f + 1) % 3 === 0) specPass(r, l); } };
 function startVisible(r) {
     const l0 = Math.floor(r.pos / LEVEL);
@@ -297,7 +306,12 @@ function seaCheck(r) {
 // one field of rider r; draw: keep its picture (r.w). Returns the crash's reading, or 0.
 function step(r, accel, jump, draw, brake = false) {
     r.cause = 0;
-    if (r.phase === 4) return 0;                       // no one playing it: it stands still (decision 14)
+    if (r.phase === 4) {                               // no one playing it: it stands still (decision 14),
+        clocks(r);                                     // its enemies' clocks running (crash_update); accelerate
+        if (accel)                                     // joins it (decision 51): at the course's start, at the crash's end
+            Object.assign(r, { ...newRider(r.p), clk: r.clk, spec: r.spec, w: r.w, phase: 1, ct: CRASH_ALL, take: 0 });
+        return 0;
+    }
     if (r.phase === 0) {
         if (!r.finished) {
             r.frac += r.vel;
@@ -464,7 +478,7 @@ const palette = [];
 let started = false, fields = 0, passes = 0, checked = 0, wrong = 0, firstWrong = null, tears = 0, firstTear = null;
 let writes = 0, minGap = 99, t0 = 0, kt0 = 0, cur = null, stateWrong = 0, firstState = null;
 const crashes = { game: [], model: [] }, causes = [0, 0, 0, 0, 0, 0];
-let respawns = 0, outs = 0, takesBack = 0, brakeFields = 0, brakeStops = 0;
+let respawns = 0, outs = 0, takesBack = 0, brakeFields = 0, brakeStops = 0, joins = 0;
 const fieldCost = [], stripCost = [[], [], [], []], keyCost = [];
 const held = heldT;
 h.onExec(N("new_field"), () => {
@@ -542,6 +556,7 @@ h.onExec(LOOP, () => {
         const cause = step(r, accel, jump, true, brake);
         if (cause) { crashes.model.push({ field: passes, strip: k, cause, pos: r.pos, js: r.js, t: r.crashT }); causes[cause]++; }
         if (was === 2 && r.phase === 0) respawns++;
+        if (was === 4 && r.phase !== 4) joins++;
         if (was !== 3 && r.phase === 3) outs++;
         if (r.take < take) takesBack++;
         const got = h.rd(windowAt(k), 6 * ROW, "main");
@@ -577,7 +592,7 @@ let video = null;
 const done = () => riders.every((r) => r.finished || r.phase >= 3);
 while (!done() && fields < MAXF) {
     for (let p = 0; p < 4; p++) {
-        if (!JOINED[p]) continue;
+        if (!JOINED[p] && !(LATE[p] !== undefined && fields >= LATE[p])) continue;
         const r = riders[p];
         const a = accelFor(p, fields);
         let j = false;
@@ -606,7 +621,7 @@ let endOk = null;
 if (done()) {
     started = false;                                   // the game is over: the end and the title are not watched
     let best = -1;
-    riders.forEach((r, p) => { if (JOINED[p] && (best < 0 || r.wages > riders[best].wages)) best = p; });
+    riders.forEach((r, p) => { if (r.phase !== 4 && (best < 0 || r.wages > riders[best].wages)) best = p; });
     // through the end's wait nothing may change in the strips' windows: each field of it, every
     // strip must still be the last pass's picture (only the text row between strips changes)
     let endWrong = 0, firstEnd = null, endFields = 0, endTextWrong = null;
@@ -647,14 +662,15 @@ for (let s0 = 0; s0 < C8.length; s0++) {
     if (n < paletteWrong) { paletteWrong = n; firstPalette = first; }
 }
 const full = SKILL === 0 && JOINED.every(Boolean);     // the runs that must see every kind of crash
-const coverage = !full ? outs + riders.filter((r, p) => JOINED[p] && r.finished).length === JOINED.filter(Boolean).length : SCENARIO === "play" ? causes[1] > 0 && causes[4] > 0 && causes[5] > 0 && respawns > 0 && outs > 0 && brakeStops > 0 && brakeFields > brakeStops : outs === JOINED.filter(Boolean).length;
+const lateWanted = LATE.filter((f) => f !== undefined).length;
+const coverage = lateWanted && joins !== lateWanted ? false : !full ? outs + riders.filter((r) => r.phase !== 4 && r.finished).length === riders.filter((r) => r.phase !== 4).length : SCENARIO === "play" ? causes[1] > 0 && causes[4] > 0 && causes[5] > 0 && respawns > 0 && outs > 0 && brakeStops > 0 && brakeFields > brakeStops : outs === riders.filter((r) => r.phase !== 4).length;
 const sndMissing = sndEvents.filter(([p, c, v]) => !sndReqs.some(([q, d, w]) => q === p && d === c && w === v));
 const sndCounts = Object.fromEntries(["crash", "gold", "take"].map((k) => [k, sndEvents.filter((e) => e[3] === k).length]));
 const ok = sndMissing.length === 0 && done() && endOk && endOk.back_at_title && endOk.end_fields >= 249 && endOk.end_bytes_wrong === 0 && endOk.end_text_wrong === 0 && endOk.title_text_wrong === 0 && endOk.winner_game === endOk.winner_model && checked > 0 && wrong === 0 && statusWrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 && paletteWrong === 0 && palette.length > fields / 3 - 2 &&
            Math.abs(passes - elapsed) <= 1 && coverage;
 h.finish({ scenario: SCENARIO, sound: { events: sndCounts, missing: sndMissing.slice(0, 5) }, skill: "ABCDEF"[SKILL], players: JOINED.map(Number).join(""), game_end: endOk, status_wrong: statusWrong, first_status_wrong: firstStatus, wages: riders.map((r) => r.wages), fields, passes, elapsed_fields: elapsed, coverage, checked, bytes_wrong: wrong, first_wrong: firstWrong, state_wrong: stateWrong, first_state: firstState,
            crashes: crashes.game.length, crashes_disagreeing: crashDiff.slice(0, 5), by_cause: { right_edge: causes[1], middle_right: causes[2], top_right: causes[3], landed_on: causes[4], hole: causes[5] },
-           respawns, outs, takes_back: takesBack, brake_fields: brakeFields, brake_stops: brakeStops, model_crashes: process.env.CRASHLOG ? crashes.model : undefined,
+           respawns, outs, takes_back: takesBack, brake_fields: brakeFields, brake_stops: brakeStops, joins, model_crashes: process.env.CRASHLOG ? crashes.model : undefined,
            finals: riders.map((r) => ({ pos: r.pos, finished: r.finished, phase: r.phase, take: r.take })),
            palette_writes: palette.length, palette_wrong: paletteWrong, first_palette_wrong: firstPalette, screen_writes: writes, tearing_writes: tears, first_tear: firstTear, closest_rows_ahead_of_window: minGap,
            keys: stats(keyCost), strips: stripCost.map(stats),

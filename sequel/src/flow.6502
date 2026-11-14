@@ -5,6 +5,8 @@
 \ someone has joined, starts the game for those who have, at that skill's level - the original's
 \ starting_levels_table: 1 7 13 19 25 31 (decision 15: one choice for everyone). A strip with no
 \ player stands still all game (decision 14).
+\ An idle strip's player can join mid-game too, at the course's start (decision 51: main.6502's
+\ `join`).
 \ GAME MODE 1 (decision 8): takes, and the highest wages win. When every player is out of takes
 \ or at the finish, row 2 says "PLAYER n WINS" - the most wages, the first of equals - for 250
 \ fields (5 s), then the title.
