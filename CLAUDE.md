@@ -85,11 +85,12 @@ keypad 4 5 6, cursor keys on a Model B (accelerate, jump, brake). The published 
 in `docs/done.md`'s latest entry):
 - Main RAM: the tall sprites first at &0E00 (a page start: no ALIGN gaps), then the code, then
   `font`, below &3000. Run-once code (`start`, `install_irq`) is in the file's tail, run there.
+  `tall_blank` is not stored: it is screen row 24's first 64 bytes (black, never written).
 - Low RAM: &0400-&07FF and &0900-&0CFF tables and sprites (`make_data.py`'s `low.6502`, copied by
   `reloc`); page &0D: `RTI` at &0D00 (decision 32), then small tables.
-- Page 8, the stack page below &01C0, &0236-&027F and page 3 (the tune's pitches, flow's tables,
-  the mirrored enemies; decision 46): copied by `start` after `install_irq` (once the MOS's
-  interrupt has stopped, nothing writes page 8). Never &0280-&02FF: BREAK reads it (`verify_break.mjs`).
+- Page 8, the stack page below &01C0, &020A-&027F (the vectors BYTEV-IND3V too) and page 3 (texts,
+  the tune's pitches, flow's tables, the mirrored enemies; decision 46): copied by `start` after
+  `install_irq`. Never &0200-&0209 or &0280-&02FF: BREAK reads the latter (`verify_break.mjs`).
 - The screen shows rows 3-30 only (decisions 31, 37, 41, 42; R6 28, R7 31, start &3780). Rows 0-2
   (&3000-&377F) hold code, copied once by `reloc`; row 31 (&7D80) holds the enemies', the status
   line's and the looks' state, set at each game's start.
@@ -100,14 +101,14 @@ in `docs/done.md`'s latest entry):
 - **Never call the MOS after `start`** (decision 46): its workspace in pages 2-3 holds the game's
   tables, so OSWRCH draws garbage (`BUGS.md` #2) and VDU 22 would also clear rows 0-2 and 31.
   `screen_init` clears rows 3-30; `print` draws from `font`, copied at load through OSWORD 10
-  (not &C000: a Master's font is elsewhere, `BUGS.md` #3). The vectors, &0258 (`*FX200`)
-  and &0280-&02FF stay the MOS's.
+  (not &C000: a Master's font is elsewhere, `BUGS.md` #3). &0200-&0209, &0258 (`*FX200`)
+  and &0280-&02FF stay the MOS's. Nothing may draw on row 24: it is the blank sprite.
 - **The timing** (decision 12): strip k is updated once System VIA T1 has fired k + 1 times after
   VSync, at most two bands late, or it waits a field (a dropped field, never a tear); strip 3 may
   also start in the next field before line 120. `BUGS.md` #1: fields dropped in four-way lockstep.
 - **sfx50 effects must lie at &1000 or above** (its header says why).
-- **jsbeeb draws the picture 8 lines lower** with the shortened display; every row is on its MODE 2
-  scanline after VSync (measured). A real TV syncs to VSync: check in b2 and on hardware.
+- **jsbeeb draws the picture 8 lines lower** with the shortened display (measured): check in b2
+  and on hardware.
 
 **Oracles** (headless jsbeeb, after the build; `node tools/X.mjs`; exit 0 = pass):
 - `verify_strips.mjs`: drives the title, plays four scripted riders against a model of the game
@@ -138,13 +139,10 @@ zero-page operand is `EQUB op : EQUW addr` so Baron cannot shrink it.
 - MODE 2 play area, four ground rows; MOS calls throughout (OSWRCH for text, OSBYTE &81 for keys
   and the start screen's `INKEY(2)`, OSWORD 7 for sound, OSBYTE &13 for v-sync). It does not own
   IRQ1V; DENIS2's tune runs on the v-sync event (EVNTV = &4150).
-- Keys: SPACE jump, SHIFT accelerate, RETURN stop. Skill A-F picks the starting level
-  (`starting_levels_table`, &0EF0). Workspace at &0C00-&0C5F.
-- Pokes from the disassembly: `&1B51=&60` infinite takes; `&1550=&4C,&1551=&08,&1552=&15`
-  invulnerability.
+- Keys: SPACE jump, SHIFT accelerate, RETURN stop (once a level). Skill A-F: the starting level
+  (&0EF0). Pokes: `&1B51=&60` infinite takes; `&1550=&4C,&1551=&08,&1552=&15` invulnerable.
 
 ## Verifying in jsbeeb
 
-Boot `build/ddd.ssd` (model B-DFS1.2). The loading screen waits `INKEY(3000)` - press SPACE. Title:
-SPACE. Skill: hold A for ~25 frames (a 10-frame press was missed once: the start screen polls
-`INKEY(2)` between scrolltext steps). Then SHIFT to ride.
+Boot `build/ddd.ssd` (B-DFS1.2). Loading screen and title: SPACE. Skill: hold A ~25 frames (the start
+screen polls `INKEY(2)` between scrolltext steps). Then SHIFT to ride.

@@ -55,7 +55,8 @@
     BNE gd_best
     LDA winner                  \ (glyph 0-3 is the digit 1-4)
     STA t_winner_n
-    LDX #T_WINS
+    LDA #LO(t_wins) : STA pt
+    LDA #HI(t_wins) : STA pt + 1
     JSR print
     LDA #250
     STA tmp2
@@ -67,7 +68,6 @@
     PLA
     JMP title
 
-.texts
 .t_title
     EQUW TEXT_ROW + 1 * 32
     EQUB G_P, G_R, G_E, G_S, G_S, G_SPACE, G_A, G_DASH, G_F, G_SPACE    \ PRESS A-F TO START

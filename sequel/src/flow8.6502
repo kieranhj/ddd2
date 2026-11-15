@@ -113,3 +113,11 @@
 
 \ print's (flow.6502) two pixels a byte, white: neither, the right, the left, both (MODE 2)
 .pr_white   EQUB &00, &15, &2A, &3F
+
+\ the legend's (flow.6502, decision 52) keys, a text a strip, centred under its labels (t_head:
+\ ACCEL at character columns 2-6, JUMP 8-11, BRAKE 13-17). `start` puts t_k4b in for player 4
+\ on a machine with no keypad.
+.lg_key_lo  EQUB LO(t_k1), LO(t_k2), LO(t_k3), LO(t_k4)
+.lg_key_hi  EQUB HI(t_k1), HI(t_k2), HI(t_k3), HI(t_k4)
+.t_k1       EQUB G_SKIP + 2, G_S, G_H, G_I, G_F, G_T, G_SKIP + 2, G_Z, G_SKIP + 5, G_X, &FF
+.t_k4       EQUB G_SKIP + 4, G_4, G_SKIP + 4, G_5, G_SKIP + 5, G_6, &FF     \ the keypad's

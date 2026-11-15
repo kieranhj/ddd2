@@ -24,8 +24,10 @@ PHASE_IDLE = 4                  \ no one playing this strip
     STA joined
     STA skill
     JSR set_up
-    LDX #T_TITLE
+    LDA #LO(t_title) : STA pt
+    LDA #HI(t_title) : STA pt + 1
     JSR print
+    JSR legend                  \ each strip's keys (decision 52)
     JSR tune_start              \ the title's tune (decision 40)
 .title_loop
     JSR next_field
@@ -61,36 +63,56 @@ PHASE_IDLE = 4                  \ no one playing this strip
     BPL tl_skill
     JMP title_loop
 
-\ print: X = an offset into `texts`: the screen address of its first character, then glyph
-\ numbers (`font`, below: G_SPACE draws nothing), to &FF. Each is drawn white on black, from
-\ the MOS's own font as `start` copied it through OSWORD 10 (decision 47): not from &C000, which
-\ is the font only on a Model B (a Master's is elsewhere: BUGS.md #3), and not through OSWRCH,
-\ whose workspace holds the game's tables from `start` on (decision 46, BUGS.md #2).
-\ Row 10 is cleared by screen_init, so a text need not rub out the one before it.
+\ print: (pt) a text - the screen address of its first character, then glyph numbers (`font`,
+\ below) and skips (G_SKIP + n: n characters on, nothing drawn; G_SPACE is one), to &FF.
+\ print_at: the same with the address already in d0 and (pt) at the first glyph. Each is drawn
+\ white on black, from the MOS's own font as `start` copied it through OSWORD 10 (decision 47):
+\ not from &C000, which is the font only on a Model B (a Master's is elsewhere: BUGS.md #3), and
+\ not through OSWRCH, whose workspace holds the game's tables from `start` on (decision 46,
+\ BUGS.md #2). Rows 3-30 are cleared by screen_init, so a text need not rub out the one before.
 TEXT_ROW = SCREEN + 10 * ROW    \ the black row between strips 0 and 1 (decision 42)
 .print
-    LDA texts,X : STA d0
-    INX
-    LDA texts,X : STA d0 + 1
+    LDY #0
+    LDA (pt),Y : STA d0
+    INY
+    LDA (pt),Y : STA d0 + 1
+    INY
+    BNE pr_from                 \ (always)
+.print_at
+    LDY #0
+.pr_from
+    STY ti
 .pr_char
-    INX
-    LDA texts,X
+    LDY ti
+    LDA (pt),Y
     CMP #&FF
     BEQ pr_rts
-    STX cc
-    CMP #G_SPACE
-    BCS pr_next                 \ a space: nothing drawn
-    STA tmp                     \ its glyph, font + g x 7
+    INC ti
+    LDY #1                      \ characters on after it
+    CMP #G_SKIP
+    BCC pr_glyph
+    SBC #G_SKIP                 \ (C set) a skip: n of them
+    TAY
+    BNE pr_next                 \ (always: n >= 1)
+.pr_glyph
+    STA tmp                     \ its glyph, font + g x 7 (g to 33: 16 bits)
+    LDY #0
+    STY pk + 1
     ASL A : ASL A : ASL A
+    ROL pk + 1
     SEC
-    SBC tmp                     \ g x 7, C set (no borrow, even for g = 0)
-    ADC #LO(font - 1)           \ (font - 1) + 1 + g x 7
+    SBC tmp
+    BCS pr_lo
+    DEC pk + 1
+.pr_lo
+    CLC
+    ADC #LO(font)
     STA pk
-    LDA #HI(font - 1)
-    ADC #0
+    LDA pk + 1
+    ADC #HI(font)
     STA pk + 1
-    LDY #6                      \ 7 lines: the font's eighth is blank, and so is the row's
-.pr_line
+    LDY #6                      \ 7 lines: the font's eighth is blank (a comma's tail: `start`
+.pr_line                        \ keeps its lines 1-7), and so is the row's
     LDA (pk),Y
     STA tmp
 .pr_pair                        \ two pixels a byte, left to right: column y, y + 8, y + 16, y + 24
@@ -109,6 +131,7 @@ TEXT_ROW = SCREEN + 10 * ROW    \ the black row between strips 0 and 1 (decision
     SBC #33
     TAY
     BPL pr_line
+    LDY #1
 .pr_next
     CLC                         \ the next character, 32 bytes on
     LDA d0
@@ -117,18 +140,46 @@ TEXT_ROW = SCREEN + 10 * ROW    \ the black row between strips 0 and 1 (decision
     BCC pr_nx
     INC d0 + 1
 .pr_nx
-    LDX cc
-    BNE pr_char                 \ (always: X > 0)
+    DEY
+    BNE pr_next
+    BEQ pr_char                 \ (always)
 .pr_rts
     RTS
 
+\ legend: the title's key legend (decision 52). In each strip's sky, its window row 1 the labels
+\ and row 2 its player's keys, under them (accelerate, jump, brake: decision 49); then "ACCELERATE
+\ TO JOIN" on row 17. The texts are in page 2 (the MOS's vectors), page 3 and page 8.
+.legend
+    LDX #3
+.lg_lane
+    STX lk
+    LDY wix,X
+    LDA wrow_lo + 1,Y : STA d0
+    LDA wrow_hi + 1,Y : STA d0 + 1
+    LDA #LO(t_head) : STA pt
+    LDA #HI(t_head) : STA pt + 1
+    JSR print_at
+    LDX lk
+    LDY wix,X
+    LDA wrow_lo + 2,Y : STA d0
+    LDA wrow_hi + 2,Y : STA d0 + 1
+    LDA lg_key_lo,X : STA pt
+    LDA lg_key_hi,X : STA pt + 1
+    JSR print_at
+    LDX lk
+    DEX
+    BPL lg_lane
+    LDA #LO(t_join) : STA pt
+    LDA #HI(t_join) : STA pt + 1
+    JMP print
+
 \ the glyphs the texts use, in `font`'s order: the digits first, so a player's number (0-3) is
-\ its own glyph. `start` fills `font` from these characters.
+\ its own glyph. `start` fills `font` from these characters (font_chars).
 G_1 = 0 : G_2 = 1 : G_3 = 2 : G_4 = 3 : G_DASH = 4
 G_P = 5 : G_R = 6 : G_E = 7 : G_S = 8 : G_A = 9 : G_F = 10 : G_T = 11 : G_O = 12
 G_L = 13 : G_Y = 14 : G_W = 15 : G_I = 16 : G_N = 17
-GLYPHS = 18
-G_SPACE = &80
-
-T_TITLE = t_title - texts
-T_WINS = t_wins - texts
+G_C = 18 : G_J = 19 : G_U = 20 : G_M = 21 : G_B = 22 : G_K = 23 : G_H = 24 : G_Z = 25
+G_X = 26 : G_G = 27 : G_COMMA = 28 : G_DOT = 29 : G_SLASH = 30 : G_5 = 31 : G_6 = 32 : G_D = 33
+GLYPHS = 34
+G_SKIP = &80                    \ + n: n characters on
+G_SPACE = G_SKIP + 1

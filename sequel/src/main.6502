@@ -202,7 +202,10 @@ lidx     = &ED         \ the level at the strip's left edge (0: level 1)
 cause    = &F1         \ the last crash's reading (collide)
 frames   = &F2         \ 2: fields (the VSync interrupt)
 pass_count = &F4       \ 2: passes of the loop since the game started
-    ASSERT pass_count + 2 <= &FC
+pt       = &F6         \ 2: print's text (flow.6502)
+ti       = &F8         \ print's place in it
+lk       = &F9         \ legend's strip
+    ASSERT lk + 1 <= &FC
 
 IRQ_UNINSTALL = 0
 KEYDOWN_NO_INKEY = 1            \ keydown.6502: only keydown_int is called
@@ -1632,9 +1635,14 @@ ENDSECTION
 \ interrupt, as the MOS is not called after it (tools/memwatch.mjs over a whole driven game,
 \ title and end included), and which BREAK does not need (each range filled with junk in game,
 \ then BREAK and SHIFT+BREAK: the DFS and the game come back; tools/verify_break.mjs): decision
-\ 46. Not &0200-&0235 (the vectors) or &0280-&02FF (BREAK reads them first: junk there hangs it).
-.p2_image                       \ &0236-&027F: the tune's pitches, &0258, flow's tables part 1
-SECTION page2, org = &0236, guard = &0280
+\ 46. And the vectors BYTEV-IND3V, &020A-&0235: only IRQ1V is read in play, and BREAK restores
+\ them (filled with junk: verify_break.mjs --fill; the RAM hunt, 2026-11-15). Not &0200-&0209
+\ (USERV, BRKV, IRQ1V, IRQ2V, CLIV) or &0280-&02FF (BREAK reads them first: junk there hangs it).
+.p2_image                       \ &020A-&027F: the legend's texts, the tune's pitches, &0258, flow's tables part 1
+SECTION page2, org = &020A, guard = &0280
+    INCLUDE "flowv.6502"
+    ASSERT P% <= &0236
+    SKIP &0236 - P%
     INCLUDE "../build/sound_tunep.6502"
     ASSERT P% <= &0258
     SKIP &0258 - P%
@@ -1712,13 +1720,20 @@ LOAD_OF_R0 = r0_image - ORG_AT + LOAD_AT
     LDA #10
     JSR osword
     LDX tmp2
-    LDY #1
+    LDY #1                      \ its lines 0-6 (the eighth is blank) - but a comma's 1-7: its
+    LDA FONT_BLK                \ tail is in line 7, its line 0 blank (decision 52)
+    CMP #','
+    BNE font_7
+    INY
+.font_7
+    LDA #7
+    STA tmp
 .font_line
     LDA FONT_BLK,Y
     STA font - 1,X              \ (tmp2 starts at 1)
     INX
     INY
-    CPY #8
+    DEC tmp
     BNE font_line
     STX tmp2
     LDX cc
@@ -1742,6 +1757,8 @@ LOAD_OF_R0 = r0_image - ORG_AT + LOAD_AT
     LDA #25 : STA key_numbers + 3       \ LEFT, accelerate
     LDA #41 : STA key_numbers + 7       \ DOWN, jump
     LDA #121 : STA key_numbers + 11     \ RIGHT, brake
+    LDA #LO(t_k4b) : STA lg_key_lo + 3 - &0800 + p8_image - ORG_AT + LOAD_AT   \ and the legend
+    LDA #HI(t_k4b) : STA lg_key_hi + 3 - &0800 + p8_image - ORG_AT + LOAD_AT   \ says so (page 8's image)
 .start_keypad
     JSR install_irq - ORG_AT + LOAD_AT  \ IRQ1V ours from here on; the MOS is not called again (BUGS.md #2)
     LDX #0                      \ page 8's code and the stack page's, from the file's tail (at
@@ -1755,10 +1772,10 @@ LOAD_OF_R0 = r0_image - ORG_AT + LOAD_AT
 .start_p1
     LDA p3_image - ORG_AT + LOAD_AT,X  \ page 3, whole
     STA &0300,X
-    CPX #p2_end - &0236
+    CPX #p2_end - &020A
     BCS start_p2
     LDA p2_image - ORG_AT + LOAD_AT,X
-    STA &0236,X
+    STA &020A,X
 .start_p2
     INX
     BNE start_copy
@@ -1779,7 +1796,7 @@ LOAD_OF_R0 = r0_image - ORG_AT + LOAD_AT
     RTS
 \ (The program's last page may copy a little past `end`, into the screen at &3000: harmless,
 \ as `start`'s MODE 2 clears the screen. `end <= SCREEN` is the limit.)
-.font_chars EQUS "1234-PRESAFTOLYWIN"    \ G_1 ... G_N (flow.6502), in order
+.font_chars EQUS "1234-PRESAFTOLYWINCJUMBKHZXG,./56D"   \ G_1 ... G_D (flow.6502), in order
     ASSERT P% - font_chars = GLYPHS
     INCLUDE "../../src/lib/irq_install.6502"    \ install_irq: runs once, from here too
 ENDSECTION

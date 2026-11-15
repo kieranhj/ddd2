@@ -438,15 +438,21 @@ if (await h.runTo(N("title_loop"), 40_000_000) === null) h.die("never reached th
 const textRow = (str, col) => {
     const row = new Uint8Array(ROW), font = readFileSync(join(resolveJsbeebSrc().src, "..", "public", "roms", "os.rom")).subarray(0, 96 * 8);
     [...str].forEach((ch, i) => {
-        for (let y = 0; y < 8; y++) {
-            const g = font[(ch.charCodeAt(0) - 32) * 8 + y];
+        for (let y = 0; y < 7; y++) {                  // 7 lines (print); a comma's 1-7, its tail (decision 52)
+            const g = font[(ch.charCodeAt(0) - 32) * 8 + y + (ch === "," ? 1 : 0)];
             for (let b = 0; b < 4; b++) row[(col + i) * 32 + b * 8 + y] = (g & (0x80 >> (2 * b)) ? 0x2a : 0) | (g & (0x40 >> (2 * b)) ? 0x15 : 0);
         }
     });
     return row;
 };
-const textWrong = (want) => { const got = h.rd(0x3000 + 10 * ROW, ROW, "main"); let n = 0; for (let i = 0; i < ROW; i++) if (got[i] !== want[i]) n++; return n; };
+const textWrong = (want, row = 10) => { const got = h.rd(0x3000 + row * ROW, ROW, "main"); let n = 0; for (let i = 0; i < ROW; i++) if (got[i] !== want[i]) n++; return n; };
 const titleTextWrong = textWrong(textRow("PRESS A-F TO START", 1));
+// THE LEGEND (decision 52): in each strip's sky (rows 5 + 7k and 6 + 7k) its labels and its keys
+// under them (decision 49: player 4's are the keypad's on a Master, else the cursor keys), and
+// row 17 "ACCELERATE TO JOIN"; the rest of those rows black
+const LEGEND_KEYS = [["SHIFT  Z     X", 2], ["G    H     J", 4], [",    .     /", 4], MASTER ? ["4    5     6", 4] : ["LEFT DOWN RIGHT", 3]];
+let legendWrong = textWrong(textRow("ACCELERATE TO JOIN", 1), 17);
+LEGEND_KEYS.forEach(([keys, col], k) => { legendWrong += textWrong(textRow("ACCEL JUMP BRAKE", 2), 5 + 7 * k) + textWrong(textRow(keys, col), 6 + 7 * k); });
 const mask = JOINED.reduce((m, j, p) => m | (j ? 1 << p : 0), 0);
 JOINED.forEach((j, p) => { if (j) { h.keyDownRaw(ACCEL[p]); heldT[p][0] = true; } });
 for (let f = 0; h.byte(0xa4) !== mask; f++) { if (f > 100) h.die("the players did not join", { joined: h.byte(0xa4), mask }); await h.s.runFrames(1); }
@@ -478,7 +484,7 @@ const palette = [];
 let started = false, fields = 0, passes = 0, checked = 0, wrong = 0, firstWrong = null, tears = 0, firstTear = null;
 let writes = 0, minGap = 99, t0 = 0, kt0 = 0, cur = null, stateWrong = 0, firstState = null;
 const crashes = { game: [], model: [] }, causes = [0, 0, 0, 0, 0, 0];
-let respawns = 0, outs = 0, takesBack = 0, brakeFields = 0, brakeStops = 0, joins = 0;
+let respawns = 0, outs = 0, takesBack = 0, brakeFields = 0, brakeStops = 0, joins = 0, row24Writes = 0;
 const fieldCost = [], stripCost = [[], [], [], []], keyCost = [];
 const held = heldT;
 h.onExec(N("new_field"), () => {
@@ -525,6 +531,7 @@ h.onWrite(0x3000, 0x7fff, (addr, val, ctx) => {
     if (!started) return false;
     writes++;
     const row = Math.floor((addr - 0x3000) / ROW);
+    if (row === 24) { row24Writes++; return false; }   // never: its first 64 bytes are the blank sprite (make_data.py)
     // the CRTC shows memory row 2 first (decisions 37, 41: rows 2-30), so the row shown is vc + 2
     const shown = ctx.vc + 3;                          // (decision 42: rows 3-30)
     if (row === 3) {                                   // the status line: not while it is shown
@@ -666,9 +673,9 @@ const lateWanted = LATE.filter((f) => f !== undefined).length;
 const coverage = lateWanted && joins !== lateWanted ? false : !full ? outs + riders.filter((r) => r.phase !== 4 && r.finished).length === riders.filter((r) => r.phase !== 4).length : SCENARIO === "play" ? causes[1] > 0 && causes[4] > 0 && causes[5] > 0 && respawns > 0 && outs > 0 && brakeStops > 0 && brakeFields > brakeStops : outs === riders.filter((r) => r.phase !== 4).length;
 const sndMissing = sndEvents.filter(([p, c, v]) => !sndReqs.some(([q, d, w]) => q === p && d === c && w === v));
 const sndCounts = Object.fromEntries(["crash", "gold", "take"].map((k) => [k, sndEvents.filter((e) => e[3] === k).length]));
-const ok = sndMissing.length === 0 && done() && endOk && endOk.back_at_title && endOk.end_fields >= 249 && endOk.end_bytes_wrong === 0 && endOk.end_text_wrong === 0 && endOk.title_text_wrong === 0 && endOk.winner_game === endOk.winner_model && checked > 0 && wrong === 0 && statusWrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 && paletteWrong === 0 && palette.length > fields / 3 - 2 &&
+const ok = legendWrong === 0 && row24Writes === 0 && sndMissing.length === 0 && done() && endOk && endOk.back_at_title && endOk.end_fields >= 249 && endOk.end_bytes_wrong === 0 && endOk.end_text_wrong === 0 && endOk.title_text_wrong === 0 && endOk.winner_game === endOk.winner_model && checked > 0 && wrong === 0 && statusWrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 && paletteWrong === 0 && palette.length > fields / 3 - 2 &&
            Math.abs(passes - elapsed) <= 1 && coverage;
-h.finish({ scenario: SCENARIO, sound: { events: sndCounts, missing: sndMissing.slice(0, 5) }, skill: "ABCDEF"[SKILL], players: JOINED.map(Number).join(""), game_end: endOk, status_wrong: statusWrong, first_status_wrong: firstStatus, wages: riders.map((r) => r.wages), fields, passes, elapsed_fields: elapsed, coverage, checked, bytes_wrong: wrong, first_wrong: firstWrong, state_wrong: stateWrong, first_state: firstState,
+h.finish({ scenario: SCENARIO, legend_text_wrong: legendWrong, row24_writes: row24Writes, sound: { events: sndCounts, missing: sndMissing.slice(0, 5) }, skill: "ABCDEF"[SKILL], players: JOINED.map(Number).join(""), game_end: endOk, status_wrong: statusWrong, first_status_wrong: firstStatus, wages: riders.map((r) => r.wages), fields, passes, elapsed_fields: elapsed, coverage, checked, bytes_wrong: wrong, first_wrong: firstWrong, state_wrong: stateWrong, first_state: firstState,
            crashes: crashes.game.length, crashes_disagreeing: crashDiff.slice(0, 5), by_cause: { right_edge: causes[1], middle_right: causes[2], top_right: causes[3], landed_on: causes[4], hole: causes[5] },
            respawns, outs, takes_back: takesBack, brake_fields: brakeFields, brake_stops: brakeStops, joins, model_crashes: process.env.CRASHLOG ? crashes.model : undefined,
            finals: riders.map((r) => ({ pos: r.pos, finished: r.finished, phase: r.phase, take: r.take })),
