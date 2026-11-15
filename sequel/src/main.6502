@@ -44,13 +44,12 @@
 \ decision 6, a crash, where the original's rider fell to the next ground).
 \
 \ THE CRASH (kill_player; measured, tools/measure_crash.mjs): the explosion at the rider, the
-\ dead rider flying off right and down for 42 fields, lying there 140 fields; then the next take
-\ (the original has 3: `take` 1-3, out at 4), or out (decision 8). The strip does not move. The
-\ original's clapperboard screen goes. RESPAWN (decision 8 says past the hazard; decision 26,
-\ PROPOSED, says where): standing, at the first course column past the crash with 16 columns
-\ clear - the rider's four and 12 ahead. It takes two fields: the old picture erased, then the
-\ new one drawn. A take comes back as the rider reaches each sea level, 2, 5 ... 35, if one has
-\ been lost (consider_gaining_extra_take).
+\ dead rider flying off right and down for 42 fields, lying there 140 fields; then a respawn,
+\ as often as it takes: no takes, the game is against the clock (decision 55). The strip does
+\ not move. The original's clapperboard screen goes. RESPAWN (decision 8 says past the hazard;
+\ decisions 26 and 56 say where): standing, at the first course column past the crash with 16
+\ columns clear of obstacles, holes and the vertical enemies - the rider's four and 12 ahead.
+\ It takes two fields: the old picture erased, then the new one drawn.
 \
 \   strip_go .. strip_done      one strip's update (X = strip), for a cycle-count breakpoint pair
 \   keys_go .. keys_done        the twelve keys
@@ -68,7 +67,6 @@ RIDER   = 12                    \ the riders' fixed screen column (decision 23, 
 VMAX    = 250                   \ the original's velocity cap (update_player)
 SKY     = 24                    \ window lines 0-23 are sky; a rider on the ground has its top here
 \ the tall sprites' numbers (TALL_*) are make_data.py's, in data.6502
-TAKES   = 5                     \ out when `take` reaches TAKES + 1 (the original's 3; decision 50)
 DEAD_COL = 18                   \ where the dead rider ends up, columns right of the rider
 LEVEL_COLS = 4 * 76             \ a level: four grounds (decision 18)
 CLEAR   = 16                    \ respawn: columns clear from the rider's left column (decision 26)
@@ -121,14 +119,13 @@ dg_i     = &9F
 dg_n     = &A0
 dg_g     = &A1
 dg_y     = &A2
-skill    = &A3                  \ flow.6502: 0-5, A-F
+dg_c     = &A3                  \ status_draw: the clock's digits to draw
 joined   = &A4                  \ bit p: player p plays
 winner   = &A5
 cspr     = &A6                  \ cu_crash: the dead rider frame (3, 4)
 hc       = &A7                  \ specials.6502: 4
 top_put  = &AB                  \ compose_rider: the highest line put back
 tmp_snd  = &AC                  \ sound.6502's, the interrupt's only: 3
-tune_at  = &AF                  \ 2
 mph      = &B1                  \ 4: marks.6502, per strip: its first marker's screen column
 msv      = &B5                  \ 16: per strip x 4 + marker, the ground byte it covers
 en_n     = &1E                  \ enemies on the list this field
@@ -176,11 +173,12 @@ first    = &28
 vel      = &2C
 js       = &30         \ fields into the jump (0: on the ground)
 drawn_t  = &34         \ where the rider's top is drawn
-phase    = &38         \ 0 riding, 1 the crash, 2 respawn, 3 out of takes
+phase    = &38         \ 0 riding, 1 the crash, 2 respawn, 4 idle (flow.6502)
 nb_lo    = &3C         \ the next level's start after it
 nb_hi    = &40
 rtype    = &44         \ the level type the rider is in (0 land, 1 sea, 2 snow)
-take     = &48         \ the original's `take`: 1-5, out at 6 (decision 50)
+clock    = &48         \ 3: the game's clock, seconds left, a decimal digit a byte (decision 55)
+clk_ch   = &4B         \ its digits that changed (1-3, the last first) since the status was drawn
 ltype    = &4C         \ the level type at the strip's left edge (column 0)
     ASSERT ltype + 4 = &50
 \ and more in the MOS's zero page, &C5-&FB (the RAM hunt, 2026-11-15): nothing reads or writes it
@@ -191,7 +189,7 @@ ltype    = &4C         \ the level type at the strip's left edge (column 0)
 pos_frac = &C5
 finished = &C9
 brakes   = &CD         \ brake held (bit 7; read_keys)
-can_brake = &D1        \ non-zero: the brake not yet used this level (decision 48)
+clk_next = &D1         \ the field (frames' low byte) the clock next steps at (game_done)
 ct       = &D5         \ fields into the crash
 crash_tt = &D9         \ where the explosion is (window line)
 dead_col = &DD         \ where the dead rider is drawn
@@ -358,11 +356,8 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     STA pos_frac,X
     PHP
     LDA brakes,X                \ the brake (the original's RETURN; decision 48): a dead stop,
-    BPL us_drive                \ once a level - again at the next level's start, take or game
-    LDA can_brake,X
-    BEQ us_drive                \ used this level: accelerate as ever
+    BPL us_drive                \ any time, as often as it is pressed (decision 54)
     LDA #0
-    STA can_brake,X
     STA vel,X
     JMP us_speed
 .us_drive
@@ -537,8 +532,8 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
 
 \ level_check: X = strip. As the rider reaches each level's start (its left column at it, as
 \ the original's initialise_level with player_x 0): its rider sprite becomes that level type's
-\ (`rtype`; drawn again: `hit`), and at a sea level a take comes back if one has been lost
-\ (consider_gaining_extra_take: level type 1, not level 1, not take 1). X kept.
+\ (`rtype`; drawn again: `hit`). (The original's take back at a sea level went with the takes:
+\ decision 55.) X kept.
 .level_check
     CLC
     LDA pos_lo,X
@@ -555,23 +550,12 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     BCC lc_rts                  \ not there yet
     LDA #1
     STA hit
-    STA can_brake,X             \ a new level: the brake again (player_can_brake)
     INC rtype,X
     LDA rtype,X
     CMP #3
-    BNE lc_type
+    BNE lc_next
     LDA #0
     STA rtype,X
-.lc_type
-    CMP #1
-    BNE lc_next                 \ not sea
-    LDA take,X
-    CMP #2
-    BCC lc_next
-    DEC take,X
-    LDA #1
-    STA sdirty,X
-    JSR sound_take
 .lc_next
     CLC
     LDA rl_lo,X
@@ -1178,7 +1162,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
 \ the crash, and after it (kill_player)
 \ ---------------------------------------------------------------------------------------------
 
-\ crash_update: X = strip, A = its phase: 1 the crash, 2 respawn, 3 out of takes.
+\ crash_update: X = strip, A = its phase: 1 the crash, 2 respawn, 4 idle.
 .crash_update
     PHA
     JSR enemy_clocks            \ the enemies' clocks run on (decision 28); X kept
@@ -1188,16 +1172,14 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     JMP respawn
 .cu_not_respawn
     BCC cu_crash
-    CMP #PHASE_IDLE
-    BNE cu_rts                  \ out: the dead rider stays where it lies
-    LDA keys,X                  \ no one playing it: accelerate held joins it, mid-game too
+    LDA keys,X                  \ idle, no one playing it: accelerate held joins it, mid-game too
     BMI join                    \ (decision 51)
 .cu_rts
     RTS
-\ join: X = strip, idle, its accelerate held. Its player joins at the start of the course (the
-\ skill's level), as the rest did: strip_init, then the crash's end - the next field erases the
-\ strip and counts the take (0 to 1: its status block drawn then), the one after places the
-\ rider and the respawn draws the rest, each field light enough to share (cu_take).
+\ join: X = strip, idle, its accelerate held. Its player joins at the start of the course, as
+\ the rest did: strip_init, then the crash's end - the next field erases the strip (its status
+\ block drawn then), the one after places the rider and the respawn draws the rest, each field
+\ light enough to share (cu_take). It rides on the game's clock, what is left of it (decision 55).
 .join
     LDA joined
     ORA bit_of,X
@@ -1210,7 +1192,6 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDA #SKY                    \ the erase rubs the standing rider out as the explosion
     STA crash_tt,X
     LDA #0
-    STA take,X
     STA sdirty,X
     RTS
 .cu_crash
@@ -1290,20 +1271,11 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
 .cu_tick
     INC ct,X
     RTS
-.cu_take                        \ the crash is over: the next take, or out; the respawn
-    CPY #CRASH_FIELDS           \ over three fields - erased; placed, its ground and look;
-    BNE cu_place                \ the rest drawn (phase 2) - each light enough to share a
-    INC take,X                  \ field with the other strips' worst
+.cu_take                        \ the crash is over: the respawn, over three fields - erased;
+    CPY #CRASH_FIELDS           \ placed, its ground and look; the rest drawn (phase 2) - each
+    BNE cu_place                \ light enough to share a field with the other strips' worst
     LDA #1
-    STA sdirty,X
-    STA can_brake,X             \ a new take: the brake again
-    LDA take,X
-    CMP #TAKES + 1
-    BNE cu_erase
-    LDA #3
-    STA phase,X
-    RTS
-.cu_erase
+    STA sdirty,X                \ (a player joining: its status block now)
     INC ct,X
     JMP erase_strip
 .cu_place
@@ -1367,106 +1339,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
 
 \ (respawn: flow1.6502, the stack page)
 
-\ place: X = strip, its picture erased. Standing, at the first column past the crash with
-\ CLEAR columns clear (decision 26); the levels and grounds it has reached. X kept.
-.place
-    CLC                         \ rq = the rider's course column
-    LDA pos_lo,X
-    ADC #RIDER
-    STA rq
-    LDA pos_hi,X
-    ADC #0
-    STA rq + 1
-    LDA first,X
-    STA obj
-.rs_scan
-    CLC                         \ the next object starts at rq + CLEAR or later: rq is clear
-    LDA rq
-    ADC #CLEAR
-    STA tmp
-    LDA rq + 1
-    ADC #0
-    STA tmp2
-    LDY obj
-    LDA obj_x_lo,Y
-    CMP tmp
-    LDA obj_x_hi,Y
-    SBC tmp2
-    BCS rs_found
-    LDA obj_kind,Y              \ else, if it ends past rq, past it
-    BMI rs_hole
-    LDA #4
-    BNE rs_wid
-.rs_hole
-    AND #&1F                    \ a hole's width (bits 5-6: its level type)
-.rs_wid
-    CLC
-    ADC obj_x_lo,Y
-    STA oend
-    LDA obj_x_hi,Y
-    ADC #0
-    STA oend + 1
-    LDA rq
-    CMP oend
-    LDA rq + 1
-    SBC oend + 1
-    BCS rs_next                 \ rq >= its end
-    LDA oend
-    STA rq
-    LDA oend + 1
-    STA rq + 1
-.rs_next
-    INC obj
-    JMP rs_scan
-.rs_found
-    LDX strip
-    SEC
-    LDA rq
-    SBC #RIDER
-    STA pos_lo,X
-    LDA rq + 1
-    SBC #0
-    STA pos_hi,X
-    LDA #0
-    STA pos_frac,X
-    STA vel,X
-    STA js,X
-    LDA #SKY
-    STA drawn_t,X
-    LDA pos_lo,X                \ at or past the finish: finished (decision 22)
-    CMP #LO(FINISH - RIDER)
-    LDA pos_hi,X
-    SBC #HI(FINISH - RIDER)
-    BCC rs_first
-    LDA #1
-    STA finished,X
-    LDA #LO(FINISH - RIDER)
-    STA pos_lo,X
-    LDA #HI(FINISH - RIDER)
-    STA pos_hi,X
-.rs_first                       \ first: past the objects now gone off the left
-    LDA first,X
-    STA obj
-    JSR object_column
-    BCS rs_drawn
-    BPL rs_drawn
-    LDX strip
-    INC first,X
-    JMP rs_first
-.rs_drawn
-    LDX strip
-    JSR level_check             \ the levels the rider has reached
-    JSR skip_grounds            \ the grounds it has passed, unpaid
-.rs_levels                      \ and the one at the left edge
-    LDA pos_lo,X
-    CMP nb_lo,X
-    LDA pos_hi,X
-    SBC nb_hi,X
-    BCC rs_placed
-    JSR next_level
-    JMP rs_levels
-.rs_placed
-    JMP mark_phase              \ its markers' place (flow1.6502)
+\ (place: place.6502, rows 0-2)
 
 \ draw_strip: X = strip. The whole strip from scratch at its pos: the ground in each level's
 \ colour, every object on the screen, the rider. Over black (MODE 2, or erase_strip).
@@ -1797,7 +1670,6 @@ SECTION page2, org = &020A, guard = &0280
     INCLUDE "flowv.6502"
     ASSERT P% <= &0236
     SKIP &0236 - P%
-    INCLUDE "../build/sound_tunep.6502"
     ASSERT P% <= &0258
     SKIP &0258 - P%
     EQUB 2                      \ &0258: *FX200,2's value, as !BOOT set it (decision 43)
@@ -1813,6 +1685,8 @@ ENDSECTION
 .r0_image                       \ row 0, &3000-&327F: off the display (decision 37)
 SECTION row0, org = SCREEN, guard = SCREEN + 3 * ROW
     INCLUDE "status.6502"
+    INCLUDE "place.6502"
+    INCLUDE "flow0.6502"
     INCLUDE "marks0.6502"
     INCLUDE "sound.6502"
 .r0_end
@@ -1958,7 +1832,7 @@ LOAD_OF_R0 = r0_image - ORG_AT + LOAD_AT
     RTS
 \ (The program's last page may copy a little past `end`, into the screen at &3000: harmless,
 \ as `start`'s MODE 2 clears the screen. `end <= SCREEN` is the limit.)
-.font_chars EQUS "1234-PRESAFTOLYWINCJUMBKHZXG,./56D"   \ G_1 ... G_D (flow.6502), in order
+.font_chars EQUS "1234VPRESAFTOLYWINCJUMBKHZXG,./56D"   \ G_1 ... G_D (flow.6502), in order
     ASSERT P% - font_chars = GLYPHS
     INCLUDE "../../src/lib/irq_install.6502"    \ install_irq: runs once, from here too
 ENDSECTION

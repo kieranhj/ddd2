@@ -4,6 +4,42 @@ What has landed, with the number that says it landed. `PLAN.md` is what is left.
 
 ---
 
+## The third play test (2026-11-15, decisions 54-59)
+
+The owner's notes, built and checked on branch `playtest3-2026-11-15` (stacked on
+`playtest2-2026-11-14`):
+
+| Note | Built | Shown able to fail |
+|---|---|---|
+| the brake always | a dead stop every field it is held - decision 54 | a brake that works once: P4's next stop, field 840, 21 states wrong |
+| no lives, against the clock | one 120 s clock for everyone, in every block; the furthest wins - decision 55 | a 119 s model: 40,432 status bytes wrong in 1,500 fields; `clk_next` checked at the first pass |
+| the bouncing policeman's respawn loop | the respawn clear of the vertical enemies too - decision 56 | `--no-vert` (the check skipped): the game puts P3 at 1870, under one, and it crashes again 3 fields on (cause 2); the model at 1876 - 5,247 bytes, 18 states wrong |
+| a little score per marker | 5 wages at each floor marker - decision 59 | a model with no marker pay: 79,434 status bytes wrong in 1,500 fields |
+| difficulty A only | level 1 always; SPACE starts - decision 57 | `verify_break`, `verify_sound` and every `verify_strips` run start with SPACE |
+| the game's name on the title; then no tune, no Q | "DARE DEVIL DENIS 2" on row 4; the tune, its player and the take effect went - decision 58 | the legend check reads row 4; `verify_sound --plant` (a gold effect on the title): 11 loud fields |
+
+**MEASURED** in jsbeeb 2.10.2: SPACE 98, Q 16 (OSBYTE 121 by host key name, Model B and Master,
+proven on Z 97 and X 66). Q was built and then dropped with the tune.
+
+**The RAM.** The clock, the respawn check and the title came to about 240 bytes more than there
+was (main RAM over by 109, the stack page by 71, rows 0-2 by 58). The take effect (`sfx_effect_take`,
+186 bytes) and the title's tune (370 bytes of notes, its 28 pitches in page 2, `tune_note`) went,
+in rows 0-2; `place` and `game_done` moved there. Now: main RAM ends &2F19 (**231 free**), the
+stack page's image &015C (116 below &01D0), rows 0-2 &36D3 (173), page 8 &08D6 (42), page 3
+&03E7 (25), page 2 &026E (18) with &0236-&0257 (34) free too. The skills' tables (page 2, page 3)
+went with B-F.
+
+**The cost:** with no takes every rider plays the whole 120 s, so the four-way lockstep lasts
+longer: `play` 5,894 passes in 6,001 fields (**107 dropped**, 1.8%; median field 19,238 cycles,
+was 11,490), `--model Master` 109, 1010 with two joins 104, `level` 2; 0110 and 0001 none
+(`BUGS.md` #1).
+
+**Suite** (`play`, `level`, 0110, 1010 with two joins, 0001, `--model Master`, `--plant`,
+`--no-vert`, `verify_sound` and its plant, `verify_break` with its plant and zero-page fills on
+both machines): 0 bytes, 0 states, 0 status-line bytes wrong everywhere; the legend and the name
+right; crashes all agreed; the clock out at 120 steps in every run, the winner agreed; failing
+only on the dropped fields, and the plants as they must.
+
 ## The second play test (2026-11-14/15, decisions 48-53)
 
 The owner's notes, each built and checked on branch `playtest2-2026-11-14`, one commit each:

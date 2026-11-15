@@ -2,7 +2,7 @@
 \ it there once install_irq has flushed the MOS's buffers (nothing writes the page after;
 \ decision 32).
 
-\ set_up: every strip at skill `skill`'s level; the joined ones to play, the rest idle; all drawn.
+\ set_up: every strip at level 1; the joined ones to play, the rest idle; all drawn.
 .set_up
     JSR screen_init
     JSR enemy_init
@@ -17,65 +17,52 @@
     BPL su_strip
     RTS
 
-\ game (flow.6502's): everyone joined at skill `skill`'s level; the loop.
+\ game (flow.6502's): everyone joined, at level 1 (decision 57: skill A only); the clock from
+\ 120 seconds, its first step 50 fields after the first pass's (decision 55); the loop.
 .game
-    JSR tune_stop
+    JSR sound_quiet
     JSR set_up
     LDA #0
     STA pass_count
     STA pass_count + 1
 .game_start
-    JSR next_field              \ start on a whole field
+    JSR next_field              \ start on a whole field (A: the field before it)
+    CLC
+    ADC #51
+    STA clk_next
     JMP loop
 
-\ strip_init: X = strip. Its state at the start of skill `skill`'s level. X kept.
+\ strip_init: X = strip. Its state at the start of level 1: the strip's left edge at course
+\ column 0, the rider at column 12 (the original's player_x 0). X kept.
 .strip_init
-    LDY skill
-    LDA start_lo,Y
-    STA pos_lo,X
-    LDA start_hi,Y
-    STA pos_hi,X
-    LDA start_lidx,Y
-    ASL A
-    ASL A
-    STA gcount,X                \ the grounds before the rider's level
-    LDA edge_lidx,Y             \ the level at the strip's left edge: 12 columns back, the one
-    STA lidx,X                  \ before (but at level 1), and its type
-    LDA edge_ltype,Y
-    STA ltype,X
-    LDA edge_nb_lo,Y            \ and the next level's start after it
-    STA nb_lo,X
-    LDA edge_nb_hi,Y
-    STA nb_hi,X
     LDA #0
+    STA pos_lo,X
+    STA pos_hi,X
+    STA gcount,X                \ the grounds before the rider's level
+    STA lidx,X                  \ the level at the strip's left edge, and its type
+    STA ltype,X
     STA pos_frac,X
     STA vel,X
     STA js,X
     STA finished,X
     STA ct,X
-    STA rtype,X                 \ every starting level is land: (1 + 6k - 1) MOD 3 = 0
+    STA rtype,X                 \ level 1 is land
     STA first,X
+    STA nb_hi,X                 \ and the next level's start after it
+    STA wg_hi,X                 \ the rider's first ground's end, and its next level's start
+    STA rl_hi,X
+    LDA #LO(LEVEL_COLS)
+    STA nb_lo,X
+    STA rl_lo,X
+    ASSERT HI(LEVEL_COLS) = 1
+    INC nb_hi,X
+    INC rl_hi,X
+    LDA #76
+    STA wg_lo,X
     LDA #&FF                    \ its look buffer: to be made
     STA look,X
     LDA #SKY
     STA drawn_t,X
-    LDA #1
-    STA take,X
-    STA can_brake,X             \ the brake, once a level (decision 48)
-    CLC                         \ the rider's level's start: rl = it + 304, wg = it + 76
-    LDA level_lo,Y
-    ADC #LO(LEVEL_COLS)
-    STA rl_lo,X
-    LDA level_hi,Y
-    ADC #HI(LEVEL_COLS)
-    STA rl_hi,X
-    CLC
-    LDA level_lo,Y
-    ADC #76
-    STA wg_lo,X
-    LDA level_hi,Y
-    ADC #0
-    STA wg_hi,X
     LDA joined                  \ playing (its status block drawn), or idle (none)
     AND bit_of,X
     BEQ si_idle

@@ -1,0 +1,114 @@
+\ flow0.6502 - flow.6502's game end and the clock, assembled for rows 0-2 (main.6502's row0
+\ section; room, 2026-11-15).
+
+\ game_done: after a pass. THE CLOCK (decision 55): at field clk_next (frames' low byte: one
+\ read, so no carry between two bytes can tear it) a second off, and clk_next 50 on; every block
+\ shown has its clock drawn again (the digits that changed: clk_ch). The game's end when it is
+\ out, or when every player is at the finish.
+.game_done
+    LDA frames
+    SEC
+    SBC clk_next
+    BMI gd_riders               \ not yet (within 127 fields either way)
+    LDA clk_next
+    CLC
+    ADC #50
+    STA clk_next
+    LDX #2
+    LDA #0
+    STA clk_ch
+.gd_digit
+    INC clk_ch
+    DEC clock,X
+    BPL gd_ticked
+    LDA #9
+    STA clock,X
+    DEX
+    BPL gd_digit                \ (never past the first: the game ends at 000)
+.gd_ticked
+    LDX #3
+.gd_dirty
+    LDY strip6,X                \ its block shown (its wages' first digit not &FF): drawn again
+    LDA shown,Y
+    BMI gd_dnext
+    LDA #1
+    STA sdirty,X
+.gd_dnext
+    DEX
+    BPL gd_dirty
+    LDA clock
+    ORA clock + 1
+    ORA clock + 2
+    BEQ gd_end
+.gd_riders
+    LDX #3
+.gd_strip
+    LDA phase,X
+    CMP #PHASE_IDLE
+    BEQ gd_next
+    LDA finished,X
+    BNE gd_next
+    RTS                         \ someone is still riding
+.gd_next
+    DEX
+    BPL gd_strip
+.gd_end                         \ the end: the winner, the furthest (pos), then the most wages,
+    JSR status_update           \ then the first; the clock as it ended
+    LDA #&FF
+    STA winner
+    LDX #0
+.gd_best
+    LDA phase,X
+    CMP #PHASE_IDLE
+    BEQ gd_bnext
+    LDY winner
+    BMI gd_take                 \ the first player
+    LDA pos_hi,X                \ further than the best so far?
+    CMP pos_hi,Y
+    BNE gd_further
+    LDA pos_lo,X
+    CMP pos_lo,Y
+    BNE gd_further
+    STX tmp                     \ as far: more wages? compare digit by digit
+    LDA strip6,X
+    STA tmp2
+    LDA strip6,Y
+    TAY
+    LDX tmp2
+    LDA #6
+    STA en_cnt
+.gd_cmp
+    LDA wages,X
+    CMP wages,Y
+    BNE gd_differ
+    INX
+    INY
+    DEC en_cnt
+    BNE gd_cmp
+    LDX tmp                     \ equal: the first stays
+    JMP gd_bnext
+.gd_differ
+    LDX tmp
+.gd_further
+    BCC gd_bnext                \ less
+.gd_take
+    STX winner
+.gd_bnext
+    INX
+    CPX #4
+    BNE gd_best
+    LDA winner                  \ (glyph 0-3 is the digit 1-4)
+    STA t_winner_n
+    LDA #LO(t_wins) : STA pt
+    LDA #HI(t_wins) : STA pt + 1
+    JSR print
+    LDA #250
+    STA tmp2
+.gd_wait
+    JSR next_field
+    DEC tmp2
+    BNE gd_wait
+    PLA                         \ (game_done was called from the loop: it does not return)
+    PLA
+    JMP title
+

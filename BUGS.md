@@ -55,6 +55,10 @@ play testing decides whether it matters.
     (**20 dropped**), B 0110, F 0001, `level` none. The rider's part of a strip's update: p99
     5,389 -> 7,214 cycles (D 1010); the four-rider worst field 53,770. The collisions run only on
     a field the rider is drawn again (anything new in its columns) - during every jump field.
+- **2026-11-15, after the third play test** (branch `playtest3-2026-11-15`: no takes, so every
+  rider plays the whole 120 s clock, decision 55): `play` 5,894 passes in 6,001 fields (**107
+  dropped**, 1.8%; median field 19,238 cycles, was 11,490 when riders went out), `--model Master`
+  109, 1010 with two joins 104, `level` 2 (in 6,001); 0110 and 0001 none.
 
 ### Ruled out / done
 - Four respawns at once: fixed (the three-field respawn, 58,541 -> under 15,000).

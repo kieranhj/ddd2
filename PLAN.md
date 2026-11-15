@@ -1,7 +1,7 @@
 # Plan
 
 What is left. What has landed (steps 1-6, with their numbers) is in `docs/done.md`. The sequel's
-design is `docs/sequel.md`; the decisions are `docs/decisions.md` (1-53).
+design is `docs/sequel.md`; the decisions are `docs/decisions.md` (1-59).
 
 ## Now: the owner's play test (WIP published 2026-11-07, ddd2 18eaa84)
 
@@ -25,9 +25,9 @@ design is `docs/sequel.md`; the decisions are `docs/decisions.md` (1-53).
 
 ## Step 7 - game modes 2 and 3, then the endless part
 
-1. **Game modes 2 and 3** (decision 8): a timed race (crashes cost standstill time, the furthest
-   wins) and last rider standing. Needs the owner's answers first: the race's length, what a crash
-   costs, how a mode is chosen on the title.
+1. **Game modes** (decision 8): the timed race is now the only game (decision 55: 120 s, the
+   furthest wins, a crash costs its own time). Last rider standing, or a count-up race, would need
+   the owner's word and a way to choose on the title.
 2. **The endless part:** loop the last sets, then a level editor or a procedural generator.
-3. **RAM:** main RAM has 1 byte free after the second play test (`docs/done.md`, its RAM ledger); the
-   levers left are listed there ("measured, not built").
+3. **RAM:** after the third play test main RAM has 231 bytes free, the stack page 116, rows 0-2
+   about 170 (`docs/done.md`, its latest entry): the tune and the take effect went (decision 58).

@@ -1,0 +1,173 @@
+\ place.6502 - main.6502's respawn place, assembled for rows 0-2 (main.6502's row0 section:
+\ room, 2026-11-15).
+
+\ place: X = strip, its picture erased. Standing, at the first column past the crash with
+\ CLEAR columns clear of obstacles and holes (decision 26) and of the vertical enemies' columns
+\ (decision 56: a policeman bouncing over the rider killed it again and again); the levels and
+\ grounds it has reached. X kept.
+vq = el_start                   \ (2: enemies.6502's, free here) a vertical enemy's column
+.place
+    CLC                         \ rq = the rider's course column
+    LDA pos_lo,X
+    ADC #RIDER
+    STA rq
+    LDA pos_hi,X
+    ADC #0
+    STA rq + 1
+.rs_again
+    LDA first,X
+    STA obj
+.rs_scan
+    CLC                         \ the next object starts at rq + CLEAR or later: rq is clear
+    LDA rq
+    ADC #CLEAR
+    STA tmp
+    LDA rq + 1
+    ADC #0
+    STA tmp2
+    LDY obj
+    LDA obj_x_lo,Y
+    CMP tmp
+    LDA obj_x_hi,Y
+    SBC tmp2
+    BCS rs_found
+    LDA obj_kind,Y              \ else, if it ends past rq, past it
+    BMI rs_hole
+    LDA #4
+    BNE rs_wid
+.rs_hole
+    AND #&1F                    \ a hole's width (bits 5-6: its level type)
+.rs_wid
+    CLC
+    ADC obj_x_lo,Y
+    STA oend
+    LDA obj_x_hi,Y
+    ADC #0
+    STA oend + 1
+    LDA rq
+    CMP oend
+    LDA rq + 1
+    SBC oend + 1
+    BCS rs_next                 \ rq >= its end
+    LDA oend
+    STA rq
+    LDA oend + 1
+    STA rq + 1
+.rs_next
+    INC obj
+    JMP rs_scan
+.rs_found                       \ clear of the objects (tmp: rq + CLEAR). The vertical enemies of
+    LDX strip                   \ the level at the left edge and each after it that starts
+    LDY lidx,X                  \ before rq + CLEAR: one in rq .. rq + CLEAR - 1 (its 4 columns
+    SEC                         \ from vq on), and rq goes past it and round again
+    LDA nb_lo,X
+    SBC #LO(LEVEL_COLS)
+    STA oend                    \ the level's start
+    LDA nb_hi,X
+    SBC #HI(LEVEL_COLS)
+    STA oend + 1
+.rs_lev
+    CPY #NUM_LEVELS
+    BCS rs_clear
+    LDA oend
+    CMP tmp
+    LDA oend + 1
+    SBC tmp2
+    BCS rs_clear
+    LDX ven_first,Y
+.rs_ven
+    TXA
+    CMP ven_first + 1,Y
+    BEQ rs_nlev
+    CLC
+    LDA oend
+    ADC ven_off_lo,X
+    STA vq
+    LDA oend + 1
+    ADC ven_off_hi,X
+    STA vq + 1
+    LDA vq                      \ at rq + CLEAR or on: clear of it
+    CMP tmp
+    LDA vq + 1
+    SBC tmp2
+    BCS rs_vnext
+    LDA vq                      \ its end, vq + 4
+    ADC #4                      \ (C clear)
+    STA vq
+    BCC rs_vend
+    INC vq + 1
+.rs_vend
+    LDA rq                      \ rq at its end or on: past it
+    CMP vq
+    LDA rq + 1
+    SBC vq + 1
+    BCS rs_vnext
+    LDA vq
+    STA rq
+    LDA vq + 1
+    STA rq + 1
+    LDX strip
+    JMP rs_again
+.rs_vnext
+    INX
+    BNE rs_ven                  \ (always)
+.rs_nlev
+    INY
+    CLC
+    LDA oend
+    ADC #LO(LEVEL_COLS)
+    STA oend
+    LDA oend + 1
+    ADC #HI(LEVEL_COLS)
+    STA oend + 1
+    JMP rs_lev
+.rs_clear
+    LDX strip
+    SEC
+    LDA rq
+    SBC #RIDER
+    STA pos_lo,X
+    LDA rq + 1
+    SBC #0
+    STA pos_hi,X
+    LDA #0
+    STA pos_frac,X
+    STA vel,X
+    STA js,X
+    LDA #SKY
+    STA drawn_t,X
+    LDA pos_lo,X                \ at or past the finish: finished (decision 22)
+    CMP #LO(FINISH - RIDER)
+    LDA pos_hi,X
+    SBC #HI(FINISH - RIDER)
+    BCC rs_first
+    LDA #1
+    STA finished,X
+    LDA #LO(FINISH - RIDER)
+    STA pos_lo,X
+    LDA #HI(FINISH - RIDER)
+    STA pos_hi,X
+.rs_first                       \ first: past the objects now gone off the left
+    LDA first,X
+    STA obj
+    JSR object_column
+    BCS rs_drawn
+    BPL rs_drawn
+    LDX strip
+    INC first,X
+    JMP rs_first
+.rs_drawn
+    LDX strip
+    JSR level_check             \ the levels the rider has reached
+    JSR skip_grounds            \ the grounds it has passed, unpaid
+.rs_levels                      \ and the one at the left edge
+    LDA pos_lo,X
+    CMP nb_lo,X
+    LDA pos_hi,X
+    SBC nb_hi,X
+    BCC rs_placed
+    JSR next_level
+    JMP rs_levels
+.rs_placed
+    JMP mark_phase              \ its markers' place (flow1.6502)
+

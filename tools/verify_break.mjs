@@ -2,7 +2,7 @@
 //
 //   node tools/verify_break.mjs [--plant]
 //
-// Boots sequel/build/ddd2.ssd (Model B, SHIFT+BREAK), joins player 1, starts a game at skill A,
+// Boots sequel/build/ddd2.ssd (Model B, SHIFT+BREAK), joins player 1, starts a game with SPACE,
 // rides 200 fields, then presses BREAK. The game has taken the DFS's workspace, IRQ1V and parts of
 // the MOS's workspace in pages 2 and 3 (decision 46), so the machine must come back by `*FX200,2`
 // (BREAK clears memory, decision 43) to BASIC with the DFS: PAGE (&18) = &19 after 300 fields (&0E
@@ -28,9 +28,9 @@ await h.boot({ field: N("frames"), fieldBytes: 2 });
 if (await h.runTo(N("title_loop"), 40_000_000) === null) h.die("never reached the title", h.gaveUp);
 h.keyDownRaw(0);                                       // SHIFT: player 1 joins (decision 49)
 await h.s.runFrames(5);
-h.keyDownRaw(65);                                      // A: skill A
+h.keyDownRaw(98);                                      // SPACE: start (decision 57)
 if (await h.runTo(N("game_start"), 40_000_000) === null) h.die("the game never started", h.gaveUp);
-h.keyUpRaw(65);
+h.keyUpRaw(98);
 await h.s.runFrames(200);
 h.keyUpRaw(0);
 const inGame = { fx200: h.s.readMemory(0x258, 1)[0], pc: h.cpu.pc };

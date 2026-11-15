@@ -66,7 +66,7 @@ Design: `docs/sequel.md`; what landed, with its numbers: `docs/done.md`. Build a
 ```
 
 `!BOOT` is *EXEC (option 3): `MODE2`, then `*RUN DDD2` (loads at &1900; `reloc` copies it down).
-Title: a player joins with its accelerate key; A-F starts. Keys (decision 49): SHIFT Z X | G H J | , . / |
+Title: a player joins with its accelerate key; SPACE starts (level 1; a 120 s clock, no takes: 55). Keys (49): SHIFT Z X | G H J | , . / |
 keypad 4 5 6, cursor keys on a Model B (accelerate, jump, brake). The published WIP: memory `ddd2-wip-published`.
 
 | `sequel/src/` | Holds |
@@ -75,10 +75,11 @@ keypad 4 5 6, cursor keys on a Model B (accelerate, jump, brake). The published 
 | `enemies.6502` | the enemies in course coordinates, two level slots a strip, erase/draw with spans |
 | `specials.6502` | the spider, the helicopter, the gold |
 | `status.6502` | wages, the status line, `set_look` (a player's colours) |
-| `flow.6502`, `flow8.6502`, `flow1.6502`, `flow2.6502` | the title, joining, skill, the game's end; `print` (its own copy of the MOS font) |
+| `flow.6502`, `flow8.6502`, `flow0.6502`, `flow1.6502` | the title, joining, the clock and the game's end; `print` (its own copy of the MOS font) |
+| `place.6502` | the respawn's place, past obstacles, holes and vertical enemies (decisions 26, 56) |
 | `marks.6502`, `marks0.6502` | the floor's markers (decision 45) |
 | `screen.6502` | `screen_init`: rows 3-30 cleared, the CRTC set |
-| `sound.6502`, `sound_main.6502` | the sfx50 driver's caller, the engine, the title tune |
+| `sound.6502`, `sound_main.6502` | the sfx50 driver's caller, the effects, the engine (no tune: decision 58) |
 
 **Where things live** (read the addresses off `sequel/build/ddd2.symbols.json`; the free space is
 in `docs/done.md`'s latest entry):
@@ -88,7 +89,7 @@ in `docs/done.md`'s latest entry):
 - Low RAM: &0400-&07FF and &0900-&0CFF tables and sprites (`make_data.py`'s `low.6502`, copied by
   `reloc`); page &0D: `RTI` at &0D00 (decision 32), then small tables.
 - Page 8, the stack page below &01D0, &020A-&027F (the vectors BYTEV-IND3V too) and page 3 (texts,
-  the tune's pitches, flow's tables, the mirrored enemies; decision 46): copied by `start` after
+  flow's tables, the mirrored enemies; decision 46): copied by `start` after
   `install_irq`. Never &0200-&0209 or &0280-&02FF: BREAK reads the latter (`verify_break.mjs`).
 - The screen shows rows 3-30 only (decisions 31, 37, 41, 42; R6 28, R7 31, start &3780). Rows 0-2
   (&3000-&377F) hold code, copied once by `reloc`; row 31 (&7D80) holds the enemies', the status
@@ -115,12 +116,11 @@ in `docs/done.md`'s latest entry):
 **Oracles** (headless jsbeeb, after the build; `node tools/X.mjs`; exit 0 = pass):
 - `verify_strips.mjs`: the title and its legend, four scripted riders against a model re-made
   from the original and the decisions: every strip, the status line, crash, sound request and the
-  game's end must agree; no write in a strip's window. `--scenario level` (the cost's worst case), `--skill A-F --players 1010`, `--plant`,
-  `--early`, `--no-holes` (each must fail), `--video OUT.mp4`, `--model Master`, `--join P:F` (a
-  player joins mid-game). In the harness, reads at &3000 and
-  above name the bank (`"main"`), and `onExec` only works after `boot`.
-- `verify_sound.mjs`: the title's tune against DENIS2's notes through the MOS's measured periods;
-  the game's effect and engine requests. `--plant` must fail.
+  game's end must agree; no write in a strip's window. `--scenario level` (the cost's worst case), `--players 1010`, `--plant`,
+  `--early`, `--no-holes`, `--no-vert` (each must fail), `--video OUT.mp4`, `--model Master`, `--join P:F` (a
+  player joins mid-game). Harness reads at &3000 up name the bank (`"main"`); `onExec` after `boot`.
+- `verify_sound.mjs`: the title silent; the game's effect and engine requests, the engine's
+  periods. `--plant` must fail.
 - `verify_break.mjs`: BREAK in a game gives BASIC with the DFS, SHIFT+BREAK the title. `--plant`
   (must fail; Model B only - a Master's BREAK survives it), `--zp-fill V`, `--model Master`.
 - `measure_crash.mjs`, `measure_palette.mjs`: the original's crash timing, its rotating colour.

@@ -2,7 +2,8 @@
 // every strip's picture checked every field against an independent model of the game, every
 // screen write checked against the raster, the loop's rate and the field's cost measured.
 //
-//   node tools/verify_strips.mjs [--scenario play|level] [--fields N] [--plant] [--early] [--no-holes]
+//   node tools/verify_strips.mjs [--scenario play|level] [--players 1111] [--fields N] [--plant]
+//                                [--early] [--no-holes] [--no-vert]
 //
 // Boots sequel/build/ddd2.ssd (Model B, SHIFT+BREAK) and plays all four riders by their keys,
 // pressed by their measured internal numbers (accelerate, jump, brake; decision 49:
@@ -13,11 +14,11 @@
 //              the air into their fronts
 //           P4 the planner, but lets go of accelerate 200 fields in every 600 (decision 24), and
 //              holds the brake from 240 until 120, accelerate mostly held too: a dead stop,
-//              or, used this level, nothing until the next level's start (decision 48)
-//   level   all four held level, no jumps: as layer 4.2's worst case, until they are all out
-// It runs until every rider has finished or is out of takes, or N fields; then through the end's
-// 250-field wait every strip must still be its last picture, and the title must come back; the
-// title's text and the winner's, on row 10, must be the MOS ROM's font drawn there.
+//              any time (decisions 48, 54)
+//   level   all four held level, no jumps: as layer 4.2's worst case, until the clock is out
+// It runs until the game ends - the clock out (120 s, decision 55) or every rider at the finish -
+// or N fields; then through the end's 250-field wait every strip must still be its last picture,
+// and the title must come back; the title's texts and the winner's must be the MOS ROM's font.
 //
 // --video OUT.mp4 [--video-from F] [--video-fields N]: also a clip of fields F to F+N (default
 // 1150, 750: P1-P3's crash at level 4, P2 and P3 into holes at level 5).
@@ -26,11 +27,9 @@
 // the decisions, not from the sequel's source or its data: the course from data/course.json, the
 // sprites out of build/ddd.ssd's DENIS3 (at build/ddd.symbols.json's addresses), recoloured here
 // (decision 17); jump_offsets_table out of DENIS3 too. Per field, per rider:
-//   riding   pos += vel/256; the brake stops it dead, once a level - again at each level's start
-//            reached, each take and the game's start (the original's player_can_brake; decision
-//            48) - else vel +1 with accelerate (to 250), -1 without (decision 24); the
-//            finish (decision 22); a take back at each sea level reached (2, 5 ... 35) if one
-//            is lost; the jump - from the ground with jump held, 84 fields, the height the
+//   riding   pos += vel/256; the brake stops it dead, any time (decisions 48, 54) - else vel +1
+//            with accelerate (to 250), -1 without (decision 24); the finish (decision 22); wages
+//            10 x the level at each ground's end, 5 at each floor marker (decision 59); the jump - from the ground with jump held, 84 fields, the height the
 //            table at state 1 + n/3, interpolated, rounded half up; the picture - the course at
 //            pos, the rider over it at column 12; then the collisions, pixel-perfect (decision
 //            53; `touch`): its sprite against each obstacle's and enemy's own, the ground under
@@ -38,10 +37,13 @@
 //   crash    the explosion at the rider; the dead rider, from 5 columns right, a column every 3
 //            fields for 14 passes at jump_offsets_table[19 + pass] (interpolated), rubbed out
 //            where it was when it moves; then frames one and two, 10 fields each, 7 times, 18
-//            columns right (tools/measure_crash.mjs: 42 + 140 fields); then the next take (5 in
-//            all) or out
+//            columns right (tools/measure_crash.mjs: 42 + 140 fields); then a respawn, always
+//            (no takes: decision 55)
 //   respawn  the next field the strip is black but its ground; the one after, standing at the
-//            first course column past the crash with 16 columns clear (decision 26), drawn whole
+//            first course column past the crash with 16 columns clear of obstacles, holes
+//            (decision 26) and the vertical enemies' columns (decision 56), drawn whole
+//   clock    120 s from the first pass's field + 50, a second every 50 fields (the frame
+//            counter's low byte, read where game_done reads it); shown in every block (decision 55)
 // At the end of each pass (`loop`) each strip's window (character rows 4+7k to 9+7k) must equal
 // the model's, byte for byte; and each crash the game makes (`crash_at`) must be the model's, on
 // the same field, for the same reading (`cause`).
@@ -49,9 +51,9 @@
 //   counter is on it (and not in the vertical adjust) is a tear.
 //   THE RATE. Passes of the loop (`new_field`) against fields (`frames`): one each.
 //   THE COST. Each strip's update (`strip_go` to `strip_done`), the key read, their sum a field.
-// Exit 0: every rider finished or out, every field checked, 0 bytes wrong, every crash agreed,
-// crashes seen of each kind the course can give (right edge, landing on top, a hole), a respawn
-// and a rider out; 0 tearing writes; one pass a field. 1: anything else; 2: could not run.
+// Exit 0: the game ended (the clock or the finish), every field checked, 0 bytes wrong, every
+// crash agreed, crashes seen of each kind the course can give (an obstacle, an enemy, a hole), a
+// respawn; 0 tearing writes; one pass a field. 1: anything else; 2: could not run.
 import { readFileSync } from "node:fs";
 
 import { cropFor, startVideo } from "./capture.mjs";
@@ -69,13 +71,16 @@ const EARLY = args.includes("--early");
 // --no-holes: the game's hole check never crashes (its BEQ cl_hit at cl_ground + 10 made to fall
 // through) - the crashes must then disagree with the model's
 const NOHOLES = args.includes("--no-holes");
+// --no-vert: the respawn's check for the vertical enemies (place's rs_found) skipped - a respawn
+// the model moves past one must then disagree (decision 56)
+const NOVERT = args.includes("--no-vert");
 // --model Master: the same run on a Master 128 (MOS 3.20), whose font is not at &C000 (BUGS.md #3)
 const MODEL = opt("--model", "B-DFS1.2");
 // the keys (decision 49; measured in jsbeeb): player 4 on the Master's keypad, else the cursor keys
 const MASTER = /master/i.test(MODEL);
 const ACCEL = [0, 83, 102, MASTER ? 122 : 25], JUMP = [97, 84, 103, MASTER ? 123 : 41], BRAKE = [66, 69, 104, MASTER ? 26 : 121];
-const SKILL = "ABCDEF".indexOf(opt("--skill", "A")), JOINED = opt("--players", "1111").split("").map((c) => c === "1");
-if (SKILL < 0 || JOINED.length !== 4 || !JOINED.some(Boolean)) { console.error("--skill A-F, --players four of 0/1"); process.exit(2); }
+const JOINED = opt("--players", "1111").split("").map((c) => c === "1");
+if (JOINED.length !== 4 || !JOINED.some(Boolean)) { console.error("--players four of 0/1"); process.exit(2); }
 // --join P:F,...: player P (1-4), not joined on the title, presses accelerate at field F of the
 // game and plays from then on (decision 51: a player joins mid-game)
 const LATE = [undefined, undefined, undefined, undefined];
@@ -105,7 +110,7 @@ const bytesAt = (name, n) => { const a = symOf(name) - 0x0e00; return denis3.sub
 const sprite = (name) => bytesAt(name, 64);            // the original's: row by row, 4 bytes a line
 const JT = [...bytesAt("jump_offsets_table", 34)];
 const FINISH = course.finish, RIDER = 12, ROW = 640, SKY = 24, LEVEL = 4 * 76;
-const TAKES = 5;                                       // the original's 3 (decision 50)
+const CLOCK = 120;                                     // seconds (decision 55)
 const objects = course.course.map((o) => o.type === "obstacle"
     ? { x: o.x, w: 4, spr: sprite(`sprite_${typeOf[o.level]}_${NAMES[o.sprite - 1]}`) }
     : { x: o.x, w: o.width, hole: true });
@@ -139,6 +144,7 @@ const riderOf = (r) => RIDERS[r.p][typeAt(r.pos + RIDER)];
 const mirror = (spr) => Uint8Array.from({ length: 64 }, (_, i) => { const [l, r] = pixels(spr[(i & ~3) + 3 - (i & 3)]); return byte([r, l]); });
 const HZ = TYPES.map((t) => sprite(`sprite_${t}_horizontal_enemy`)), HZM = HZ.map(mirror), VT = TYPES.map((t) => sprite(`sprite_${t}_vertical_enemy`));
 const VEN = course.levels.map((L) => L.vertical.slice(0, 5).map((v) => ({ off: 76 * v.ground + v.x, q0: 3 * (v.state % 31) })));
+const VCOL = VEN.flatMap((vs, l) => vs.map((v) => l * LEVEL + v.off));     // every vertical enemy's course column
 const vheight = (q) => { const s = Math.floor(q / 3), f = q % 3, a = JT[s + 1], b = JT[(s + 1) % 31 + 1]; return Math.floor((6 * a + (b - a) * f * 2 + 3) / 6); };
 function enemies(r) {
     const out = [], l0 = Math.floor(r.pos / LEVEL);
@@ -196,28 +202,30 @@ function specPass(r, l) {
 }
 // wages (layer 4.5a; is_end_of_ground): at the end of each ground (the rider's column at a
 // multiple of 76) 10 x that ground's level; nothing for grounds a respawn passes (decision 34)
+// and 5 at each floor marker the rider's left column reaches (course column 20k + 19; decision 59)
 function wageCheck(r) {
     if (r.pos + RIDER >= r.wg) { r.wages = (r.wages + 10 * (Math.floor(r.gcount / 4) + 1)) % 1000000; r.wg += 76; r.gcount++; }
+    if ((r.pos + RIDER) % 20 === 19) r.wages = (r.wages + 5) % 1000000;
 }
 function skipGrounds(r) { while (r.pos + RIDER >= r.wg) { r.wg += 76; r.gcount++; } }
 // the status line (decisions 13, 33, 41): row 2, a block of 20 byte columns a player in its colour,
-// wages at columns 2-13 and takes left at 16-17 in 3 x 7 digits, 4 pixels wide
+// wages at columns 1-12 and the game's clock at 14-19 in 3 x 7 digits, 4 pixels wide (decision 55)
 const DIGITS = [[7, 5, 5, 5, 5, 5, 7], [2, 6, 2, 2, 2, 2, 7], [7, 1, 1, 7, 4, 4, 7], [7, 1, 1, 7, 1, 1, 7], [5, 5, 5, 7, 1, 1, 1],
                 [7, 4, 4, 7, 1, 1, 7], [7, 4, 4, 7, 5, 5, 7], [7, 1, 1, 1, 1, 1, 1], [7, 5, 5, 7, 5, 5, 7], [7, 5, 5, 7, 1, 1, 7]];
 const PCOL = [2, 3, 6, 5].map(both);
-function statusRow(snap) {
+function statusRow({ blocks: snap, clock }) {
     const w = new Uint8Array(ROW);
-    snap.forEach(({ wages, takes }, p) => {
+    snap.forEach(({ wages }, p) => {
         if (!snap[p].shown) return;                    // no block for a player not playing (yet)
         const L = PCOL[p] & 0xaa, R = PCOL[p] & 0x55;
         const digit = (d, col) => DIGITS[d].forEach((g, y) => { w[col * 8 + y] = (g & 4 ? L : 0) | (g & 2 ? R : 0); w[col * 8 + 8 + y] = g & 1 ? L : 0; });
-        String(wages).padStart(6, "0").split("").forEach((ch, i) => digit(+ch, 20 * p + 2 + 2 * i));
-        digit(takes, 20 * p + 16);
+        String(wages).padStart(6, "0").split("").forEach((ch, i) => digit(+ch, 20 * p + 1 + 2 * i));
+        String(clock).padStart(3, "0").split("").forEach((ch, i) => digit(+ch, 20 * p + 14 + 2 * i));
     });
     return w;
 }
-// (a player who joined mid-game: its block from the field its take is counted, cu_take)
-const snapshot = () => riders.map((r) => ({ wages: r.wages, takes: TAKES + 1 - r.take, shown: r.phase !== 4 && r.take >= 1 }));
+// (a player who joined mid-game: its block from its join's crash end, cu_take)
+const snapshot = () => ({ clock, blocks: riders.map((r) => ({ wages: r.wages, shown: r.phase !== 4 && r.block })) });
 const clocks = (r) => { for (const [l, f] of r.clk) { r.clk.set(l, f + 1); if ((f + 1) % 3 === 0) specPass(r, l); } };
 function startVisible(r) {
     const l0 = Math.floor(r.pos / LEVEL);
@@ -295,21 +303,17 @@ function touch(r, blind) {
     }
     return 0;
 }
-// the start (flow.6502; decision 15): skill A-F's level, the original's starting_levels_table; the
-// rider's left column at its start (at level 1 the strip's left edge, the rider at column 12)
-const START_LEVEL = [1, 7, 13, 19, 25, 31][SKILL], S0 = (START_LEVEL - 1) * LEVEL;
-const newRider = (p) => ({ p, pos: START_LEVEL === 1 ? 0 : S0 - RIDER, frac: 0, vel: 0, js: 0, t: SKY, phase: JOINED[p] ? 0 : 4, ct: 0, take: 1, sea: S0 + LEVEL, rl: S0 + LEVEL, canBrake: true, finished: false,
-                           crashT: 0, dead: null, w: null, cause: 0, clk: new Map(), spec: new Map(), wages: 0, wg: S0 + 76, gcount: (START_LEVEL - 1) * 4 });
-function seaCheck(r) {
-    while (r.pos + RIDER >= r.sea) { if (r.take >= 2) r.take--; r.sea += 3 * LEVEL; }
-}
+// the start (flow.6502): level 1 (decision 57: skill A only), the strip's left edge at column 0,
+// the rider at column 12
+const newRider = (p) => ({ p, pos: 0, frac: 0, vel: 0, js: 0, t: SKY, phase: JOINED[p] ? 0 : 4, ct: 0, block: JOINED[p], finished: false,
+                           crashT: 0, dead: null, w: null, cause: 0, clk: new Map(), spec: new Map(), wages: 0, wg: 76, gcount: 0 });
 // one field of rider r; draw: keep its picture (r.w). Returns the crash's reading, or 0.
 function step(r, accel, jump, draw, brake = false) {
     r.cause = 0;
     if (r.phase === 4) {                               // no one playing it: it stands still (decision 14),
         clocks(r);                                     // its enemies' clocks running (crash_update); accelerate
         if (accel)                                     // joins it (decision 51): at the course's start, at the crash's end
-            Object.assign(r, { ...newRider(r.p), clk: r.clk, spec: r.spec, w: r.w, phase: 1, ct: CRASH_ALL, take: 0 });
+            Object.assign(r, { ...newRider(r.p), clk: r.clk, spec: r.spec, w: r.w, phase: 1, ct: CRASH_ALL, block: false });
         return 0;
     }
     if (r.phase === 0) {
@@ -317,13 +321,11 @@ function step(r, accel, jump, draw, brake = false) {
             r.frac += r.vel;
             const moved = r.frac >= 256;
             r.frac &= 255;
-            if (brake && r.canBrake) { r.vel = 0; r.canBrake = false; }
+            if (brake) r.vel = 0;
             else r.vel = accel ? Math.min(r.vel + 1, 250) : Math.max(r.vel - 1, 0);
             if (moved) {
                 r.pos++;
                 if (r.pos >= FINISH - RIDER) { r.finished = true; r.vel = 0; }
-                while (r.pos + RIDER >= r.rl) { r.canBrake = true; r.rl += LEVEL; }
-                seaCheck(r);
                 wageCheck(r);
             }
         }
@@ -339,10 +341,8 @@ function step(r, accel, jump, draw, brake = false) {
         }
     } else if (r.phase === 1) {
         clocks(r);
-        if (r.ct === CRASH_ALL) {                      // the crash over: the next take, or out;
-            r.take++;                                  // and the strip erased
-            r.canBrake = true;
-            if (r.take === TAKES + 1) { r.phase = 3; return 0; }
+        if (r.ct === CRASH_ALL) {                      // the crash over: the strip erased (a player
+            r.block = true;                            // joining: its status block from now)
             r.ct++;
             if (draw) r.w.fill(0, 0, 5 * ROW);         // all but the ground row, which stays
             return 0;
@@ -352,14 +352,18 @@ function step(r, accel, jump, draw, brake = false) {
             // its ground whole in its levels' colours (the holes come with the rest, next field)
             r.phase = 2;
             let q = r.pos + RIDER;                     // past the crash, CLEAR (16) columns clear
-            for (const o of objects) {
-                if (o.x + o.w <= r.pos) continue;
-                if (o.x >= q + 16) break;
-                q = Math.max(q, o.x + o.w);
+            for (;;) {                                 // of the objects, and of the vertical enemies
+                for (const o of objects) {
+                    if (o.x + o.w <= r.pos) continue;
+                    if (o.x >= q + 16) break;
+                    q = Math.max(q, o.x + o.w);
+                }
+                const v = VCOL.find((v) => v < q + 16 && v + 4 > q);
+                if (v === undefined) break;
+                q = v + 4; r.vertMoved = (r.vertMoved || 0) + 1;
             }
             Object.assign(r, { pos: q - RIDER, frac: 0, vel: 0, js: 0, t: SKY });
             if (r.pos >= FINISH - RIDER) { r.pos = FINISH - RIDER; r.finished = true; }
-            seaCheck(r);
             skipGrounds(r);
             if (draw) {
                 r.w = new Uint8Array(6 * ROW);
@@ -408,7 +412,7 @@ function plan(r, accelFor, { blind = false, eager = false, brakeOf = () => false
 // ---- the run ----
 const h = await open({ name: "verify_strips", disc: "sequel/build/ddd2.ssd", model: MODEL });
 const N = (n) => h.need(n);
-const SYM = Object.fromEntries(["pos_lo", "pos_hi", "pos_frac", "vel", "js", "phase", "take", "finished", "frames", "cause", "strip", "brakes"].map((n) => [n, N(n)]));
+const SYM = Object.fromEntries(["pos_lo", "pos_hi", "pos_frac", "vel", "js", "phase", "finished", "frames", "cause", "strip", "brakes", "clk_next"].map((n) => [n, N(n)]));
 await h.boot({ field: SYM.frames, fieldBytes: 2 });
 if (EARLY) {
     const a = N("vs_count");
@@ -416,13 +420,19 @@ if (EARLY) {
     const t1 = (h.byte(a + 5) | (h.byte(a + 10) << 8)) - 24 * 64;
     h.wr(a + 5, [t1 & 255]); h.wr(a + 10, [t1 >> 8]);
 }
+if (NOVERT) {
+    const a = N("rs_found"), to = N("rs_clear");      // rs_found: JMP rs_clear - objects only
+    if (h.rd(a, 1, "main")[0] !== 0xa6) h.die("rs_found does not start LDX zp");
+    h.wr(a, [0x4c, to & 255, to >> 8], "main");      // (rows 0-2: place.6502)
+}
 if (NOHOLES) {
     const a = N("feet");                               // feet: CLC, RTS - always ground under it
     if (h.byte(a) !== 0xbc) h.die("feet does not start LDY abs,X");
     h.wr(a, [0x18, 0x60]);
 }
-// THE TITLE (flow.6502): the players join with their accelerate keys, then the skill's letter
-const SKILL_KEY = [65, 100, 82, 50, 34, 67][SKILL];
+// THE TITLE (flow.6502): the players join with their accelerate keys, then SPACE (decision 57;
+// internal 98, measured)
+const START_KEY = 98;
 const heldT = [[false, false, false], [false, false, false], [false, false, false], [false, false, false]];
 if (await h.runTo(N("title_loop"), 40_000_000) === null) h.die("never reached the title", h.gaveUp);
 // THE TEXTS (row 10, the black row between strips 0 and 1; decision 42): the MOS ROM's font
@@ -442,24 +452,24 @@ const textRow = (str, col) => {
     return row;
 };
 const textWrong = (want, row = 10) => { const got = h.rd(0x3000 + row * ROW, ROW, "main"); let n = 0; for (let i = 0; i < ROW; i++) if (got[i] !== want[i]) n++; return n; };
-const titleTextWrong = textWrong(textRow("PRESS A-F TO START", 1));
+const titleTextWrong = textWrong(textRow("PRESS SPACE TO START", 0));
 // THE LEGEND (decision 52): in each strip's sky (rows 5 + 7k and 6 + 7k) its labels and its keys
 // under them (decision 49: player 4's are the keypad's on a Master, else the cursor keys), and
 // row 17 "ACCELERATE TO JOIN"; the rest of those rows black
 const LEGEND_KEYS = [["SHIFT  Z     X", 2], ["G    H     J", 4], [",    .     /", 4], MASTER ? ["4    5     6", 4] : ["LEFT DOWN RIGHT", 3]];
-let legendWrong = textWrong(textRow("ACCELERATE TO JOIN", 1), 17);
+let legendWrong = textWrong(textRow("ACCELERATE TO JOIN", 1), 17) + textWrong(textRow("DARE DEVIL DENIS 2", 1), 4);  // and the name (decision 58)
 LEGEND_KEYS.forEach(([keys, col], k) => { legendWrong += textWrong(textRow("ACCEL JUMP BRAKE", 2), 5 + 7 * k) + textWrong(textRow(keys, col), 6 + 7 * k); });
 const mask = JOINED.reduce((m, j, p) => m | (j ? 1 << p : 0), 0);
 JOINED.forEach((j, p) => { if (j) { h.keyDownRaw(ACCEL[p]); heldT[p][0] = true; } });
 for (let f = 0; h.byte(0xa4) !== mask; f++) { if (f > 100) h.die("the players did not join", { joined: h.byte(0xa4), mask }); await h.s.runFrames(1); }
-h.keyDownRaw(SKILL_KEY);
+h.keyDownRaw(START_KEY);
 if (await h.runTo(N("game_start"), 40_000_000) === null) h.die("the game never started", h.gaveUp);
-h.keyUpRaw(SKILL_KEY);
+h.keyUpRaw(START_KEY);
 const riders = [0, 1, 2, 3].map(newRider);
 riders.forEach(startVisible);                          // every level on the screen at the start: its clock
 riders.forEach((r) => { r.w = riding(r); });
 
-// the sound's requests (step 6): each crash, gold and take back must request its effect that pass
+// the sound's requests (step 6): each crash and gold must request its effect that pass
 const REQ = N("sfx_request"), sndEvents = [], sndReqs = [];
 {
     const cpu2 = h.cpu, wm3 = cpu2.writemem.bind(cpu2);
@@ -467,8 +477,11 @@ const REQ = N("sfx_request"), sndEvents = [], sndReqs = [];
 }
 h.onExec(N("sound_crash"), () => sndEvents.push([passes, 3, 1, "crash"]));
 h.onExec(N("sound_gold"), () => sndEvents.push([passes, 1, 2, "gold"]));
-h.onExec(N("sound_take"), () => sndEvents.push([passes, 1, 3, "take"]));
 const LOOP = N("pass_end");             // the end of every pass, the last one too
+// THE CLOCK (decision 55): 120 s; it steps at the field `clkNext` (the frame counter's low byte,
+// 50 fields after the first pass's field) and every 50 after, as game_done reads the counter
+// (its hook: the same read); the game ends there when it is out or every rider has finished
+let clock = CLOCK, clkNext = null, ended = false;
 let statusSnap = snapshot(), statusWrong = 0, firstStatus = null;
 // the palette (layer 4.4): every write to the ULA's palette register once the loop runs must be
 // the rotating colour's next step, 3 fields after the last
@@ -480,14 +493,18 @@ const palette = [];
 let started = false, fields = 0, passes = 0, checked = 0, wrong = 0, firstWrong = null, tears = 0, firstTear = null;
 let writes = 0, minGap = 99, t0 = 0, kt0 = 0, cur = null, stateWrong = 0, firstState = null;
 const crashes = { game: [], model: [] }, causes = [0, 0, 0, 0, 0, 0];
-let respawns = 0, outs = 0, takesBack = 0, brakeFields = 0, brakeStops = 0, joins = 0, row24Writes = 0;
+let respawns = 0, vertMoves = 0, brakeFields = 0, brakeStops = 0, joins = 0, row24Writes = 0, ticks = 0;
 const fieldCost = [], stripCost = [[], [], [], []], keyCost = [];
 const held = heldT;
 h.onExec(N("new_field"), () => {
     // the game's loop has made pass_count passes since start-up (this one not yet counted: the
     // hook is at new_field's head); the riders stood still all that time (no keys), but the
     // enemies' clocks ran a step a pass: the model catches up first
-    if (!started) for (let k = 0; k < h.word(N("pass_count"), "main"); k++) riders.forEach(clocks);
+    if (!started) {
+        for (let k = 0; k < h.word(N("pass_count"), "main"); k++) riders.forEach(clocks);
+        clkNext = (h.byte(SYM.frames) + 50) & 255;
+        if (h.byte(SYM.clk_next) !== clkNext) h.die("the clock does not start 50 fields after the first pass", { clk_next: h.byte(SYM.clk_next), want: clkNext });
+    }
     started = true; passes++; cur = { strips: [0, 0, 0, 0], keys: 0 }; fieldCost.push(cur); });
 h.onExec(N("strip_go"), () => { t0 = h.s.elapsedCycles; });
 // the breakdown of a riding strip's update: moving (strip_go to prof_enemies), the enemies
@@ -554,14 +571,13 @@ h.onExec(LOOP, () => {
     for (let k = 0; k < 4; k++) {
         const r = riders[k];
         const accel = !!(h.byte(0x80 + k) & 0x80), jump = !!(h.byte(0x84 + k) & 0x80), brake = !!(h.byte(SYM.brakes + k) & 0x80);
-        const was = r.phase, take = r.take;
-        if (brake && was === 0 && !r.finished) { brakeFields++; if (r.canBrake) brakeStops++; }
+        const was = r.phase, vm = r.vertMoved || 0;
+        if (brake && was === 0 && !r.finished) { brakeFields++; if (r.vel > 0) brakeStops++; }
         const cause = step(r, accel, jump, true, brake);
         if (cause) { crashes.model.push({ field: passes, strip: k, cause, pos: r.pos, js: r.js, t: r.crashT }); causes[cause]++; }
         if (was === 2 && r.phase === 0) respawns++;
         if (was === 4 && r.phase !== 4) joins++;
-        if (was !== 3 && r.phase === 3) outs++;
-        if (r.take < take) takesBack++;
+        if ((r.vertMoved || 0) > vm) vertMoves++;
         const got = h.rd(windowAt(k), 6 * ROW, "main");
         for (let i = 0; i < got.length; i++) if (got[i] !== r.w[i]) {
             wrong++;
@@ -569,15 +585,29 @@ h.onExec(LOOP, () => {
                                             row: 4 + 7 * k + Math.floor(i / ROW), col: (i % ROW) >> 3, line: i & 7, got: got[i], want: r.w[i] };
         }
         const g = { pos: h.byte(SYM.pos_lo + k) | (h.byte(SYM.pos_hi + k) << 8), vel: h.byte(SYM.vel + k), js: h.byte(SYM.js + k),
-                    phase: h.byte(SYM.phase + k), take: h.byte(SYM.take + k) };
-        const m = { pos: r.pos, vel: r.vel, js: r.js, phase: r.phase, take: r.take };
+                    phase: h.byte(SYM.phase + k) };
+        const m = { pos: r.pos, vel: r.vel, js: r.js, phase: r.phase };
         if (JSON.stringify(g) !== JSON.stringify(m)) { stateWrong++; if (!firstState) firstState = { field: fields, pass: passes, strip: k, game: g, model: m }; }
     }
     const sGot = h.rd(0x3000 + 3 * ROW, ROW, "main"), sWant = statusRow(statusSnap);
     for (let i = 0; i < ROW; i++) if (sGot[i] !== sWant[i]) { statusWrong++; if (!firstStatus) firstStatus = { field: fields, col: i >> 3, line: i & 7, got: sGot[i], want: sWant[i], snap: statusSnap }; }
-    statusSnap = snapshot();                           // what the next pass's head draws
     checked++;
 });
+h.onExec(N("game_done"), () => {
+    if (!started) return;
+    if (((h.byte(SYM.frames) - clkNext) & 0x80) === 0) { clock--; ticks++; clkNext = (clkNext + 50) & 255; }
+    statusSnap = snapshot();                           // what the next pass's head draws
+    const playing = riders.filter((r) => r.phase !== 4);
+    if (clock === 0 || playing.every((r) => r.finished)) ended = true;
+});
+// run to the next pass's end, or to the game's end (gd_end): which
+const runToPass = async () => {
+    const at = h.s.elapsedCycles, END = N("gd_end");
+    let hit = null;
+    const offs = [LOOP, END].map((a) => h.onExec(a, () => { if (h.s.elapsedCycles === at) return false; hit = a; return true; }));
+    try { while (!hit && h.s.elapsedCycles - at < 400_000) await h.s.runFor(100_000); } finally { offs.forEach((o) => o()); }
+    return hit === null ? null : hit === LOOP ? "pass" : "end";
+};
 
 const accelFor = {
     play: (p, f) => p !== 3 || f % 600 < 400,
@@ -592,8 +622,7 @@ const brakeOf = (p) => (s) => {
 };
 const f0 = h.word(SYM.frames, "main");
 let video = null;
-const done = () => riders.every((r) => r.finished || r.phase >= 3);
-while (!done() && fields < MAXF) {
+while (!ended && fields < MAXF) {
     for (let p = 0; p < 4; p++) {
         if (!JOINED[p] && !(LATE[p] !== undefined && fields >= LATE[p])) continue;
         const r = riders[p];
@@ -610,21 +639,24 @@ while (!done() && fields < MAXF) {
     if (PLANT && fields === 500) h.wr(windowAt(2) + 3 * ROW + 70 * 8 + 2, [0x3f], "main");
     // a pass at a time: the keys set above are the ones the next pass reads, and the planner
     // plans from the model after the pass before it
-    if (await h.runTo(LOOP, 400_000) === null) h.die("the loop stopped", h.gaveUp);
+    const got = await runToPass();
+    if (got === null) h.die("the loop stopped", h.where());
+    if (got === "end") { if (!ended) h.die("the game ended and the model's had not", { clock, field: fields }); break; }
+    if (ended) h.die("the model's game ended and the game's had not", { clock, field: fields });
     fields++;
     if (VIDEO && fields === VFROM) video = await startVideo(h.s, VIDEO, { crop: cropFor(h.s, "mos"), title: "Dare Devil Denis 2" });
-    if (video && fields < VFROM + VN) await video.frame(`field ${fields}   takes ${riders.map((r) => (r.phase === 3 ? "out" : TAKES + 1 - r.take)).join(" ")}`);
+    if (video && fields < VFROM + VN) await video.frame(`field ${fields}   clock ${clock}`);
     if (video && fields === VFROM + VN) { await video.finish(); console.error(JSON.stringify({ video: video.path, format: video.format, frames: video.frames })); video = null; }
     if (stateWrong > 20 || wrong > 5000) break;
 }
 const elapsed = h.word(SYM.frames, "main") - f0;
-// the game's end (game mode 1, decision 8): the winner the most wages, the first of equals; then,
-// 250 fields on, the title again
+// the game's end (decision 55): the winner the furthest along the course, then the most wages,
+// then the first; then, 250 fields on, the title again
 let endOk = null;
-if (done()) {
+if (ended) {
     started = false;                                   // the game is over: the end and the title are not watched
     let best = -1;
-    riders.forEach((r, p) => { if (r.phase !== 4 && (best < 0 || r.wages > riders[best].wages)) best = p; });
+    riders.forEach((r, p) => { if (r.phase !== 4 && (best < 0 || r.pos > riders[best].pos || (r.pos === riders[best].pos && r.wages > riders[best].wages))) best = p; });
     // through the end's wait nothing may change in the strips' windows: each field of it, every
     // strip must still be the last pass's picture (only the text row between strips changes)
     let endWrong = 0, firstEnd = null, endFields = 0, endTextWrong = null;
@@ -664,17 +696,18 @@ for (let s0 = 0; s0 < C8.length; s0++) {
     });
     if (n < paletteWrong) { paletteWrong = n; firstPalette = first; }
 }
-const full = SKILL === 0 && JOINED.every(Boolean);     // the runs that must see every kind of crash
+const full = JOINED.every(Boolean);                    // the runs that must see every kind of crash
 const lateWanted = LATE.filter((f) => f !== undefined).length;
-const coverage = lateWanted && joins !== lateWanted ? false : !full ? outs + riders.filter((r) => r.phase !== 4 && r.finished).length === riders.filter((r) => r.phase !== 4).length : SCENARIO === "play" ? causes[1] > 0 && causes[2] > 0 && causes[5] > 0 && respawns > 0 && outs > 0 && brakeStops > 0 && brakeFields > brakeStops : outs === riders.filter((r) => r.phase !== 4).length;
+const coverage = ended && (lateWanted && joins !== lateWanted ? false : !full || SCENARIO !== "play" ? true :
+    causes[1] > 0 && causes[2] > 0 && causes[5] > 0 && respawns > 0 && brakeStops > 0 && ticks === CLOCK || riders.every((r) => r.finished));
 const sndMissing = sndEvents.filter(([p, c, v]) => !sndReqs.some(([q, d, w]) => q === p && d === c && w === v));
-const sndCounts = Object.fromEntries(["crash", "gold", "take"].map((k) => [k, sndEvents.filter((e) => e[3] === k).length]));
-const ok = legendWrong === 0 && row24Writes === 0 && sndMissing.length === 0 && done() && endOk && endOk.back_at_title && endOk.end_fields >= 249 && endOk.end_bytes_wrong === 0 && endOk.end_text_wrong === 0 && endOk.title_text_wrong === 0 && endOk.winner_game === endOk.winner_model && checked > 0 && wrong === 0 && statusWrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 && paletteWrong === 0 && palette.length > fields / 3 - 2 &&
+const sndCounts = Object.fromEntries(["crash", "gold"].map((k) => [k, sndEvents.filter((e) => e[3] === k).length]));
+const ok = legendWrong === 0 && row24Writes === 0 && sndMissing.length === 0 && ended && endOk && endOk.back_at_title && endOk.end_fields >= 249 && endOk.end_bytes_wrong === 0 && endOk.end_text_wrong === 0 && endOk.title_text_wrong === 0 && endOk.winner_game === endOk.winner_model && checked > 0 && wrong === 0 && statusWrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 && paletteWrong === 0 && palette.length > fields / 3 - 2 &&
            Math.abs(passes - elapsed) <= 1 && coverage;
-h.finish({ scenario: SCENARIO, legend_text_wrong: legendWrong, row24_writes: row24Writes, sound: { events: sndCounts, missing: sndMissing.slice(0, 5) }, skill: "ABCDEF"[SKILL], players: JOINED.map(Number).join(""), game_end: endOk, status_wrong: statusWrong, first_status_wrong: firstStatus, wages: riders.map((r) => r.wages), fields, passes, elapsed_fields: elapsed, coverage, checked, bytes_wrong: wrong, first_wrong: firstWrong, state_wrong: stateWrong, first_state: firstState,
+h.finish({ scenario: SCENARIO, legend_text_wrong: legendWrong, row24_writes: row24Writes, sound: { events: sndCounts, missing: sndMissing.slice(0, 5) }, clock, clock_steps: ticks, players: JOINED.map(Number).join(""), game_end: endOk, status_wrong: statusWrong, first_status_wrong: firstStatus, wages: riders.map((r) => r.wages), fields, passes, elapsed_fields: elapsed, coverage, checked, bytes_wrong: wrong, first_wrong: firstWrong, state_wrong: stateWrong, first_state: firstState,
            crashes: crashes.game.length, crashes_disagreeing: crashDiff.slice(0, 5), by_cause: { obstacle: causes[1], enemy: causes[2], hole: causes[5] },
-           respawns, outs, takes_back: takesBack, brake_fields: brakeFields, brake_stops: brakeStops, joins, model_crashes: process.env.CRASHLOG ? crashes.model : undefined,
-           finals: riders.map((r) => ({ pos: r.pos, finished: r.finished, phase: r.phase, take: r.take })),
+           respawns, respawns_past_vertical: vertMoves, brake_fields: brakeFields, brake_stops: brakeStops, joins, model_crashes: process.env.CRASHLOG ? crashes.model : undefined,
+           finals: riders.map((r) => ({ pos: r.pos, finished: r.finished, phase: r.phase })),
            palette_writes: palette.length, palette_wrong: paletteWrong, first_palette_wrong: firstPalette, screen_writes: writes, tearing_writes: tears, first_tear: firstTear, closest_rows_ahead_of_window: minGap,
            keys: stats(keyCost), strips: stripCost.map(stats),
            timed: Object.fromEntries(Object.entries(timed).map(([k, v]) => [k, { ...stats(v), total: v.reduce((x, y) => x + y, 0) }])),

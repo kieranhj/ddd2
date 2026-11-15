@@ -26,9 +26,14 @@ MARK_GAP = 20
     BNE mm_old
     LDX strip
     DEC mph,X
-    BPL marks_draw
+    BPL mm_pay
     LDA #MARK_GAP - 1
     STA mph,X
+.mm_pay
+    LDA mph,X                   \ one at the rider's left column: 5 wages (decision 59)
+    CMP #RIDER
+    BNE marks_draw
+    JSR add_five                \ (status.6502) X kept
 \ marks_draw: X = strip (gb set). Its markers, over the ground there is; what each covered kept.
 .marks_draw
     JSR mk_base
