@@ -32,9 +32,9 @@
 //            finish (decision 22); a take back at each sea level reached (2, 5 ... 35) if one
 //            is lost; the jump - from the ground with jump held, 84 fields, the height the
 //            table at state 1 + n/3, interpolated, rounded half up; the picture - the course at
-//            pos, the rider over it at column 12; then the original's collision reads of THAT
-//            picture: column 16 at the rider's bottom line, its middle, the line above it; under
-//            its left column in the air (lit: a crash) or the ground there (unlit: a hole)
+//            pos, the rider over it at column 12; then the collisions, pixel-perfect (decision
+//            53; `touch`): its sprite against each obstacle's and enemy's own, the ground under
+//            its bottom line for a hole, a gold touched taken
 //   crash    the explosion at the rider; the dead rider, from 5 columns right, a column every 3
 //            fields for 14 passes at jump_offsets_table[19 + pass] (interpolated), rubbed out
 //            where it was when it moves; then frames one and two, 10 fields each, 7 times, 18
@@ -151,7 +151,7 @@ function enemies(r) {
         const sp = r.spec.get(l);                      // the spider or the helicopter, the gold, the 80
         if (l < 3) out.push({ x: S + 3 * 76 + 40, t: Math.max(0, sp.y - 13), spr: SPIDER });
         else out.push({ x: S + 76 * sp.g + sp.x, t: SKY - 17, spr: HELI });
-        for (const g of sp.golds) if (g.t) out.push({ x: S + g.off, t: g.t, spr: GOLD });
+        for (const g of sp.golds) if (g.t) out.push({ x: S + g.off, t: g.t, spr: GOLD, gold: g, sp, l });
         if (sp.eighty) out.push({ x: S + sp.off80, t: 0, spr: EIGHTY });
     }
     return out;
@@ -194,20 +194,6 @@ function specPass(r, l) {
     }
     if (sp.eighty) sp.eighty--;
 }
-// collecting: the byte right of the rider's bottom line is the gold's colour (&1F)
-function collectGold(r) {
-    const rc = r.pos + RIDER + 4;
-    for (const [l, sp] of r.spec) for (const g of sp.golds) {
-        const d = rc - (l * LEVEL + g.off);
-        if (g.t === SKY && (d === 1 || d === 2)) {
-            g.t = 0;
-            sp.eighty = 17; sp.off80 = r.pos + RIDER - l * LEVEL;
-            r.wages = (r.wages + 80) % 1000000;
-            return true;
-        }
-    }
-    return false;
-}
 // wages (layer 4.5a; is_end_of_ground): at the end of each ground (the rider's column at a
 // multiple of 76) 10 x that ground's level; nothing for grounds a respawn passes (decision 34)
 function wageCheck(r) {
@@ -244,18 +230,6 @@ function riding(r) {
     put(w, riderOf(r), RIDER, r.t);
     return w;
 }
-// what the collision reads see without a picture (the planner): the enemies over the course
-function reader(r, blind) {
-    const es = enemies(r).reverse();
-    return (c, L) => {
-        for (const e of es) {
-            const ec = c - (e.x - r.pos), el = L - e.t;
-            if (ec >= 0 && ec < 4 && el >= 0 && el < 16) return e.spr[el * 4 + ec];
-        }
-        if (blind && L >= SKY + 16) return L < SKY + 20 ? 1 : 0;
-        return bg(r.pos, c, L);
-    };
-}
 const DEAD = SWAP.map((o) => [recolour(sprite("sprite_dead_player_one"), o), recolour(sprite("sprite_dead_player_two"), o)]);
 const EXPLOSION = sprite("sprite_explosion"), BLANK = new Uint8Array(64);
 // the jump: the table at state s3/3 (thirds), interpolated, rounded half up
@@ -287,13 +261,39 @@ function put(w, spr, c0, t) {                          // a 16-line sprite, whol
 function putClip(w, spr, c0, t) {                      // the same, but only its columns on the screen
     for (let c = 0; c < 4; c++) if (c0 + c >= 0 && c0 + c < 80) for (let l = 0; l < 16; l++) w[at(c0 + c, t + l)] = spr[l * 4 + c];
 }
-// a collision reading: which of the original's points is lit (unlit, for the hole); 0 if none
-function collide(read, t, air) {
-    if (read(RIDER + 4, t + 15)) return 1;             // right_edge
-    if (read(RIDER + 4, t + 8)) return 2;              // middle right
-    if (read(RIDER + 4, t - 1)) return 3;              // top right
-    if (air) return read(RIDER, t + 16) ? 4 : 0;       // under its left column
-    return read(RIDER, SKY + 16) ? 0 : 5;              // the ground under it: a hole
+// THE COLLISIONS (decision 53): pixel-perfect, the rider's sprite against each thing's own, not
+// the picture. On the ground: a hole (5) when no lit pixel of its bottom line has a lit ground
+// pixel under it (the planner's blind rider sees ground everywhere). Then a crash on an obstacle
+// (1) or an enemy - the spider and the helicopter too - (2) when a pixel is lit in both; a gold
+// touched is taken there and then (gone, 80 wages, the 80 over the rider's left column), in the
+// enemies' drawing order, until something crashes it; the 80 is only a score.
+const lit2 = (s, o) => ((s & 0xaa) !== 0 && (o & 0xaa) !== 0) || ((s & 0x55) !== 0 && (o & 0x55) !== 0);
+function touch(r, blind) {
+    const R = riderOf(r), t = r.t;
+    if (r.js === 0) {
+        let foot = false;
+        for (let c = 0; c < 4 && !foot; c++) foot = blind ? R[15 * 4 + c] !== 0 : lit2(R[15 * 4 + c], bg(r.pos, RIDER + c, SKY + 16));
+        if (!foot) return 5;
+    }
+    for (let c = 0; c < 4; c++) {
+        const x = r.pos + RIDER + c, i = obstAt[x];
+        if (i < 0) continue;
+        const o = objects[i];
+        for (let l = 0; l < 16; l++) { const L = t + l; if (L >= SKY && L < SKY + 16 && lit2(R[l * 4 + c], o.spr[(L - SKY) * 4 + x - o.x])) return 1; }
+    }
+    for (const e of enemies(r)) {
+        if (e.spr === EIGHTY) continue;
+        let hit = false;
+        for (let c = 0; c < 4 && !hit; c++) {
+            const ec = RIDER + c - (e.x - r.pos);
+            if (ec < 0 || ec > 3) continue;
+            for (let l = 0; l < 16 && !hit; l++) { const el = t + l - e.t; hit = el >= 0 && el < 16 && lit2(R[l * 4 + c], e.spr[el * 4 + ec]); }
+        }
+        if (!hit) continue;
+        if (e.spr !== GOLD) return 2;
+        e.gold.t = 0; e.sp.eighty = 17; e.sp.off80 = r.pos + RIDER - e.l * LEVEL; r.wages = (r.wages + 80) % 1000000;
+    }
+    return 0;
 }
 // the start (flow.6502; decision 15): skill A-F's level, the original's starting_levels_table; the
 // rider's left column at its start (at level 1 the strip's left edge, the rider at column 12)
@@ -331,12 +331,8 @@ function step(r, accel, jump, draw, brake = false) {
         startVisible(r);
         if (r.js === 0) { if (jump) r.js = 1; } else if (++r.js === JUMP_FIELDS + 1) r.js = 0;
         r.t = SKY - (r.js ? height(3 + r.js) : 0);
-        let read;
-        if (draw) {
-            r.w = riding(r);
-            read = (c, L) => r.w[at(c, L)];
-        } else read = reader(r, r.blind);
-        r.cause = read(RIDER + 4, r.t + 15) === 0x1f && collectGold(r) ? 0 : collide(read, r.t, r.js !== 0);
+        if (draw) r.w = riding(r);
+        r.cause = touch(r, !draw && r.blind);
         if (r.cause) {
             r.phase = 1; r.ct = 0; r.vel = 0; r.js = 0; r.crashT = r.t; r.dead = null;
             if (draw) put(r.w, EXPLOSION, RIDER, r.t);
@@ -421,9 +417,9 @@ if (EARLY) {
     h.wr(a + 5, [t1 & 255]); h.wr(a + 10, [t1 >> 8]);
 }
 if (NOHOLES) {
-    const a = N("cl_ground") + 10;
-    if (h.byte(a) !== 0xf0) h.die("cl_ground + 10 is not BEQ");
-    h.wr(a + 1, [0]);
+    const a = N("feet");                               // feet: CLC, RTS - always ground under it
+    if (h.byte(a) !== 0xbc) h.die("feet does not start LDY abs,X");
+    h.wr(a, [0x18, 0x60]);
 }
 // THE TITLE (flow.6502): the players join with their accelerate keys, then the skill's letter
 const SKILL_KEY = [65, 100, 82, 50, 34, 67][SKILL];
@@ -670,13 +666,13 @@ for (let s0 = 0; s0 < C8.length; s0++) {
 }
 const full = SKILL === 0 && JOINED.every(Boolean);     // the runs that must see every kind of crash
 const lateWanted = LATE.filter((f) => f !== undefined).length;
-const coverage = lateWanted && joins !== lateWanted ? false : !full ? outs + riders.filter((r) => r.phase !== 4 && r.finished).length === riders.filter((r) => r.phase !== 4).length : SCENARIO === "play" ? causes[1] > 0 && causes[4] > 0 && causes[5] > 0 && respawns > 0 && outs > 0 && brakeStops > 0 && brakeFields > brakeStops : outs === riders.filter((r) => r.phase !== 4).length;
+const coverage = lateWanted && joins !== lateWanted ? false : !full ? outs + riders.filter((r) => r.phase !== 4 && r.finished).length === riders.filter((r) => r.phase !== 4).length : SCENARIO === "play" ? causes[1] > 0 && causes[2] > 0 && causes[5] > 0 && respawns > 0 && outs > 0 && brakeStops > 0 && brakeFields > brakeStops : outs === riders.filter((r) => r.phase !== 4).length;
 const sndMissing = sndEvents.filter(([p, c, v]) => !sndReqs.some(([q, d, w]) => q === p && d === c && w === v));
 const sndCounts = Object.fromEntries(["crash", "gold", "take"].map((k) => [k, sndEvents.filter((e) => e[3] === k).length]));
 const ok = legendWrong === 0 && row24Writes === 0 && sndMissing.length === 0 && done() && endOk && endOk.back_at_title && endOk.end_fields >= 249 && endOk.end_bytes_wrong === 0 && endOk.end_text_wrong === 0 && endOk.title_text_wrong === 0 && endOk.winner_game === endOk.winner_model && checked > 0 && wrong === 0 && statusWrong === 0 && stateWrong === 0 && crashDiff.length === 0 && tears === 0 && paletteWrong === 0 && palette.length > fields / 3 - 2 &&
            Math.abs(passes - elapsed) <= 1 && coverage;
 h.finish({ scenario: SCENARIO, legend_text_wrong: legendWrong, row24_writes: row24Writes, sound: { events: sndCounts, missing: sndMissing.slice(0, 5) }, skill: "ABCDEF"[SKILL], players: JOINED.map(Number).join(""), game_end: endOk, status_wrong: statusWrong, first_status_wrong: firstStatus, wages: riders.map((r) => r.wages), fields, passes, elapsed_fields: elapsed, coverage, checked, bytes_wrong: wrong, first_wrong: firstWrong, state_wrong: stateWrong, first_state: firstState,
-           crashes: crashes.game.length, crashes_disagreeing: crashDiff.slice(0, 5), by_cause: { right_edge: causes[1], middle_right: causes[2], top_right: causes[3], landed_on: causes[4], hole: causes[5] },
+           crashes: crashes.game.length, crashes_disagreeing: crashDiff.slice(0, 5), by_cause: { obstacle: causes[1], enemy: causes[2], hole: causes[5] },
            respawns, outs, takes_back: takesBack, brake_fields: brakeFields, brake_stops: brakeStops, joins, model_crashes: process.env.CRASHLOG ? crashes.model : undefined,
            finals: riders.map((r) => ({ pos: r.pos, finished: r.finished, phase: r.phase, take: r.take })),
            palette_writes: palette.length, palette_wrong: paletteWrong, first_palette_wrong: firstPalette, screen_writes: writes, tearing_writes: tears, first_tear: firstTear, closest_rows_ahead_of_window: minGap,

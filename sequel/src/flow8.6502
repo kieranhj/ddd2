@@ -111,12 +111,29 @@
     STA field
     RTS
 
-\ print's (flow.6502) two pixels a byte, white: neither, the right, the left, both (MODE 2)
-.pr_white   EQUB &00, &15, &2A, &3F
 
 \ the legend's (flow.6502, decision 52) keys, a text a strip, centred under its labels (t_head:
 \ ACCEL at character columns 2-6, JUMP 8-11, BRAKE 13-17). `start` puts t_k4b in for player 4
 \ on a machine with no keypad.
+\ take_gold: X = a gold (enemy slot x 10 + E_GOLD + k) the rider of strip `strip` touches
+\ (collide, decision 53): gone, 80 wages, the 80 over the rider's left column (collect_gold's).
+.take_gold
+    TXA
+    LDY #0
+.tg_slot
+    CMP #PER_SLOT
+    BCC tg_k
+    SBC #PER_SLOT               \ (C set)
+    INY
+    BNE tg_slot                 \ (always)
+.tg_k
+    SEC
+    SBC #E_GOLD
+    STA hc + 3                  \ gold k
+    STY es
+    JSR slot_g                  \ eg
+    JMP cg_found                \ (specials.6502)
+
 .lg_key_lo  EQUB LO(t_k1), LO(t_k2), LO(t_k3), LO(t_k4)
 .lg_key_hi  EQUB HI(t_k1), HI(t_k2), HI(t_k3), HI(t_k4)
 .t_k1       EQUB G_SKIP + 2, G_S, G_H, G_I, G_F, G_T, G_SKIP + 2, G_Z, G_SKIP + 5, G_X, &FF

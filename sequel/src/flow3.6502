@@ -6,6 +6,8 @@
 .start_hi   EQUB HI(0), HI(6 * LEVEL_COLS - RIDER), HI(12 * LEVEL_COLS - RIDER), HI(18 * LEVEL_COLS - RIDER), HI(24 * LEVEL_COLS - RIDER), HI(30 * LEVEL_COLS - RIDER)
 .skill_keys EQUB 65, 100, 82, 50, 34, 67  \ A-F, internal numbers (measured: tools/ddd.mjs)
 .bit_of     EQUB 1, 2, 4, 8
+\ print's (flow.6502) two pixels a byte, white: neither, the right, the left, both (MODE 2)
+.pr_white   EQUB &00, &15, &2A, &3F
 \ the legend's keys (flow8.6502's lg_key)
 .t_k2       EQUB G_SKIP + 4, G_G, G_SKIP + 4, G_H, G_SKIP + 5, G_J, &FF
 .t_k3       EQUB G_SKIP + 4, G_COMMA, G_SKIP + 4, G_DOT, G_SKIP + 5, G_SLASH, &FF

@@ -8,3 +8,4 @@
 .t_join     EQUW SCREEN + 17 * ROW + 1 * 32                                    \ row 17
             EQUB G_A, G_C, G_C, G_E, G_L, G_E, G_R, G_A, G_T, G_E, G_SPACE   \ ACCELERATE TO JOIN
             EQUB G_T, G_O, G_SPACE, G_J, G_O, G_I, G_N, &FF
+.ground76   EQUB 0, 76, 152, 228    \ (specials.6502's: a ground's first column in its level)

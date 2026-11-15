@@ -4,6 +4,45 @@ What has landed, with the number that says it landed. `PLAN.md` is what is left.
 
 ---
 
+## The second play test (2026-11-14/15, decisions 48-53)
+
+The owner's notes, each built and checked on branch `playtest2-2026-11-14`, one commit each:
+
+| Note | Built | Shown able to fail |
+|---|---|---|
+| keys spread wider, the Master's keypad for player 4 | SHIFT Z X, G H J, , . /, keypad 4 5 6 (cursor keys with no keypad; OSBYTE 0 at load) - decision 49 | no cursor-key swap on a Model B: "the players did not join" |
+| the brake as the original's? | a dead stop, once a level (player_can_brake) - decision 48 revised | no re-arm at a level: field 840; more than once a level: field 1440 |
+| more lives | five takes - decision 50 | the 3-take model: 16,068 status bytes |
+| join while in play | an idle strip's accelerate: at the course's start, through a crash's end - decision 51 | a model that never joins: 5,113 bytes |
+| the keys on the title | each lane's labels and keys; "ACCELERATE TO JOIN" - decision 52 | no comma shift: 4 bytes |
+| pixel-perfect collisions | sprite against sprite; feet over ground; gold on touch - decision 53 | the carry slip (enemies never crashed); a gold under a respawn: both caught |
+
+**MEASURED** in jsbeeb 2.10.2: the keys on Model B and Master (OSBYTE 121 by host key name; SHIFT
+by its own number, 0); the Master's keypad in matrix columns 10-12, nothing on a Model B.
+
+**The RAM** (main RAM had 102 bytes free before; now 1):
+- the MOS's zero page &C5-&FA: 49 bytes of state, then print's and collide's (memwatch over
+  driven games, Model B and Master: untouched in play; `verify_break --zp-fill` with &00, &AA,
+  &FF on both: BREAK and SHIFT+BREAK come back);
+- the MOS's vectors &020A-&0235 (only IRQ1V read in play; `verify_break --fill`): the legend;
+- `tall_blank` and `sprite_land_obstacle_two_top` (all black) are screen row 24's first bytes,
+  never written (`verify_strips` counts writes there: 0): 96 bytes;
+- `crash_col` computed (5 + f DIV 3): `tall_horizontal_sea` into low RAM page &0A;
+- the stack page's image to &01D0 (the stack never below &01E4: memwatch, title and play);
+- `take_gold`, `respawn`, `slot_g` into page 8 and the stack page; `irq_timer_hook` into rows 0-2.
+
+**Two traps found** (CLAUDE.md): code the interrupt calls must be in place before `install_irq`
+(the hook in the stack page, copied after it, hung a Master); and page &0D's last 16 bytes are
+the MOS's ROM workspace table, written now only after `install_irq`.
+
+**The cost:** the collisions run on every field a rider is drawn again; the drops grew
+(`BUGS.md` #1: `play` 73 in 6,344 fields, D 1010 with two joins 20 in 1,664).
+
+**Suite** (`play`, `level`, B 0110, D 1010 with two joins, F 0001, `--model Master`, `--plant`,
+`verify_sound`, `verify_break` with its plant and zero-page fills on both machines): 0 bytes, 0
+states, 0 status-line bytes wrong everywhere; the legend right on both machines; crashes all
+agreed; failing only on the dropped fields, and the plants as they must.
+
 ## The brake (2026-11-12, decision 48)
 
 The owner, play-testing: "we're going to need a brake button". A third key each: **D, G, K,

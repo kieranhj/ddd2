@@ -28,3 +28,11 @@
     TXA
     AND #3
     RTS
+
+\ A small routine, here for room in main RAM (the RAM hunt, 2026-11-15):
+\ irq_timer_hook must be in place before install_irq (reloc copies rows 0-2; not the stack
+\ page, which start copies after it: an interrupt in between hung a Master, 2026-11-15).
+\ irq_timer_hook (main.6502's, irq.6502 calls it): a band the raster has left
+.irq_timer_hook
+    INC bands
+    RTS

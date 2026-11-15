@@ -47,6 +47,14 @@ play testing decides whether it matters.
   - `level` (four players) now drops 1 (940 fields for 939 passes); B 0110, D 1010, F 0001
     none.
   - 0 bytes wrong in all of it; 0 writes in a window.
+- **2026-11-15, after the second play test** (branch `playtest2-2026-11-14`; the scripted games
+  differ again: five takes, the brake, a mid-game join in D 1010):
+  - before the pixel-perfect collisions: `play` 7,782 passes in 7,828 fields (46 dropped), D 1010
+    with two joins 1,853 in 1,853 (none), worst field 48,784.
+  - with them (decision 53): `play` 6,271 in 6,344 (**73 dropped**, 1.2%), D 1010 1,644 in 1,664
+    (**20 dropped**), B 0110, F 0001, `level` none. The rider's part of a strip's update: p99
+    5,389 -> 7,214 cycles (D 1010); the four-rider worst field 53,770. The collisions run only on
+    a field the rider is drawn again (anything new in its columns) - during every jump field.
 
 ### Ruled out / done
 - Four respawns at once: fixed (the three-field respawn, 58,541 -> under 15,000).

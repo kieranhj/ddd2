@@ -53,8 +53,7 @@ from there (`python tools/listing.py symbols build/ddd.symbols.json NAME`).
 | `os.6502` | MOS entry points |
 | `lib/` | the kit's shared includes: `irq.6502`, `keydown.6502`, `beeb.h.6502`, `sfx50.6502` (the sequel's); loader, ZX02 unused |
 
-`spikes/swscroll/` is the software-scroll spike (its own `build.ps1`, after the main build).
-`examples/` and `docs/vertical-scroll.md` are the kit template's, not the sequel's.
+`spikes/swscroll/`: the software-scroll spike. `examples/`, `docs/vertical-scroll.md`: the kit's.
 
 ## The sequel (`sequel/`)
 
@@ -88,7 +87,7 @@ in `docs/done.md`'s latest entry):
   `tall_blank` is not stored: it is screen row 24's first 64 bytes (black, never written).
 - Low RAM: &0400-&07FF and &0900-&0CFF tables and sprites (`make_data.py`'s `low.6502`, copied by
   `reloc`); page &0D: `RTI` at &0D00 (decision 32), then small tables.
-- Page 8, the stack page below &01C0, &020A-&027F (the vectors BYTEV-IND3V too) and page 3 (texts,
+- Page 8, the stack page below &01D0, &020A-&027F (the vectors BYTEV-IND3V too) and page 3 (texts,
   the tune's pitches, flow's tables, the mirrored enemies; decision 46): copied by `start` after
   `install_irq`. Never &0200-&0209 or &0280-&02FF: BREAK reads the latter (`verify_break.mjs`).
 - The screen shows rows 3-30 only (decisions 31, 37, 41, 42; R6 28, R7 31, start &3780). Rows 0-2
@@ -107,14 +106,16 @@ in `docs/done.md`'s latest entry):
   VSync, at most two bands late, or it waits a field (a dropped field, never a tear); strip 3 may
   also start in the next field before line 120. `BUGS.md` #1: fields dropped in four-way lockstep.
 - **sfx50 effects must lie at &1000 or above** (its header says why).
+- **Code the interrupt calls must be in place before `install_irq`** (main, low RAM, rows 0-2),
+  not in the pages `start` copies after it (a Master hung). Page &0D's last 16 bytes are the
+  MOS's ROM workspace table: `start` writes them after `install_irq`.
 - **jsbeeb draws the picture 8 lines lower** with the shortened display (measured): check in b2
   and on hardware.
 
 **Oracles** (headless jsbeeb, after the build; `node tools/X.mjs`; exit 0 = pass):
-- `verify_strips.mjs`: drives the title, plays four scripted riders against a model of the game
-  re-made from the original (course, sprites, rules, decisions); every strip and the status line
-  every field, every crash, sound request and the game's end must agree; no write in a strip's
-  window. `--scenario level` (the cost's worst case), `--skill A-F --players 1010`, `--plant`,
+- `verify_strips.mjs`: the title and its legend, four scripted riders against a model re-made
+  from the original and the decisions: every strip, the status line, crash, sound request and the
+  game's end must agree; no write in a strip's window. `--scenario level` (the cost's worst case), `--skill A-F --players 1010`, `--plant`,
   `--early`, `--no-holes` (each must fail), `--video OUT.mp4`, `--model Master`, `--join P:F` (a
   player joins mid-game). In the harness, reads at &3000 and
   above name the bank (`"main"`), and `onExec` only works after `boot`.

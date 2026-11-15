@@ -1,4 +1,4 @@
-\ flow1.6502 - flow.6502's game end and its texts, assembled for the stack page below &01C0
+\ flow1.6502 - flow.6502's game end and its texts, assembled for the stack page below &01D0
 \ (the stack never went below &01D8, tools/memwatch.mjs; decision 32): copied there by start.
 
 \ game_done: after a pass. Every player out of takes or finished: the game's end.
@@ -67,6 +67,20 @@
     PLA                         \ (game_done was called from the loop: it does not return)
     PLA
     JMP title
+
+\ respawn (main.6502's): X = strip, phase 2: placed, its ground drawn (cu_erase). The rest of it
+\ drawn (draw_objects: the next field draws its rider again, and collide looks under it).
+.respawn
+    LDA #0
+    STA phase,X
+    JSR set_bases
+    JMP draw_objects
+\ slot_g (enemies.6502's): eg = slot `es` x PER_SLOT, its first enemy. Y kept.
+.slot_g
+    LDX es
+    LDA slot_base,X
+    STA eg
+    RTS
 
 .t_title
     EQUW TEXT_ROW + 1 * 32

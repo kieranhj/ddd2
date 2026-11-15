@@ -229,72 +229,7 @@ EIGHTY_PASSES = 17
     CLC
     RTS
 
-\ collect_gold: strip `strip`, the byte right of its rider's bottom line &1F. The lying gold
-\ there (its left column 1 or 2 left of that one): gone, 80 wages, the 80. C set if collected.
-.collect_gold
-    LDX strip
-    CLC                         \ the column right of the rider
-    LDA pos_lo,X
-    ADC #RIDER + 4
-    STA tmp
-    LDA pos_hi,X
-    ADC #0
-    STA tmp2
-    TXA
-    ASL A
-    STA es
-    LDA #2
-    STA hc + 2                  \ two slots
-.cg_slot
-    LDY es
-    LDA sl_level,Y
-    BMI cg_next_slot
-    JSR slot_g
-    LDA #0
-    STA hc + 3                  \ gold k
-.cg_gold
-    LDA eg
-    CLC
-    ADC hc + 3
-    TAX
-    LDA en_q + E_GOLD,X
-    CMP #SKY
-    BNE cg_next
-    LDA es                      \ lying: the column right of the rider - its column, 1 or 2
-    ASL A
-    ORA hc + 3
-    TAX
-    LDY es
-    CLC
-    LDA sl_start_lo,Y
-    ADC sl_glo,X
-    STA hc
-    LDA sl_start_hi,Y
-    ADC sl_ghi,X
-    STA hc + 1
-    SEC
-    LDA tmp
-    SBC hc
-    STA hc
-    LDA tmp2
-    SBC hc + 1
-    BNE cg_next
-    LDA hc
-    SEC
-    SBC #1
-    CMP #2
-    BCC cg_found
-.cg_next
-    INC hc + 3
-    LDA hc + 3
-    CMP #2
-    BNE cg_gold
-.cg_next_slot
-    INC es
-    DEC hc + 2
-    BNE cg_slot
-    CLC
-    RTS
+\ cg_found: the gold `eg` + hc + 3 of slot `es` taken (take_gold, flow8.6502).
 .cg_found
     JSR sound_gold
     LDA eg                      \ the gold goes
@@ -336,4 +271,3 @@ EIGHTY_PASSES = 17
     RTS
 
 .slot_base  EQUB 0, 10, 20, 30, 40, 50, 60, 70     \ a slot's first enemy
-.ground76   EQUB 0, 76, 152, 228

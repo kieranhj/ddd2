@@ -139,7 +139,7 @@ dt       = &54                  \ draw16: the window line of its top (0-24)
 lena     = &55                  \ draw16: lines in its first character row
 lenb     = &56                  \ draw16: lena + 8
 newt     = &57                  \ the rider's top this field (window line)
-pk       = &58                  \ 2: peek's pointer
+pk       = &58                  \ 2: a pointer (collide's: the rider)
 rq       = &5A                  \ 2: respawn's column
 oend     = &5C                  \ 2: an object's end
 vfrom    = &5E                  \ vacated lines, from
@@ -199,13 +199,16 @@ dead_t   = &E1
 rl_lo    = &E5         \ the next level's start, for the rider
 rl_hi    = &E9
 lidx     = &ED         \ the level at the strip's left edge (0: level 1)
-cause    = &F1         \ the last crash's reading (collide)
+cause    = &F1         \ the last crash's cause (collide: 1 an obstacle, 2 an enemy, 5 a hole)
 frames   = &F2         \ 2: fields (the VSync interrupt)
 pass_count = &F4       \ 2: passes of the loop since the game started
 pt       = &F6         \ 2: print's text (flow.6502)
 ti       = &F8         \ print's place in it
 lk       = &F9         \ legend's strip
-    ASSERT lk + 1 <= &FC
+rdrawn   = &FA         \ collide: the rider was drawn again this field (compose_rider)
+    ASSERT rdrawn + 1 <= &FC
+ocb      = &8E         \ collide: a column's offset in a sprite
+ogold    = &8F         \ collide: the obstacle's kind (its blocks' index in page &0D)
 
 IRQ_UNINSTALL = 0
 KEYDOWN_NO_INKEY = 1            \ keydown.6502: only keydown_int is called
@@ -330,9 +333,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     STX c8_step
 .vs_done
     JMP sound_field             \ the sound (sound.6502)
-.irq_timer_hook
-    INC bands
-    RTS
+\ (irq_timer_hook: marks0.6502, rows 0-2)
 
     INCLUDE "../../src/lib/irq.6502"
     INCLUDE "../../src/lib/keydown.6502"
@@ -645,6 +646,8 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
 \ has changed: what is under the rider's columns (the obstacle there, lines 24-39), the sky
 \ lines it has left black, then the rider. Sets newt.
 .compose_rider
+    LDA #0
+    STA rdrawn                  \ (collide: set if the rider is drawn again)
     LDX strip
     LDY js,X
     LDA #SKY
@@ -661,6 +664,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     CMP #SKY
     BNE cr_under                \ in the air: what is under it shows
     LDA drawn_t,X
+    AND #&7F                    \ (bit 7: draw_objects' mark)
     CMP #SKY
     BEQ cr_rider                \ on the ground, and was: it covers lines 24-39 itself
 .cr_under
@@ -705,6 +709,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     LDX strip
     LDA newt
     STA drawn_t,X
+    STA rdrawn                  \ (newt > 0)
     STA dt
     LDA #RIDER
     STA dcol
@@ -833,79 +838,221 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     BNE ru_col
     RTS
 
-\ collide: strip `strip`, its rider drawn with its top at newt. The original's reads of the
-\ screen (main_game_loop, check_for_collision, update_player). C set: a crash, `cause` saying
-\ which: 1 right edge, 2 middle right, 3 top right, 4 under it in the air, 5 a hole.
+\ collide: strip `strip`, its rider drawn with its top at newt. PIXEL-PERFECT (decision 53): a
+\ crash when a lit pixel of the rider is on a lit pixel of an obstacle (cause 1) or of an enemy -
+\ the spider and the helicopter too (cause 2) - each against its own sprite, not the screen; a
+\ gold it touches is taken (if nothing crashes it), the 80 is only a score. On the ground, a hole
+\ (cause 5) when no lit byte of its bottom line has ground under it. Only a field the rider was
+\ drawn again (compose_rider: anything changed in its columns, or it moved) can it touch anything
+\ new; the ground is read every field. C set: a crash.
 .collide
+    LDA rdrawn
+    BEQ cl_look
+    JSR find_under              \ the obstacles under its columns (before pk: it may use it)
+.cl_look
+    LDX strip
+    LDY rider_tall,X            \ the rider: its look buffer, as drawn
+    LDA tall_lo,Y : STA pk
+    LDA tall_hi,Y : STA pk + 1
+    LDA #5
+    STA cause
+    LDA js,X
+    BNE cl_air
+    JSR feet                    \ on the ground: over a hole?
+    BCS cl_ret
+.cl_air
+    CLC
+    LDA rdrawn
+    BNE cl_new
+.cl_ret
+    RTS                         \ nothing new in its columns (C clear), or a hole (C set)
+.cl_new
     LDA #1
     STA cause
-    LDA newt
+    LDX #3
+.cl_ob
+    STX cc
+    LDA ukind,X
+    BMI cl_ob_next
+    STA ogold                   \ (its kind)
+    LDA uoc,X                   \ its column: 8 bytes from uoc x 8 in each block
+    ASL A : ASL A : ASL A
+    STA ocb
+    LDA #SKY                    \ its top block, lines 24-31, then its bottom, 32-39
+.cl_blk
+    PHA
+    LDY ogold
     CLC
-    ADC #15
-    LDY #RIDER + 4
-    JSR peek                    \ right_edge: the column right of it, its bottom line
-    BEQ cl_mid
-    CMP #&1F                    \ the gold's colour: collected, no crash (main_game_loop)
-    BNE cl_hit
-    JSR collect_gold
-    BCC cl_hit                  \ (no gold there after all: lit, a crash)
-    CLC
-    RTS
-.cl_mid
-    INC cause
-    LDA newt
+    LDA spr_top_lo,Y : ADC ocb : STA d1
+    LDA spr_top_hi,Y : ADC #0  : STA d1 + 1
+    PLA
+    PHA
+    JSR ov_box8
+    PLA
+    BCS cl_ret
+    LDY ogold                   \ the bottom block's pointers: 18 on (page &0D)
     CLC
     ADC #8
-    LDY #RIDER + 4
-    JSR peek                    \ middle right
-    BNE cl_hit
-    INC cause
-    LDA newt
+    CMP #SKY + 16
+    BCS cl_ob_next
+    PHA
+    TYA
+    ADC #spr_bot_lo - spr_top_lo
+    STA ogold
+    PLA
+    BCC cl_blk                  \ (always)
+.cl_ob_next
+    LDX cc
+    DEX
+    BPL cl_ob
+    INC cause                   \ 2: the enemies, this field's list (enemy_draw), in its order
+    LDA #0
+    STA eo
+.cl_en
+    LDY eo
+    CPY en_n
+    BEQ cl_none
+    LDA en_ns,Y
+    CMP #TALL_EIGHTY
+    BEQ cl_en_next
+    LDA en_nc,Y                 \ any of its columns over the rider's? (enemies.6502)
+    JSR rider_cols              \ (Y kept)
+    BCC cl_en_next
+    LDX #3
+.cl_ec
+    STX cc
+    TXA                         \ its column under rider column c: RIDER + c - its column
+    CLC
+    ADC #RIDER
     SEC
-    SBC #1
-    LDY #RIDER + 4
-    JSR peek                    \ top right: the line above it
-    BNE cl_hit
-    INC cause
-    LDX strip
-    LDA js,X
-    BEQ cl_ground
-    LDA newt
+    SBC en_nc,Y                 \ (&80, off the screen: never 0-3)
+    CMP #4
+    BCS cl_ec_next
+    ASL A : ASL A : ASL A : ASL A
+    STA ocb                     \ 16 bytes a column
+    LDX en_ns,Y
     CLC
-    ADC #16
-    LDY #RIDER
-    JSR peek                    \ in the air: the line under its left column
-    BNE cl_hit
+    LDA tall_lo,X : ADC ocb : STA d1
+    LDA tall_hi,X : ADC #0  : STA d1 + 1
+    LDA en_nt,Y
+    LDX #16
+    JSR ov_box
+    BCC cl_ec_next
+    LDY eo
+    LDA en_ns,Y
+    CMP #TALL_GOLD
+    BEQ cl_take
+    SEC                         \ a crash (the CMP took C)
+    RTS
+.cl_take
+    LDX en_g,Y                  \ a gold: taken (take_gold, flow8.6502), and on
+    JSR take_gold
+    BCS cl_en_next              \ (always: it ends C set)
+.cl_ec_next
+    LDY eo
+    LDX cc
+    DEX
+    BPL cl_ec
+.cl_en_next
+    INC eo
+    BNE cl_en                   \ (always)
+.cl_none
+    CLC
+.cl_rts
+    RTS
+
+\ ov_box: A = another sprite's top line T, X its lines h; (d1) its column at T; the rider's
+\ column cc (pk: the rider). C set: a pixel lit in both, on a line they share. The rider's
+\ line i is its line i - k, k = T - newt: (d1) moved back k so one index reads both.
+.ov_box8
+    LDX #8
+.ov_box
+    STX tmp2
+    SEC
+    SBC newt
+    STA tmp                     \ k
+    CLC
+    ADC tmp2                    \ k + h: past the rider's last shared line
+    BMI ob_none                 \ (all of it above the rider)
+    CMP #16
+    BCC ob_hi
+    LDA #16
+.ob_hi
+    STA tmp2                    \ hi
+    SEC                         \ (d1) - k
+    LDA d1 : SBC tmp : STA d1
+    BCS ob_k
+    DEC d1 + 1
+.ob_k
+    LDA tmp
+    BPL ob_lo
+    INC d1 + 1                  \ k < 0: it took k + 256
+    LDA #0                      \ lo: 0
+    STA tmp
+.ob_lo
+    CMP tmp2
+    BCS ob_none                 \ lo >= hi: no line shared
+    LDA cc                      \ the rider's column: 16 bytes a column
+    ASL A : ASL A : ASL A : ASL A
+    ADC pk : STA d0             \ (C clear)
+    LDA pk + 1 : ADC #0 : STA d0 + 1
+    LDY tmp2
+.ov_loop                        \ (d0),Y the rider's byte, (d1),Y the other's: a MODE 2 byte is two
+    DEY                         \ pixels, the left in bits 7 5 3 1, the right in 6 4 2 0
+    LDA (d0),Y
+    BEQ ov_next
+    STA tmp2
+    LDA (d1),Y
+    BEQ ov_next
+    TAX
+    AND #&AA
+    BEQ ov_right
+    LDA tmp2
+    AND #&AA
+    BNE ov_hit
+.ov_right
+    TXA
+    AND #&55
+    BEQ ov_next
+    LDA tmp2
+    AND #&55
+    BNE ov_hit
+.ov_next
+    CPY tmp
+    BNE ov_loop
+.ob_none
     CLC
     RTS
-.cl_ground
-    INC cause
-    LDA #SKY + 16
-    LDY #RIDER
-    JSR peek                    \ on the ground: the ground under its left column
-    BEQ cl_hit
-    CLC
-    RTS
-.cl_hit
+.ov_hit
     SEC
     RTS
 
-\ peek: A = window line (0-47), Y = screen column, strip `strip`. A = the screen byte, Z set
-\ if 0.
-.peek
-    PHA
-    LSR A : LSR A : LSR A
-    LDX strip
+\ feet: X = strip, its rider on the ground (pk). C set: none of its bottom line's lit pixels has a
+\ lit ground pixel under it (the ground row's top line; a hole is black) - ov_box, with that line
+\ taken as the rider's last.
+.feet
+    LDY wix,X
+    LDA #3
+.ft_col
+    STA cc
+    ASL A : ASL A : ASL A       \ the ground under rider column c: 8 bytes a column
+    ADC #LO(RIDER * 8)          \ (C clear)
+    ADC wrow_lo + 5,Y : STA d1
+    LDA wrow_hi + 5,Y : ADC #HI(RIDER * 8) : STA d1 + 1
+    STY ocb
+    LDA #SKY + 15
+    LDX #1
+    JSR ov_box
+    BCS ft_ok                   \ a foot on the ground
+    LDY ocb
+    LDA cc
+    SEC
+    SBC #1
+    BCS ft_col
+    SEC                         \ no foot on the ground: a hole
+    RTS
+.ft_ok
     CLC
-    ADC wix,X
-    TAX
-    CLC
-    LDA wrow_lo,X : ADC col8_lo,Y : STA pk
-    LDA wrow_hi,X : ADC col8_hi,Y : STA pk + 1
-    PLA
-    AND #7
-    TAY
-    LDA (pk),Y
     RTS
 
 \ draw16: the tall sprite `ts`, its top at window line `dt` (0-24), screen columns dcol to
@@ -1080,10 +1227,15 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     STA dt
     CPY #CRASH_FLY
     BCS cu_dead
-    LDA crash_col,Y             \ flying
-    CLC
-    ADC #RIDER
-    STA dcol
+    TYA                         \ flying: from 5 columns right, a column a pass (3 fields)
+    LDX #RIDER + 4
+.cu_div3
+    INX
+    SEC
+    SBC #3
+    BCS cu_div3
+    STX dcol
+    LDX strip
     LDA crash_t,Y
     STA dt
     CPY #0
@@ -1213,12 +1365,7 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     STA dcol
     JMP draw16                  \ the dead rider
 
-\ respawn: X = strip, phase 2: placed, its ground drawn (cu_erase). The rest of it drawn.
-.respawn
-    LDA #0
-    STA phase,X
-    JSR set_bases
-    JMP draw_objects
+\ (respawn: flow1.6502, the stack page)
 
 \ place: X = strip, its picture erased. Standing, at the first column past the crash with
 \ CLEAR columns clear (decision 26); the levels and grounds it has reached. X kept.
@@ -1417,7 +1564,11 @@ SECTION ddd2, org = ORG_AT, load = LOAD_AT, exec = reloc - ORG_AT + LOAD_AT, fil
     ADC #TALL_RIDER
     JSR set_look
     STA ts
-    JMP draw16
+    JSR draw16
+    LDX strip                   \ (on the ground) marked: the next field draws it again and collide
+    LDA #SKY + &80              \ looks under it - a gold may lie where a respawn or a join puts it
+    STA drawn_t,X               \ (decision 53). compose_rider takes bit 7 off for its path.
+    RTS
 
 \ ---------------------------------------------------------------------------------------------
 \ objects and columns
@@ -1615,6 +1766,9 @@ WS = 7 * ROW                    \ one strip to the next
 \ hunt, docs/done.md): their bytes, with their labels set to where reloc puts them.
     INCLUDE "../build/low.6502"
 \ page &0D's tail, straight after its image in the file: reloc's page copy brings it.
+\ Its last 16 bytes, &0DF0-&0DFF, are the MOS's table of the ROMs' workspace, which the MOS and
+\ DFS read while the game loads: reloc leaves them, `start` copies them once the MOS is done
+\ (junk there at load hung a Master, 2026-11-15; BREAK rebuilds the table).
 SECTION pagedt, org = LOW_D + LOW_D_USED, guard = LOW_D + 256
     INCLUDE "../build/sound_pitch.6502"
 ENDSECTION
@@ -1627,7 +1781,7 @@ SECTION page8, org = &0800, guard = &0900
 .p8_end
 ENDSECTION
 .p1_image
-SECTION page1, org = &0100, guard = &01C0
+SECTION page1, org = &0100, guard = &01D0    \ (the stack: never below &01E4, memwatch 2026-11-15)
     INCLUDE "flow1.6502"
 .p1_end
 ENDSECTION
@@ -1688,12 +1842,14 @@ LOAD_OF_R0 = r0_image - ORG_AT + LOAD_AT
     LDA #HI(LOW_B)     : STA d1 + 1
     LDX #LOW_B_PAGES
     JSR reloc_pages - ORG_AT + LOAD_AT
-    LDA #LO(LOAD_OF_D) : STA d0
-    LDA #HI(LOAD_OF_D) : STA d0 + 1
-    LDA #LO(LOW_D)     : STA d1
-    LDA #HI(LOW_D)     : STA d1 + 1
-    LDX #LOW_D_PAGES
-    JSR reloc_pages - ORG_AT + LOAD_AT
+    LDY #&EF                    \ page &0D, but not &0DF0-&0DFF (start copies those)
+.reloc_d
+    LDA LOAD_OF_D,Y
+    STA LOW_D,Y
+    DEY
+    CPY #&FF
+    BNE reloc_d
+    ASSERT LOW_D_PAGES = 1
     LDA #LO(LOAD_AT) : STA d0
     LDA #HI(LOAD_AT) : STA d0 + 1
     LDA #LO(ORG_AT)  : STA d1
@@ -1761,6 +1917,12 @@ LOAD_OF_R0 = r0_image - ORG_AT + LOAD_AT
     LDA #HI(t_k4b) : STA lg_key_hi + 3 - &0800 + p8_image - ORG_AT + LOAD_AT   \ says so (page 8's image)
 .start_keypad
     JSR install_irq - ORG_AT + LOAD_AT  \ IRQ1V ours from here on; the MOS is not called again (BUGS.md #2)
+    LDX #15                     \ page &0D's last 16 bytes, now the MOS is done with them
+.start_d
+    LDA LOAD_OF_D + &F0,X
+    STA LOW_D + &F0,X
+    DEX
+    BPL start_d
     LDX #0                      \ page 8's code and the stack page's, from the file's tail (at
 .start_copy                     \ its load address, above anything the move down wrote; MODE 2
     LDA p8_image - ORG_AT + LOAD_AT,X   \ has not yet cleared it)

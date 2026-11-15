@@ -221,12 +221,7 @@
 .ew_rts
     RTS
 
-\ slot_g: eg = slot `es` x PER_SLOT, its first enemy. Y kept.
-.slot_g
-    LDX es
-    LDA slot_base,X
-    STA eg
-    RTS
+\ (slot_g: flow1.6502, the stack page)
 
 \ ---------------------------------------------------------------------------------------------
 \ enemy_draw: X = strip, the strip's objects already moved. Its enemies where they are this
