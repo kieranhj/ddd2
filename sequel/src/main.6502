@@ -180,9 +180,29 @@ phase    = &38         \ 0 riding, 1 the crash, 2 respawn, 3 out of takes
 nb_lo    = &3C         \ the next level's start after it
 nb_hi    = &40
 rtype    = &44         \ the level type the rider is in (0 land, 1 sea, 2 snow)
-take     = &48         \ the original's `take`: 1-3, out at 4
+take     = &48         \ the original's `take`: 1-5, out at 6 (decision 50)
 ltype    = &4C         \ the level type at the strip's left edge (column 0)
     ASSERT ltype + 4 = &50
+\ and more in the MOS's zero page, &C5-&FB (the RAM hunt, 2026-11-15): nothing reads or writes it
+\ once the game runs (tools/memwatch.mjs over driven games, Model B and Master), and BREAK comes
+\ back with it full of anything (verify_break.mjs --zp-fill, both machines). Each is set before
+\ it is read (strip_init, the crash, read_keys, game); the MOS writes here until `start`. Not &FC:
+\ the MOS's IRQ entry saves A there.
+pos_frac = &C5
+finished = &C9
+brakes   = &CD         \ brake held (bit 7; read_keys)
+can_brake = &D1        \ non-zero: the brake not yet used this level (decision 48)
+ct       = &D5         \ fields into the crash
+crash_tt = &D9         \ where the explosion is (window line)
+dead_col = &DD         \ where the dead rider is drawn
+dead_t   = &E1
+rl_lo    = &E5         \ the next level's start, for the rider
+rl_hi    = &E9
+lidx     = &ED         \ the level at the strip's left edge (0: level 1)
+cause    = &F1         \ the last crash's reading (collide)
+frames   = &F2         \ 2: fields (the VSync interrupt)
+pass_count = &F4       \ 2: passes of the loop since the game started
+    ASSERT pass_count + 2 <= &FC
 
 IRQ_UNINSTALL = 0
 KEYDOWN_NO_INKEY = 1            \ keydown.6502: only keydown_int is called
@@ -1573,22 +1593,8 @@ WS = 7 * ROW                    \ one strip to the next
 \ The per-strip constants (wrow, wix, obase, gbase, rider_tall) and the key tables are in
 \ page &0D (make_data.py, low.6502), from these same numbers:
     ASSERT SCREEN = &3000 AND ROW = 640
-.pos_frac   EQUB 0, 0, 0, 0
-.finished   EQUB 0, 0, 0, 0
-.brakes     EQUB 0, 0, 0, 0     \ brake held, per strip (bit 7; read_keys)
-.can_brake  EQUB 0, 0, 0, 0     \ non-zero: the brake not yet used this level (decision 48)
-.ct         EQUB 0, 0, 0, 0     \ fields into the crash
-.crash_tt   EQUB 0, 0, 0, 0     \ where the explosion is (window line)
-.dead_col   EQUB 0, 0, 0, 0     \ where the dead rider is drawn
-.dead_t     EQUB 0, 0, 0, 0
-.rl_lo      EQUB LO(LEVEL_COLS), LO(LEVEL_COLS), LO(LEVEL_COLS), LO(LEVEL_COLS)   \ the next level's start, for the rider
-.rl_hi      EQUB HI(LEVEL_COLS), HI(LEVEL_COLS), HI(LEVEL_COLS), HI(LEVEL_COLS)
-.lidx       EQUB 0, 0, 0, 0     \ the level at the strip's left edge (0: level 1)
-.c8_tick    EQUB 1              \ fields to the rotating colour's next step
-.c8_step    EQUB 0
-.cause      EQUB 0              \ the last crash's reading (collide)
-.frames     EQUW 0
-.pass_count EQUW 0
+.c8_tick    EQUB 1              \ fields to the rotating colour's next step (not zero page: the
+.c8_step    EQUB 0              \ interrupt reads them from install_irq on, set by the load)
 
     INCLUDE "enemies.6502"
     INCLUDE "specials.6502"

@@ -93,7 +93,8 @@ in `docs/done.md`'s latest entry):
 - The screen shows rows 3-30 only (decisions 31, 37, 41, 42; R6 28, R7 31, start &3780). Rows 0-2
   (&3000-&377F) hold code, copied once by `reloc`; row 31 (&7D80) holds the enemies', the status
   line's and the looks' state, set at each game's start.
-- Zero page: &00-&1F, &50-&8D, &90-&C4 (`main.6502`'s names).
+- Zero page: &00-&1F, &20-&4F (the strips' state), &50-&8D, &90-&C4, and the MOS's &C5-&F5
+  (untouched in play, BREAK-safe with any contents: `verify_break.mjs --zp-fill`; not &FC).
 
 **Traps:**
 - **Never call the MOS after `start`** (decision 46): its workspace in pages 2-3 holds the game's
@@ -118,7 +119,8 @@ in `docs/done.md`'s latest entry):
   above name the bank (`"main"`), and `onExec` only works after `boot`.
 - `verify_sound.mjs`: the title's tune against DENIS2's notes through the MOS's measured periods;
   the game's effect and engine requests. `--plant` must fail.
-- `verify_break.mjs`: BREAK in a game gives BASIC with the DFS, SHIFT+BREAK the title. `--plant`.
+- `verify_break.mjs`: BREAK in a game gives BASIC with the DFS, SHIFT+BREAK the title. `--plant`
+  (must fail; Model B only - a Master's BREAK survives it), `--zp-fill V`, `--model Master`.
 - `measure_crash.mjs`, `measure_palette.mjs`: the original's crash timing, its rotating colour.
 
 The original measured in headless jsbeeb (after the build; `node tools/X.mjs`): `tools/ddd.mjs`
