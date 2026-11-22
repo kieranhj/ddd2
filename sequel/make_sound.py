@@ -18,7 +18,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, '..')
-KIT = os.environ.get('BEEB_PORT_KIT', os.path.join(ROOT, '..', '..', 'Repos', 'beeb-port-kit'))
+KIT = os.environ.get('BEEB_PORT_KIT', os.path.join(ROOT, '..', 'beeb-port-kit'))
 BS = chr(92)
 
 
