@@ -5,7 +5,7 @@ Guidance for Claude Code in this repository: a buildable source for **Dare Devil
 four-player sequel, **Dare Devil Denis 2** (`sequel/`), each player on one of the original's strips,
 scrolled in software at 50 Hz (decision 9). `PLAN.md` is what is left to do, `docs/done.md` what has
 landed, `docs/decisions.md` every agreed decision, `BUGS.md` the bug log. The method is
-beeb-port-kit's (`C:\Users\khcon\OneDrive\BEEB\Repos\beeb-port-kit`, `PORTING.md`, section 2.1c is
+beeb-port-kit's (`D:\beeb\mine\beeb-port-kit`, `PORTING.md`, section 2.1c is
 this kind of job; Stryker's Run at `..\strykers` is the worked example); its skills are in
 `.claude/skills/`. Budget: keep this file under 150 lines.
 
